@@ -30,17 +30,14 @@ services:
     build:
       context: ./agendamiento-autos-front
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: http://localhost:4004
     container_name: honda-frontend
     restart: always
-    environment:
-      - VITE_API_BASE=http://localhost:4004
     ports:
       - "5173:80"
     depends_on:
       - backend
-    volumes:
-      - ./agendamiento-autos-front:/app
-      - /app/node_modules
 
 volumes:
   honda-db-data:

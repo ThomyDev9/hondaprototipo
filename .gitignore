@@ -1,0 +1,13 @@
+# Node
+node_modules/
+dist/
+
+# Env
+.env
+.env.docker
+
+# Docker
+*.log
+
+# OS
+.DS_Store
