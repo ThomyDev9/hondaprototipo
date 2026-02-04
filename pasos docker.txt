@@ -1,0 +1,34 @@
+docker back
+
+cd agendamiento-autos 
+ls
+crear archivo Dockerfile
+
+# FROM node:18-alpine
+
+# WORKDIR /app
+
+# COPY package*.json ./
+# RUN npm install
+
+# COPY . .
+
+# EXPOSE 4004
+
+# CMD ["npm", "run", "start"]
+
+
+
+# Construir la imagen
+abrir docker desktop
+
+docker pull node:18-alpine
+
+docker build -t honda-backend .
+
+#lanzar backend
+docker run -p 4004:4004 honda-backend
+
+#crear .env en la raiz con conexion de .env de backend
+
+ docker-compose up -d

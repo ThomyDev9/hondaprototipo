@@ -3,6 +3,7 @@ import express from "express";
 import pool from "../services/db.js"; // conexión a Postgres
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { generarToken } from "../utils/jwt.js"; // utilidades JWT
+import bcrypt from "bcrypt";
 
 const router = express.Router();
 
@@ -15,8 +16,8 @@ router.post("/login", async (req, res) => {
 
     try {
         const result = await pool.query(
-            "SELECT id, email, full_name, is_active, bloqueado FROM user_profiles WHERE email=$1 AND password=$2",
-            [email, password],
+            "SELECT id, email, full_name, password, is_active, bloqueado FROM user_profiles WHERE email=$1",
+            [email],
         );
 
         if (result.rows.length === 0) {
@@ -24,7 +25,26 @@ router.post("/login", async (req, res) => {
         }
 
         const user = result.rows[0];
-        const token = generarToken(user);
+
+        // 🔐 comparar password plano vs hash
+        const isValid = await bcrypt.compare(password, user.password);
+
+        if (!isValid) {
+            return res.status(401).json({ error: "Credenciales inválidas" });
+        }
+
+        // opcional: bloquear usuarios
+        if (user.bloqueado) {
+            return res.status(403).json({ error: "Usuario bloqueado" });
+        }
+
+        const token = generarToken({
+            id: user.id,
+            email: user.email,
+        });
+
+        // nunca mandes el password al frontend
+        delete user.password;
 
         res.json({ token, user });
     } catch (err) {

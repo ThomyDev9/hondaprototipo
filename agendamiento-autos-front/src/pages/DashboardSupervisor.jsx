@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 const token = localStorage.getItem("access_token");
+const API_BASE = import.meta.env.VITE_API_URL;
 
 function Card({ label, value, color = "#2563EB" }) {
     const style = {
@@ -25,7 +26,7 @@ export default function DashboardSupervisor() {
 
     useEffect(() => {
         // Dashboard
-        fetch("http://localhost:4004/supervisor/dashboard", {
+        fetch(`${API_BASE}/supervisor/dashboard`, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },
@@ -41,7 +42,7 @@ export default function DashboardSupervisor() {
             });
 
         // Agentes
-        fetch("http://localhost:4004/supervisor/agentes", {
+        fetch(`${API_BASE}/supervisor/agentes`, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },

@@ -4,10 +4,10 @@ import DashboardAdmin from "./pages/DashboardAdmin";
 import DashboardSupervisor from "./pages/DashboardSupervisor";
 import DashboardAgente from "./pages/DashboardAgente";
 import CargarBases from "./pages/CargarBases";
-import ListadoBases from "./pages/listadoBases";
+import ListadoBases from "./pages/ListadoBases";
 import UsuariosAdmin from "./pages/UsuariosAdmin";
 
-const API_BASE = "http://localhost:4004";
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 function App() {
     const [email, setEmail] = useState("admin@citas.com");

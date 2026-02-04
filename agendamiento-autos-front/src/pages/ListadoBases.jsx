@@ -1,7 +1,7 @@
 // src/pages/ListadoBases.jsx
 import { useEffect, useState } from "react";
 
-const API_BASE = "http://localhost:4004";
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 export default function ListadoBases() {
     const [bases, setBases] = useState([]);

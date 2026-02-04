@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import UserFormModal from "../components/UserFormModal";
 
-const API_BASE = "http://localhost:4004"; // mismo que usas en App.jsx
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 function UsuariosAdmin() {
     const [usuarios, setUsuarios] = useState([]);
