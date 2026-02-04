@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 const token = localStorage.getItem("access_token");
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 function Card({ label, value, color = "#2563EB" }) {
     const style = {

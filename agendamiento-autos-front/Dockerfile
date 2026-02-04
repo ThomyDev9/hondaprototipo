@@ -1,8 +1,14 @@
 # Stage 1: build
 FROM node:18-alpine AS build
 WORKDIR /app
+
+# 👉 declarar la variable que viene de docker-compose
+ARG VITE_API_BASE
+ENV VITE_API_BASE=$VITE_API_BASE
+
 COPY package*.json ./
 RUN npm install
+
 COPY . .
 RUN npm run build
 
