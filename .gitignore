@@ -2,9 +2,10 @@
 node_modules/
 dist/
 
-# Env
+# Env (solo locales / secretos)
 .env
-.env.docker
+.env.local
+.env.production
 
 # Docker
 *.log
