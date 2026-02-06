@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 const token = localStorage.getItem("access_token");
-const API_BASE = import.meta.env.VITE_API_BASE;
 
 function Card({ label, value, color = "#2563EB" }) {
     const style = {
@@ -26,6 +25,11 @@ export default function DashboardSupervisor() {
 
     useEffect(() => {
         // Dashboard
+        const API_BASE = import.meta.env.VITE_API_BASE;
+        if (!token) {
+            setError("No hay sesión activa");
+            return;
+        }
         fetch(`${API_BASE}/supervisor/dashboard`, {
             headers: {
                 Authorization: `Bearer ${token}`,
