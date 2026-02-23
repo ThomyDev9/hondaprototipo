@@ -1,8 +1,11 @@
 // src/routes/agente.routes.js
 import express from "express";
-import pool from "../services/db.js"; // conexión a Postgres
-import { requireAuth } from "../middleware/auth.middleware.js";
-import { loadUserRoles, requireRole } from "../middleware/role.middleware.js";
+import pool from "../../services/db.js"; // conexión a MySQL
+import { requireAuth } from "../../middleware/auth.middleware.js";
+import {
+    loadUserRoles,
+    requireRole,
+} from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
@@ -25,18 +28,18 @@ async function requireNotBlocked(req, res, next) {
             return res.status(401).json({ error: "Usuario no autenticado" });
         }
 
-        const result = await pool.query(
+        const [rows] = await pool.query(
             `SELECT bloqueado
        FROM user_profiles
-       WHERE id = $1`,
+       WHERE id = ?`,
             [userId],
         );
 
-        if (result.rows.length === 0) {
+        if (rows.length === 0) {
             return res.status(404).json({ error: "Usuario no encontrado" });
         }
 
-        const bloqueado = result.rows[0].bloqueado;
+        const bloqueado = rows[0].bloqueado;
 
         if (bloqueado) {
             return res.status(403).json({
@@ -76,16 +79,16 @@ router.get("/resumen-hoy", ...agenteMiddlewares, async (req, res) => {
         );
         const fin = new Date(inicio.getTime() + 24 * 60 * 60 * 1000); // +1 día
 
-        const result = await pool.query(
+        const [rows] = await pool.query(
             `SELECT estado_final
              FROM agente_gestiones_log
-             WHERE agente_id = $1
-               AND created_at >= $2
-               AND created_at < $3`,
+             WHERE agente_id = ?
+               AND created_at >= ?
+               AND created_at < ?`,
             [agenteId, inicio.toISOString(), fin.toISOString()],
         );
 
-        const gestiones = result.rows;
+        const gestiones = rows;
 
         const total_gestionados = gestiones.length;
         const total_citas = gestiones.filter(
@@ -117,18 +120,16 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
         const estadosElegibles = ["pendiente", "re_llamada", "sin_contacto"];
 
         // Buscar siguiente registro
-        const result = await pool.query(
+        const [registros] = await pool.query(
             `SELECT id, base_id, nombre_completo, placa, telefono1, telefono2, modelo, intentos_totales, pool, estado
        FROM base_registros
-       WHERE pool = $1
-         AND estado = ANY($2)
+       WHERE pool = ?
+         AND estado IN (?)
          AND (intentos_totales IS NULL OR intentos_totales < 6)
-       ORDER BY intentos_totales ASC NULLS FIRST
+       ORDER BY intentos_totales ASC
        LIMIT 1`,
             ["activo", estadosElegibles],
         );
-
-        const registros = result.rows;
         if (registros.length === 0) {
             return res
                 .status(404)
@@ -141,12 +142,11 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
         // Actualizar registro a "en_gestion"
         const updResult = await pool.query(
             `UPDATE base_registros
-       SET estado = $1,
-           agente_id = $2,
-           updated_at = $3,
-           intentos_totales = $4
-       WHERE id = $5
-       RETURNING *`,
+       SET estado = ?,
+           agente_id = ?,
+           updated_at = ?,
+           intentos_totales = ?
+       WHERE id = ?`,
             [
                 "en_gestion",
                 agenteId,
@@ -156,18 +156,18 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
             ],
         );
 
-        if (updResult.rowCount === 0) {
+        if (updResult.affectedRows === 0) {
             return res
                 .status(500)
                 .json({ error: "Error tomando el registro para gestión" });
         }
 
         // Obtener nombre de la base
-        const baseResult = await pool.query(
-            `SELECT name FROM bases WHERE id = $1`,
+        const [baseRows] = await pool.query(
+            `SELECT name FROM bases WHERE id = ?`,
             [reg.base_id],
         );
-        const baseInfo = baseResult.rows[0];
+        const baseInfo = baseRows[0];
 
         return res.json({
             registro: {
@@ -203,13 +203,13 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         }
 
         // 1) Leer registro
-        const regResult = await pool.query(
+        const [regRows] = await pool.query(
             `SELECT id, base_id, nombre_completo, placa, intentos_totales, telefono1, telefono2
        FROM base_registros
-       WHERE id = $1`,
+       WHERE id = ?`,
             [registro_id],
         );
-        const reg = regResult.rows[0];
+        const reg = regRows[0];
         if (!reg) {
             return res.status(404).json({ error: "Registro no encontrado" });
         }
@@ -219,10 +219,10 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         // 2) Actualizar estado del registro
         await pool.query(
             `UPDATE base_registros
-       SET estado = $1,
-           agente_id = $2,
-           updated_at = $3
-       WHERE id = $4`,
+       SET estado = ?,
+           agente_id = ?,
+           updated_at = ?
+       WHERE id = ?`,
             [estado_final, agenteId, ahora, registro_id],
         );
 
@@ -232,7 +232,7 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
             await pool.query(
                 `INSERT INTO citas
          (base_registro_id, base_id, agente_id, fecha_cita, agencia_cita, estado_cita, comentarios, nombre_cliente, placa)
-         VALUES ($1,$2,$3,$4,$5,'programada',$6,$7,$8)`,
+         VALUES (?,?,?,?,?,'programada',?,?,?)`,
                 [
                     registro_id,
                     reg.base_id,
@@ -251,7 +251,7 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         await pool.query(
             `INSERT INTO gestiones
        (base_id, base_registro_id, agente_id, telefono_contacto, intento_n, comentario, estado_gestion, sub_estatus)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+       VALUES (?,?,?,?,?,?,?,?)`,
             [
                 reg.base_id,
                 registro_id,
@@ -268,7 +268,7 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         await pool.query(
             `INSERT INTO agente_gestiones_log
        (agente_id, base_registro_id, estado_final, created_at)
-       VALUES ($1,$2,$3,$4)`,
+       VALUES (?,?,?,?)`,
             [agenteId, registro_id, estado_final, ahora],
         );
 
@@ -281,16 +281,14 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         );
         const fin = new Date(inicio.getTime() + 24 * 60 * 60 * 1000);
 
-        const resumenResult = await pool.query(
+        const [gestionesHoy] = await pool.query(
             `SELECT estado_final
        FROM agente_gestiones_log
-       WHERE agente_id = $1
-         AND created_at >= $2
-         AND created_at < $3`,
+       WHERE agente_id = ?
+         AND created_at >= ?
+         AND created_at < ?`,
             [agenteId, inicio.toISOString(), fin.toISOString()],
         );
-
-        const gestionesHoy = resumenResult.rows;
         const total_gestionados = gestionesHoy.length;
         const total_citas = gestionesHoy.filter(
             (g) => g.estado_final === "ub_exito_agendo_cita",
@@ -334,7 +332,7 @@ router.post("/estado", ...agenteMiddlewares, async (req, res) => {
             await pool.query(
                 `UPDATE base_registros
          SET estado = 'pendiente'
-         WHERE id = $1 AND estado = 'en_gestion'`,
+         WHERE id = ? AND estado = 'en_gestion'`,
                 [registro_id],
             );
         }
@@ -342,12 +340,12 @@ router.post("/estado", ...agenteMiddlewares, async (req, res) => {
         // Actualizar estado operativo del agente
         const updResult = await pool.query(
             `UPDATE user_profiles
-       SET estado_operativo = $1
-       WHERE id = $2`,
+       SET estado_operativo = ?
+       WHERE id = ?`,
             [estado, agenteId],
         );
 
-        if (updResult.rowCount === 0) {
+        if (updResult.affectedRows === 0) {
             return res
                 .status(500)
                 .json({ error: "No se pudo actualizar el estado del agente" });
@@ -356,7 +354,7 @@ router.post("/estado", ...agenteMiddlewares, async (req, res) => {
         // Insertar log de cambio de estado
         await pool.query(
             `INSERT INTO agente_estados_log (agente_id, estado, created_at)
-       VALUES ($1, $2, $3)`,
+       VALUES (?, ?, ?)`,
             [agenteId, estado, new Date().toISOString()],
         );
 
@@ -376,15 +374,13 @@ router.get("/citas", ...agenteMiddlewares, async (req, res) => {
     try {
         const agenteId = req.user.id;
 
-        const result = await pool.query(
+        const [citas] = await pool.query(
             `SELECT id, fecha_cita, estado_cita, nombre_cliente, placa, agencia_cita
        FROM citas
-       WHERE agente_id = $1
+       WHERE agente_id = ?
        ORDER BY fecha_cita ASC`,
             [agenteId],
         );
-
-        const citas = result.rows;
 
         return res.json({ citas });
     } catch (err) {
@@ -407,7 +403,7 @@ router.post("/bloquearme", requireAuth, async (req, res) => {
             await pool.query(
                 `UPDATE base_registros
          SET estado = 'pendiente'
-         WHERE id = $1 AND estado = 'en_gestion'`,
+         WHERE id = ? AND estado = 'en_gestion'`,
                 [registro_id],
             );
         }
@@ -416,11 +412,11 @@ router.post("/bloquearme", requireAuth, async (req, res) => {
         const updResult = await pool.query(
             `UPDATE user_profiles
        SET bloqueado = true
-       WHERE id = $1`,
+       WHERE id = ?`,
             [userId],
         );
 
-        if (updResult.rowCount === 0) {
+        if (updResult.affectedRows === 0) {
             return res
                 .status(500)
                 .json({ error: "No se pudo bloquear al usuario" });
@@ -429,7 +425,7 @@ router.post("/bloquearme", requireAuth, async (req, res) => {
         // Registrar log de bloqueo
         await pool.query(
             `INSERT INTO agente_estados_log (agente_id, estado, created_at)
-       VALUES ($1, $2, $3)`,
+       VALUES (?, ?, ?)`,
             [userId, "bloqueado", new Date().toISOString()],
         );
 
@@ -459,15 +455,13 @@ router.post(
             ).toISOString();
 
             // Buscar registros en_gestion viejos
-            const selResult = await pool.query(
+            const [colgados] = await pool.query(
                 `SELECT id
          FROM base_registros
          WHERE estado = 'en_gestion'
-           AND updated_at < $1`,
+           AND updated_at < ?`,
                 [limite],
             );
-
-            const colgados = selResult.rows;
             if (colgados.length === 0) {
                 return res.json({
                     message: "No hay registros colgados para limpiar.",
@@ -478,14 +472,17 @@ router.post(
             const ids = colgados.map((r) => r.id);
 
             // Actualizar registros colgados a pendiente
-            await pool.query(
-                `UPDATE base_registros
+            if (ids.length > 0) {
+                const placeholders = ids.map(() => "?").join(",");
+                await pool.query(
+                    `UPDATE base_registros
          SET estado = 'pendiente',
              agente_id = NULL,
-             updated_at = $1
-         WHERE id = ANY($2::uuid[])`,
-                [new Date().toISOString(), ids],
-            );
+             updated_at = ?
+         WHERE id IN (${placeholders})`,
+                    [new Date().toISOString(), ...ids],
+                );
+            }
 
             return res.json({
                 message: "Registros colgados limpiados correctamente",

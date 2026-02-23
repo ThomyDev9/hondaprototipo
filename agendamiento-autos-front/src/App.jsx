@@ -10,8 +10,8 @@ import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 const API_BASE = import.meta.env.VITE_API_BASE;
 
 function App() {
-    const [username, setUsername] = useState("admin");
-    const [password, setPassword] = useState("admin123");
+    const [username, setUsername] = useState("Akimobill1");
+    const [password, setPassword] = useState("lGpQEm194");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [userInfo, setUserInfo] = useState(null);

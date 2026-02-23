@@ -1,29 +1,82 @@
-import { useState } from "react";
-import { PageContainer } from "../components/common";
+import { useState, useEffect } from "react";
+import { PageContainer, Select, AutoComplete } from "../components/common";
+import { obtenerMapeos } from "../services/mapping.service";
+import { buscarCampanas } from "../services/campaign.service";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
 export default function CargarBases() {
     const [baseName, setBaseName] = useState("");
-    const [description, setDescription] = useState("");
+    const [mapeo, setMapeo] = useState("");
+    const [campania, setCampania] = useState("");
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState("");
     const [preview, setPreview] = useState([]);
+    const [mapeoOptions, setMapeoOptions] = useState([]);
+    const [loadingMapeos, setLoadingMapeos] = useState(false);
+    const [errors, setErrors] = useState({});
+
+    // Cargar mapeos al montar el componente
+    useEffect(() => {
+        const loadMapeos = async () => {
+            try {
+                setLoadingMapeos(true);
+                const data = await obtenerMapeos();
+                // Transformar a formato de Select
+                const options = data.map((m) => ({
+                    id: m.ID,
+                    label: m.descripcion,
+                }));
+                setMapeoOptions(options);
+            } catch (err) {
+                console.error("Error cargando mapeos:", err);
+                setStatus("Error al cargar los mapeos disponibles");
+            } finally {
+                setLoadingMapeos(false);
+            }
+        };
+
+        loadMapeos();
+    }, []);
+
+    // Validar formulario
+    const validarFormulario = () => {
+        const nuevosErrores = {};
+
+        if (!baseName.trim()) {
+            nuevosErrores.baseName = "El nombre de la base es obligatorio";
+        }
+
+        if (!mapeo) {
+            nuevosErrores.mapeo = "Debe seleccionar un mapeo";
+        }
+
+        if (!campania.trim()) {
+            nuevosErrores.campania = "La campaña es obligatoria";
+        }
+
+        if (!file) {
+            nuevosErrores.file = "Debe seleccionar un archivo Excel";
+        }
+
+        setErrors(nuevosErrores);
+        return Object.keys(nuevosErrores).length === 0;
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatus("");
         setPreview([]);
 
-        if (!file) {
-            setStatus("Por favor selecciona un archivo Excel.");
+        if (!validarFormulario()) {
             return;
         }
 
         try {
             const formData = new FormData();
             formData.append("baseName", baseName);
-            formData.append("description", description);
+            formData.append("mapeo", mapeo);
+            formData.append("campania", campania);
             formData.append("file", file);
 
             const resp = await fetch(`${API_BASE}/bases/upload`, {
@@ -40,6 +93,11 @@ export default function CargarBases() {
 
             setStatus(json.message || "Base cargada correctamente.");
             setPreview(json.preview || []);
+            // Limpiar formulario
+            setBaseName("");
+            setMapeo("");
+            setCampania("");
+            setFile(null);
         } catch (err) {
             console.error(err);
             setStatus("Error de conexión con el servidor.");
@@ -47,7 +105,7 @@ export default function CargarBases() {
     };
 
     return (
-        <PageContainer title="Cargar nueva base">
+        <PageContainer title="Cargar nueva base" fullWidth={true}>
             <div style={styles.wrapper}>
                 <p style={styles.subtitle}>
                     Sube un archivo Excel con los registros de clientes y
@@ -63,23 +121,34 @@ export default function CargarBases() {
                             onChange={(e) => setBaseName(e.target.value)}
                             style={styles.input}
                             placeholder="Ej: Base Honda Noviembre 2025"
-                            required
                         />
+                        {errors.baseName && (
+                            <span style={styles.errorText}>
+                                {errors.baseName}
+                            </span>
+                        )}
                     </label>
 
-                    <label style={styles.label}>
-                        Descripción
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            style={{
-                                ...styles.input,
-                                minHeight: "70px",
-                                resize: "vertical",
-                            }}
-                            placeholder="Ej: Clientes con mantenimiento pendiente, zona Quito."
-                        />
-                    </label>
+                    <Select
+                        label="Mapeo"
+                        options={mapeoOptions}
+                        value={mapeo}
+                        onChange={setMapeo}
+                        placeholder="Selecciona un mapeo"
+                        disabled={loadingMapeos}
+                        error={errors.mapeo}
+                        required={true}
+                    />
+
+                    <AutoComplete
+                        label="Campaña"
+                        value={campania}
+                        onChange={setCampania}
+                        onSearch={buscarCampanas}
+                        placeholder="Escribe el ID de la campaña..."
+                        error={errors.campania}
+                        required={true}
+                    />
 
                     <label style={styles.label}>
                         Archivo Excel (.xlsx)
@@ -89,6 +158,9 @@ export default function CargarBases() {
                             onChange={(e) => setFile(e.target.files[0] || null)}
                             style={styles.input}
                         />
+                        {errors.file && (
+                            <span style={styles.errorText}>{errors.file}</span>
+                        )}
                     </label>
 
                     {file && (
@@ -121,11 +193,15 @@ export default function CargarBases() {
 
 const styles = {
     wrapper: {
-        maxWidth: "720px",
+        width: "100%",
+        height: "100%",
         backgroundColor: "#FFFFFF",
         padding: "2rem",
         borderRadius: "1rem",
         boxShadow: "0 10px 30px rgba(15,23,42,0.1)",
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
     },
     title: {
         fontSize: "1.6rem",
@@ -174,6 +250,11 @@ const styles = {
     status: {
         fontSize: "0.85rem",
         color: "#F97316",
+    },
+    errorText: {
+        fontSize: "0.8rem",
+        color: "#ef4444",
+        marginTop: "0.25rem",
     },
     previewBox: {
         marginTop: "2rem",

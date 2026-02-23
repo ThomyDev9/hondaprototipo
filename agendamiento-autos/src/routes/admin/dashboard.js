@@ -1,8 +1,11 @@
 // backend/src/routes/admin.dashboard.routes.js
 import express from "express";
-import pool from "../services/db.js"; // conexión a Postgres
-import { requireAuth } from "../middleware/auth.middleware.js";
-import { loadUserRoles, requireRole } from "../middleware/role.middleware.js";
+import pool from "../../services/db.js"; // conexión a MySQL
+import { requireAuth } from "../../middleware/auth.middleware.js";
+import {
+    loadUserRoles,
+    requireRole,
+} from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
@@ -18,15 +21,14 @@ const adminMiddlewares = [
  */
 router.get("/dashboard/bases", ...adminMiddlewares, async (req, res) => {
     try {
-        const result = await pool.query(
+        const [rows] = await pool.query(
             `SELECT * FROM vw_admin_resumen_bases ORDER BY base ASC`,
         );
-        // 👀 Aquí ves en consola qué devuelve la vista
         console.log("Datos de vw_admin_resumen_bases:");
-        result.rows.forEach((row, idx) => {
+        rows.forEach((row, idx) => {
             console.log(`Fila ${idx + 1}:`, row);
         });
-        return res.json({ bases: result.rows });
+        return res.json({ bases: rows });
     } catch (err) {
         console.error("Error en /admin/dashboard/bases:", err);
         return res
@@ -41,10 +43,10 @@ router.get("/dashboard/bases", ...adminMiddlewares, async (req, res) => {
  */
 router.get("/dashboard/agentes", ...adminMiddlewares, async (req, res) => {
     try {
-        const result = await pool.query(
+        const [rows] = await pool.query(
             `SELECT * FROM vw_admin_resumen_agentes ORDER BY full_name ASC`,
         );
-        return res.json({ agentes: result.rows });
+        return res.json({ agentes: rows });
     } catch (err) {
         console.error("Error en /admin/dashboard/agentes:", err);
         return res
@@ -59,12 +61,12 @@ router.get("/dashboard/agentes", ...adminMiddlewares, async (req, res) => {
  */
 router.get("/parametros/pausa-max", ...adminMiddlewares, async (req, res) => {
     try {
-        const result = await pool.query(
-            `SELECT valor_num FROM admin_parametros WHERE codigo = $1 LIMIT 1`,
+        const [rows] = await pool.query(
+            `SELECT valor_num FROM admin_parametros WHERE codigo = ? LIMIT 1`,
             ["PAUSA_MAX_MIN_DIA"],
         );
 
-        const valor = result.rows[0]?.valor_num ?? 30;
+        const valor = rows.length > 0 ? rows[0].valor_num : 30;
         return res.json({ pausaMaxMinDia: valor });
     } catch (err) {
         console.error("Error en /admin/parametros/pausa-max:", err);
@@ -90,9 +92,8 @@ router.put("/parametros/pausa-max", ...adminMiddlewares, async (req, res) => {
 
         await pool.query(
             `INSERT INTO admin_parametros (codigo, descripcion, valor_num, updated_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (codigo)
-       DO UPDATE SET valor_num = EXCLUDED.valor_num, updated_at = EXCLUDED.updated_at`,
+       VALUES (?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE valor_num = VALUES(valor_num), updated_at = NOW()`,
             [
                 "PAUSA_MAX_MIN_DIA",
                 "Minutos máximos de pausa (baño / consulta / lunch / reunión) permitidos por día",

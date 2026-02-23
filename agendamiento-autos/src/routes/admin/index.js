@@ -1,8 +1,13 @@
 // backend/src/routes/admin.routes.js
 import express from "express";
-import pool from "../services/db.js";
-import { requireAuth } from "../middleware/auth.middleware.js";
-import { loadUserRoles, requireRole } from "../middleware/role.middleware.js";
+import pool from "../../services/db.js";
+import * as basesService from "../../services/bases.service.js";
+import * as userService from "../../services/user.service.js";
+import { requireAuth } from "../../middleware/auth.middleware.js";
+import {
+    loadUserRoles,
+    requireRole,
+} from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
@@ -19,16 +24,8 @@ const middlewaresAdmin = [
  */
 router.get("/bases-resumen", ...middlewaresAdmin, async (req, res) => {
     try {
-        // ⚠️ CAMBIA esta consulta por la tabla real que tengas en MySQL
-        const [rows] = await pool.query(`
-            SELECT 
-                id,
-                nombre,
-                estado
-            FROM bases
-        `);
-
-        return res.json({ bases: rows });
+        const bases = await basesService.obtenerBases();
+        return res.json({ bases });
     } catch (err) {
         console.error("Error en /admin/bases-resumen:", err);
         return res.status(500).json({
@@ -43,18 +40,8 @@ router.get("/bases-resumen", ...middlewaresAdmin, async (req, res) => {
  */
 router.get("/users", ...middlewaresAdmin, async (req, res) => {
     try {
-        const [rows] = await pool.query(`
-            SELECT 
-                IdUser,
-                Email,
-                Name1,
-                Name2,
-                Surname1,
-                Surname2
-            FROM user
-        `);
-
-        return res.json({ users: rows });
+        const users = await userService.obtenerUsuarios();
+        return res.json({ users });
     } catch (err) {
         console.error("Error en /admin/users:", err);
         return res.status(500).json({

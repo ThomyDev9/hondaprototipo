@@ -1,18 +1,9 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { registerRoutes } from "./routes/index.js";
 
 dotenv.config();
-
-import adminDashboardRoutes from "./routes/admin.dashboard.routes.js";
-import adminBasesRoutes from "./routes/admin.bases.routes.js";
-import authRoutes from "./routes/auth.routes.js";
-import adminUsersRoutes from "./routes/users.routes.js";
-import basesRoutes from "./routes/bases.routes.js";
-import agenteRoutes from "./routes/agente.routes.js";
-import adminRoutes from "./routes/admin.routes.js";
-import adminReportesRoutes from "./routes/admin.reportes.routes.js";
-import supervisorRoutes from "./routes/supervisor.routes.js";
 
 const app = express();
 
@@ -40,33 +31,22 @@ app.get("/", (req, res) => {
     });
 });
 
-// Rutas de autenticación
-app.use("/auth", authRoutes);
+// Iniciar servidor y registrar rutas
+async function start() {
+    try {
+        // Registrar todas las rutas desde el registro centralizado
+        await registerRoutes(app);
 
-// Rutas de usuarios (solo accesibles por admin)
-app.use("/admin/users", adminUsersRoutes);
+        const PORT = process.env.PORT || 4004;
+        app.listen(PORT, "0.0.0.0", () => {
+            console.log(`🚀 API escuchando en 0.0.0.0:${PORT}`);
+        });
+    } catch (err) {
+        console.error("❌ Error iniciando servidor:", err);
+        process.exit(1);
+    }
+}
 
-// Rutas de bases
-app.use("/bases", basesRoutes);
-
-// Rutas de agente
-app.use("/agente", agenteRoutes);
-
-// Rutas de admin clásicas
-app.use("/admin", adminRoutes);
-
-// Dashboard admin y parámetros
-app.use("/admin", adminDashboardRoutes);
-app.use("/admin", adminBasesRoutes);
-app.use("/admin/reportes", adminReportesRoutes);
-
-// Rutas de supervisor
-app.use("/supervisor", supervisorRoutes);
-
-const PORT = process.env.PORT || 4004;
-
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 API escuchando en 0.0.0.0:${PORT}`);
-});
+start();
 
 export default app;

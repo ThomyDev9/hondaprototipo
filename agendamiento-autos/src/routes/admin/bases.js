@@ -1,9 +1,13 @@
 // src/routes/admin.bases.routes.js
 import express from "express";
-import pool from "../services/db.js";
+import pool from "../../services/db.js";
+import * as basesService from "../../services/bases.service.js";
 
-import { requireAuth } from "../middleware/auth.middleware.js";
-import { loadUserRoles, requireRole } from "../middleware/role.middleware.js";
+import { requireAuth } from "../../middleware/auth.middleware.js";
+import {
+    loadUserRoles,
+    requireRole,
+} from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
@@ -38,25 +42,33 @@ router.post(
                 "numero_incorrecto", // si lo sigues usando
             ];
 
-            const result = await pool.query(
+            const [result] = await pool.query(
                 `
                     UPDATE base_registros
                     SET estado = 'pendiente',
                         pool = 'activo',
                         agente_id = NULL,
                         intentos_totales = 0
-                    WHERE base_id = $1
-                        AND estado = ANY($2)
-                        AND intentos_totales < $3
-                    RETURNING id
+                    WHERE base_id = ?
+                        AND estado IN (?, ?, ?, ?, ?, ?)
+                        AND intentos_totales < ?
                     `,
-                [baseId, ESTADOS_RECICLABLES, MAX_INTENTOS],
+                [
+                    baseId,
+                    "rellamada",
+                    "regestionable",
+                    "inubicable",
+                    "en_gestion",
+                    "sin_contacto",
+                    "numero_incorrecto",
+                    MAX_INTENTOS,
+                ],
             );
 
             return res.json({
                 ok: true,
                 base_id: baseId,
-                registros_reciclados: result.rowCount,
+                registros_reciclados: result.affectedRows,
             });
         } catch (err) {
             console.error("Error en /admin/bases/:baseId/reciclar:", err);

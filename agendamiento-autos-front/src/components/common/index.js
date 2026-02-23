@@ -11,3 +11,5 @@ export { default as Card } from "./Card";
 export { default as Progress } from "./Progress";
 export { default as PageContainer } from "./PageContainer";
 export { default as Tabs } from "./Tabs";
+export { default as Select } from "./Select";
+export { default as AutoComplete } from "./AutoComplete";

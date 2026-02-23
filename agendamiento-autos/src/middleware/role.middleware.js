@@ -1,5 +1,6 @@
 // backend/src/middleware/role.middleware.js
 import pool from "../services/db.js";
+import * as userService from "../services/user.service.js";
 
 /**
  * Carga los roles del usuario autenticado desde MySQL

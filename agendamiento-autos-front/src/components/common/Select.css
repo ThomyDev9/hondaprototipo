@@ -1,0 +1,53 @@
+.select-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.select-label {
+    font-size: 0.9rem;
+    color: #0f172a;
+    font-weight: 500;
+}
+
+.required {
+    color: #ef4444;
+    margin-left: 0.25rem;
+}
+
+.select-input {
+    padding: 0.7rem;
+    border-radius: 0.5rem;
+    border: 1px solid #cbd5e1;
+    font-size: 0.95rem;
+    background-color: #ffffff;
+    color: #0f172a;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.select-input:hover:not(:disabled) {
+    border-color: #94a3b8;
+}
+
+.select-input:focus {
+    outline: none;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+}
+
+.select-input:disabled {
+    background-color: #f1f5f9;
+    color: #64748b;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.select-input.error {
+    border-color: #ef4444;
+}
+
+.select-error {
+    font-size: 0.8rem;
+    color: #ef4444;
+}

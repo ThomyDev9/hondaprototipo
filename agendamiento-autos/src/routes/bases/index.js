@@ -2,7 +2,8 @@
 import express from "express";
 import multer from "multer";
 import XLSX from "xlsx";
-import pool from "../services/db.js"; // conexión a Postgres
+import pool from "../../services/db.js"; // conexión a MySQL
+import * as basesService from "../../services/bases.service.js";
 
 const router = express.Router();
 
@@ -16,12 +17,9 @@ const upload = multer({ storage: multer.memoryStorage() });
  */
 router.get("/", async (req, res) => {
     try {
-        const result = await pool.query(
-            `SELECT id, name, description, status, total_records, uploaded_at, cliente, tipo_campania, prioridad_base
-       FROM bases
-       ORDER BY uploaded_at DESC`,
-        );
-        return res.json({ bases: result.rows });
+        // Usar el servicio en lugar de query directo
+        const bases = await basesService.obtenerBases();
+        return res.json({ bases });
     } catch (err) {
         console.error("Error listando bases:", err);
         return res.status(500).json({ error: "Error listando bases" });
@@ -35,11 +33,17 @@ router.get("/", async (req, res) => {
  */
 router.post("/upload", upload.single("file"), async (req, res) => {
     try {
-        const { baseName, description } = req.body;
+        const { baseName, description, mapeo, campania } = req.body;
         const file = req.file;
 
         if (!file) {
             return res.status(400).json({ error: "No se recibió archivo" });
+        }
+
+        if (!mapeo || !campania) {
+            return res.status(400).json({
+                error: "Mapeo y campaña son campos obligatorios",
+            });
         }
 
         // 1) Leer el Excel desde el buffer
@@ -50,25 +54,19 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
         const totalRecords = rows.length;
 
-        // 2) Crear la base en Postgres
-        const insertBaseQuery = `
-      INSERT INTO bases (name, description, status, total_records, origen, uploaded_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
-      RETURNING id, name, description, status, total_records, uploaded_at, cliente, tipo_campania, prioridad_base
-    `;
-        const baseResult = await pool.query(insertBaseQuery, [
-            baseName,
-            description,
-            "pendiente",
-            totalRecords,
-            "excel",
-        ]);
+        // 2) Crear la base en MySQL usando el servicio
+        const newBase = await basesService.crearBase({
+            nombre: baseName,
+            mapeo: mapeo,
+            campania: campania,
+            estado: 1,
+        });
 
-        const baseInsert = baseResult.rows[0];
+        const baseInsertId = newBase.id;
 
         // 3) Mapear filas del Excel a nuestra tabla base_registros
         const registros = rows.map((r) => ({
-            base_id: baseInsert.id,
+            base_id: baseInsertId,
             nombre_completo: r["Nombres Completos"] || "",
             placa: r["Placa"] || "",
             telefono1: r["Teléfono 1"] || "",
@@ -80,17 +78,12 @@ router.post("/upload", upload.single("file"), async (req, res) => {
             raw_data: r, // fila completa por si luego necesitas más campos
         }));
 
-        // 4) Insertar todos los registros en base_registros
+        // 4) Insertar todos los registros en base_registros (MySQL)
         if (registros.length > 0) {
             const insertRegistrosQuery = `
         INSERT INTO base_registros
         (base_id, nombre_completo, placa, telefono1, telefono2, modelo, estado, intentos_totales, pool, raw_data)
-        VALUES ${registros
-            .map(
-                (_, i) =>
-                    `($${i * 10 + 1}, $${i * 10 + 2}, $${i * 10 + 3}, $${i * 10 + 4}, $${i * 10 + 5}, $${i * 10 + 6}, $${i * 10 + 7}, $${i * 10 + 8}, $${i * 10 + 9}, $${i * 10 + 10})`,
-            )
-            .join(",")}
+        VALUES ${registros.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(",")}
       `;
 
             const values = registros.flatMap((r) => [
@@ -113,8 +106,12 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         const preview = rows.slice(0, 5);
 
         return res.json({
-            message: "Base cargada correctamente (modo preliminar)",
-            base: baseInsert,
+            message: "Base cargada correctamente con mapeo y campaña",
+            baseId: baseInsertId,
+            baseName,
+            mapeo,
+            campania,
+            totalRecords,
             preview,
         });
     } catch (err) {

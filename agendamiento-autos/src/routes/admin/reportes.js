@@ -1,8 +1,11 @@
 // backend/src/routes/admin.reportes.routes.js
 import express from "express";
-import pool from "../services/db.js"; // conexión a Postgres
-import { requireAuth } from "../middleware/auth.middleware.js";
-import { loadUserRoles, requireRole } from "../middleware/role.middleware.js";
+import pool from "../../services/db.js"; // conexión a MySQL
+import { requireAuth } from "../../middleware/auth.middleware.js";
+import {
+    loadUserRoles,
+    requireRole,
+} from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
@@ -24,13 +27,13 @@ router.get(
             const params = [];
 
             if (base_id) {
-                query += " WHERE base_id = $1";
+                query += " WHERE base_id = ?";
                 params.push(base_id);
             }
 
-            const result = await pool.query(query, params);
+            const [rows] = await pool.query(query, params);
 
-            return res.json({ rows: result.rows });
+            return res.json({ rows });
         } catch (err) {
             console.error("Error en /admin/reportes/gestion:", err);
             return res
@@ -58,12 +61,11 @@ router.get(
             const params = [];
 
             if (base_id) {
-                query += " WHERE base_id = $1";
+                query += " WHERE base_id = ?";
                 params.push(base_id);
             }
 
-            const result = await pool.query(query, params);
-            const data = result.rows;
+            const [data] = await pool.query(query, params);
 
             if (!data || data.length === 0) {
                 return res.status(400).json({

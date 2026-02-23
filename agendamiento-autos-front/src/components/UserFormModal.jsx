@@ -104,7 +104,7 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
             if (!editingUser) {
                 // Mensaje de éxito solo en creación
                 setSuccessMsg(
-                    `✅ Usuario creado: ${data.usuario} | Password: ${data.password}`,
+                    ` Usuario creado: ${data.usuario} | Password: ${data.password}`,
                 );
                 setForm(initialForm);
                 setPassword(data.password);
@@ -260,8 +260,8 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
                         onChange={handleChange}
                         options={[
                             { value: "1", label: "ADMINISTRADOR" },
-                            { value: "2", label: "ASESOR" },
-                            { value: "3", label: "SUPERVISOR" },
+                            { value: "2", label: "SUPERVISOR" },
+                            { value: "3", label: "ASESOR" },
                             { value: "4", label: "ESCUELA" },
                         ]}
                         required

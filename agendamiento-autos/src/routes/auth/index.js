@@ -1,8 +1,9 @@
 import express from "express";
-import pool from "../services/db.js";
-import { requireAuth } from "../middleware/auth.middleware.js";
-import { generarToken } from "../utils/jwt.js";
-import { encriptar, desencriptar } from "../utils/crypto.js";
+import pool from "../../services/db.js";
+import * as userService from "../../services/user.service.js";
+import { requireAuth } from "../../middleware/auth.middleware.js";
+import { generarToken } from "../../utils/jwt.js";
+import { encriptar, desencriptar } from "../../utils/crypto.js";
 import bcrypt from "bcrypt";
 
 const router = express.Router();
@@ -24,27 +25,22 @@ router.post("/login", async (req, res) => {
         }
 
         // First try matching by email
-        const [emailRows] = await pool.query(
-            "SELECT IdUser, Id, Email, Name1, Name2, Surname1, Surname2, password, UserGroup FROM user WHERE Email=?",
-            [loginId],
-        );
+        const user = await userService.obtenerUsuarioPorEmail(loginId);
 
-        let user = null;
+        let foundUser = null;
 
-        if (emailRows && emailRows.length > 0) {
-            user = emailRows[0];
+        if (user) {
+            foundUser = user;
         } else {
-            // If not found by email, try decrypting stored Id values to match username
-            const [idRows] = await pool.query(
-                "SELECT IdUser, Id, Email, Name1, Name2, Surname1, Surname2, password, UserGroup FROM user WHERE Id IS NOT NULL",
-            );
+            // If not found by email, try by username (decrypt stored Id values)
+            const allUsers = await userService.obtenerUsuarios();
 
-            if (idRows && idRows.length > 0) {
-                for (const r of idRows) {
+            if (allUsers && allUsers.length > 0) {
+                for (const u of allUsers) {
                     try {
-                        const decrypted = desencriptar(r.Id);
+                        const decrypted = desencriptar(u.Id);
                         if (decrypted === loginId) {
-                            user = r;
+                            foundUser = u;
                             break;
                         }
                     } catch (err) {
@@ -54,11 +50,31 @@ router.post("/login", async (req, res) => {
             }
         }
 
-        if (!user) {
+        if (!foundUser) {
             return res.status(401).json({ error: "Credenciales inválidas" });
         }
 
-        const isValid = await bcrypt.compare(password, user.password);
+        console.log("✓ Usuario encontrado:", foundUser.IdUser, foundUser.Email);
+        console.log(
+            "Password en BD:",
+            foundUser.Password ? "✓ existe" : "✗ NO existe",
+        );
+
+        // Desencriptar la contraseña almacenada y comparar directamente
+        let passwordDesencriptada;
+        try {
+            passwordDesencriptada = desencriptar(foundUser.Password);
+            console.log("✓ Password desencriptada correctamente");
+        } catch (err) {
+            console.error("✗ Error desencriptando password:", err.message);
+            return res.status(401).json({ error: "Credenciales inválidas" });
+        }
+
+        const isValid = password === passwordDesencriptada;
+        console.log(
+            "Comparación:",
+            password === passwordDesencriptada ? "✓ MATCH" : "✗ NO MATCH",
+        );
 
         if (!isValid) {
             return res.status(401).json({ error: "Credenciales inválidas" });
@@ -67,30 +83,32 @@ router.post("/login", async (req, res) => {
         // Buscar rol desde workgroup
         const [roleRows] = await pool.query(
             "SELECT description FROM workgroup WHERE id=?",
-            [user.UserGroup],
+            [foundUser.UserGroup],
         );
 
         const roles = roleRows.map((r) => r.description.toUpperCase());
 
         // Generar token con roles
         // Decrypt username from Id column if present
-        const usernameDecrypted = user.Id ? desencriptar(user.Id) : null;
+        const usernameDecrypted = foundUser.Id
+            ? desencriptar(foundUser.Id)
+            : null;
 
         const token = generarToken({
-            id: user.IdUser,
-            email: user.Email || usernameDecrypted || null,
+            id: foundUser.IdUser,
+            email: foundUser.Email || usernameDecrypted || null,
             roles,
         });
 
         res.json({
             token,
             user: {
-                id: user.IdUser,
-                email: user.Email,
+                id: foundUser.IdUser,
+                email: foundUser.Email,
                 username: usernameDecrypted,
                 full_name:
-                    `${user.Name1} ${user.Name2 || ""} ${user.Surname1} ${user.Surname2 || ""}`.trim(),
-                workgroup_id: user.UserGroup,
+                    `${foundUser.Name1} ${foundUser.Name2 || ""} ${foundUser.Surname1} ${foundUser.Surname2 || ""}`.trim(),
+                workgroup_id: foundUser.UserGroup,
             },
         });
     } catch (err) {
@@ -112,16 +130,11 @@ router.get("/me", requireAuth, async (req, res) => {
                 .json({ error: "No se encontró el usuario en el token" });
         }
 
-        const [userRows] = await pool.query(
-            "SELECT IdUser, Email, Name1, Name2, Surname1, Surname2, UserGroup FROM user WHERE IdUser=?",
-            [userId],
-        );
+        const user = await userService.obtenerUsuarioPorId(userId);
 
-        if (!userRows || userRows.length === 0) {
+        if (!user) {
             return res.status(404).json({ error: "Usuario no encontrado" });
         }
-
-        const user = userRows[0];
 
         const [roleRows] = await pool.query(
             "SELECT description AS role FROM workgroup WHERE id=?",

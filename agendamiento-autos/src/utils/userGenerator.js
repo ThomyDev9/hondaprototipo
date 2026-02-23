@@ -1,3 +1,5 @@
+import { encriptar } from "./crypto.js";
+
 function normalizarTexto(texto) {
     return texto
         .normalize("NFD")
@@ -5,8 +7,6 @@ function normalizarTexto(texto) {
         .replace(/\s+/g, "")
         .toLowerCase();
 }
-
-import { encriptar } from "./crypto.js";
 
 export async function generarUsuarioSeguro(Name1, Surname1, connection) {
     const SurnameNorm = normalizarTexto(Surname1);
