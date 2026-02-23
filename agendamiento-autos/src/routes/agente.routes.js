@@ -57,7 +57,7 @@ async function requireNotBlocked(req, res, next) {
 const agenteMiddlewares = [
     requireAuth,
     loadUserRoles,
-    requireRole(["AGENTE", "SUPERVISOR", "ADMIN"]),
+    requireRole(["AGENTE", "SUPERVISOR", "ADMINISTRADOR"]),
     requireNotBlocked,
 ];
 

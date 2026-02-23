@@ -1,0 +1,110 @@
+.table-wrapper {
+    max-height: 430px;
+    overflow-y: auto;
+    overflow-x: auto;
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid #e5e7eb;
+    background-color: white;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    table-layout: auto;
+}
+
+.data-table th,
+.data-table td {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    word-break: break-word;
+}
+
+.data-table th {
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background-color: #f9fafb;
+    color: #6b7280;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.data-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.data-table tbody tr:hover {
+    background-color: #e0f2fe;
+}
+
+/* Checkboxes en tabla */
+.data-table input[type="checkbox"] {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+}
+
+/* Acciones */
+.table-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.table-action-btn {
+    border: none;
+    background: none;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-weight: 600;
+}
+
+.table-action-default {
+    color: #2563eb;
+}
+
+.table-action-default:hover {
+    background-color: #e0f2fe;
+}
+
+.table-action-danger {
+    color: #dc2626;
+}
+
+.table-action-danger:hover {
+    background-color: #fee2e2;
+}
+
+.table-action-success {
+    color: #16a34a;
+}
+
+.table-action-success:hover {
+    background-color: #ecfdf3;
+}
+
+/* Estados */
+.table-loading,
+.table-no-data {
+    padding: 2rem;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #6b7280;
+    background-color: #f9fafb;
+    border-radius: 0.75rem;
+    border: 1px solid #e5e7eb;
+}

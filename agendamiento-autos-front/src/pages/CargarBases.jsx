@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageContainer } from "../components/common";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -46,74 +47,75 @@ export default function CargarBases() {
     };
 
     return (
-        <div style={styles.wrapper}>
-            <h1 style={styles.title}>Cargar nueva base</h1>
-            <p style={styles.subtitle}>
-                Sube un archivo Excel con los registros de clientes y vehículos
-                para agendamiento.
-            </p>
+        <PageContainer title="Cargar nueva base">
+            <div style={styles.wrapper}>
+                <p style={styles.subtitle}>
+                    Sube un archivo Excel con los registros de clientes y
+                    vehículos para agendamiento.
+                </p>
 
-            <form onSubmit={handleSubmit} style={styles.form}>
-                <label style={styles.label}>
-                    Nombre de la base
-                    <input
-                        type="text"
-                        value={baseName}
-                        onChange={(e) => setBaseName(e.target.value)}
-                        style={styles.input}
-                        placeholder="Ej: Base Honda Noviembre 2025"
-                        required
-                    />
-                </label>
+                <form onSubmit={handleSubmit} style={styles.form}>
+                    <label style={styles.label}>
+                        Nombre de la base
+                        <input
+                            type="text"
+                            value={baseName}
+                            onChange={(e) => setBaseName(e.target.value)}
+                            style={styles.input}
+                            placeholder="Ej: Base Honda Noviembre 2025"
+                            required
+                        />
+                    </label>
 
-                <label style={styles.label}>
-                    Descripción
-                    <textarea
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        style={{
-                            ...styles.input,
-                            minHeight: "70px",
-                            resize: "vertical",
-                        }}
-                        placeholder="Ej: Clientes con mantenimiento pendiente, zona Quito."
-                    />
-                </label>
+                    <label style={styles.label}>
+                        Descripción
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            style={{
+                                ...styles.input,
+                                minHeight: "70px",
+                                resize: "vertical",
+                            }}
+                            placeholder="Ej: Clientes con mantenimiento pendiente, zona Quito."
+                        />
+                    </label>
 
-                <label style={styles.label}>
-                    Archivo Excel (.xlsx)
-                    <input
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={(e) => setFile(e.target.files[0] || null)}
-                        style={styles.input}
-                    />
-                </label>
+                    <label style={styles.label}>
+                        Archivo Excel (.xlsx)
+                        <input
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={(e) => setFile(e.target.files[0] || null)}
+                            style={styles.input}
+                        />
+                    </label>
 
-                {file && (
-                    <p style={styles.fileInfo}>
-                        Archivo seleccionado: <strong>{file.name}</strong>
-                    </p>
+                    {file && (
+                        <p style={styles.fileInfo}>
+                            Archivo seleccionado: <strong>{file.name}</strong>
+                        </p>
+                    )}
+
+                    {status && <p style={styles.status}>{status}</p>}
+
+                    <button type="submit" style={styles.button}>
+                        Cargar base
+                    </button>
+                </form>
+
+                {preview.length > 0 && (
+                    <div style={styles.previewBox}>
+                        <h2 style={styles.previewTitle}>
+                            Preview (primeras filas)
+                        </h2>
+                        <pre style={styles.previewPre}>
+                            {JSON.stringify(preview, null, 2)}
+                        </pre>
+                    </div>
                 )}
-
-                {status && <p style={styles.status}>{status}</p>}
-
-                <button type="submit" style={styles.button}>
-                    Cargar base
-                </button>
-            </form>
-
-            {preview.length > 0 && (
-                <div style={styles.previewBox}>
-                    <h2 style={styles.previewTitle}>
-                        Preview (primeras filas)
-                    </h2>
-                    <pre style={styles.previewPre}>
-                        {JSON.stringify(preview, null, 2)}
-                    </pre>
-                </div>
-            )}
-        </div>
+            </div>
+        </PageContainer>
     );
 }
 

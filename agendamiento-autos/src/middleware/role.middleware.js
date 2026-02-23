@@ -2,81 +2,61 @@
 import pool from "../services/db.js";
 
 /**
- * Carga los roles del usuario autenticado.
- *
- * 1) Intenta leer desde el esquema NUEVO:
- *      user_roles (user_id, role_id) + roles (id, code)
- * 2) Si no encuentra nada, hace fallback al esquema ANTIGUO:
- *      user_role_assignments (user_id, role_code)
- *
- * Deja los códigos de rol en:
- *   req.userRoles  (array de strings)
- *   req.user.roles (para compatibilidad con otros módulos)
+ * Carga los roles del usuario autenticado desde MySQL
+ * Para tu esquema, cada usuario tiene un workgroup asociado
  */
 export const loadUserRoles = async (req, res, next) => {
     try {
-        const userId = req.user?.id;
-        if (!userId) {
-            return res.status(401).json({ error: "Usuario no autenticado" });
-        }
-
-        let roleCodes = [];
-
-        // ===== 1) Esquema nuevo: user_roles + roles =====
-        const userRolesResult = await pool.query(
-            `SELECT ur.role_id, r.code
-       FROM user_roles ur
-       JOIN roles r ON r.id = ur.role_id
-       WHERE ur.user_id = $1`,
+        const userId = req.user.id;
+        const [rows] = await pool.query(
+            `SELECT w.description
+       FROM user u
+       JOIN workgroup w ON w.id = u.UserGroup
+       WHERE u.IdUser = ?`,
             [userId],
         );
 
-        if (userRolesResult.rows.length > 0) {
-            roleCodes = userRolesResult.rows.map((r) => r.code).filter(Boolean);
-        }
+        const roleCodes = rows.map((r) => r.description);
 
-        // ===== 2) Fallback: esquema antiguo user_role_assignments =====
-        if (roleCodes.length === 0) {
-            const legacyResult = await pool.query(
-                `SELECT role_code FROM user_role_assignments WHERE user_id = $1`,
-                [userId],
-            );
-            if (legacyResult.rows.length > 0) {
-                roleCodes = legacyResult.rows
-                    .map((r) => r.role_code)
-                    .filter(Boolean);
-            }
-        }
+        console.log("Roles cargados para usuario", userId, ":", roleCodes);
 
-        req.userRoles = roleCodes;
-        // compatibilidad: muchos lados esperan req.user.roles
-        req.user = { ...(req.user || {}), roles: roleCodes };
-
-        console.log("Roles del usuario", userId, ":", roleCodes);
-
-        return next();
+        req.user.roles = roleCodes;
+        next();
     } catch (err) {
-        console.error("loadUserRoles error:", err);
-        return res.status(500).json({ error: "Error en loadUserRoles" });
+        console.error("Error cargando roles:", err);
+        res.status(500).json({ message: "Error cargando roles" });
     }
 };
 
 /**
  * Valida que el usuario tenga alguno de los roles permitidos
- * Ejemplo: requireRole(['ADMIN']), requireRole(['AGENTE', 'SUPERVISOR'])
  */
-export const requireRole = (rolesPermitidos = []) => {
+export const requireRole = (allowedRoles) => {
     return (req, res, next) => {
-        const roles = req.userRoles || req.user?.roles || [];
+        console.log("------------------------------------------------");
+        console.log("Roles permitidos:", allowedRoles);
+        console.log("Usuario autenticado:", req.user);
+        console.log("Roles del usuario:", req.user?.roles);
 
-        const autorizado = Array.isArray(roles)
-            ? roles.some((r) => rolesPermitidos.includes(r))
-            : false;
-
-        if (!autorizado) {
-            return res.status(403).json({ error: "Permiso denegado" });
+        if (!req.user || !req.user.roles) {
+            console.log("❌ No hay usuario o no tiene roles");
+            return res
+                .status(403)
+                .json({ message: "Permiso denegado - sin roles" });
         }
 
-        return next();
+        const hasPermission = allowedRoles.some((role) =>
+            req.user.roles.includes(role),
+        );
+
+        console.log("¿Tiene permiso?:", hasPermission);
+
+        if (!hasPermission) {
+            console.log("❌ Permiso denegado");
+            return res.status(403).json({ message: "Permiso denegado" });
+        }
+
+        console.log("✅ Permiso concedido");
+        next();
     };
 };

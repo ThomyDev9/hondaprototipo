@@ -1,372 +1,316 @@
 // src/components/UserFormModal.jsx
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { Modal, FormField, Alert, Button, Title } from "./common";
+import "./UserFormModal.css";
 
-function UserFormModal({ apiBase, token, editingUser, onClose, onSaved }) {
-  const isEdit = Boolean(editingUser);
+function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
+    const initialForm = {
+        IdUser: "",
+        Identification: "",
+        FullNames: "",
+        FullSurnames: "",
+        dateBirth: "",
+        Address: "",
+        ContacAddress: "",
+        Email: "",
+        UserGroup: "",
+        Usuario: "",
+    };
 
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [roleCode, setRoleCode] = useState("AGENTE");
-  const [bloqueado, setBloqueado] = useState(false);
-  const [estadoOperativo, setEstadoOperativo] = useState("disponible");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+    const [form, setForm] = useState(initialForm);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+    const [successMsg, setSuccessMsg] = useState("");
+    const [showCredentials, setShowCredentials] = useState(false);
+    const [password, setPassword] = useState("");
 
-  useEffect(() => {
-    if (isEdit) {
-      setFullName(editingUser.full_name || "");
-      setEmail(editingUser.email || "");
-      setBloqueado(editingUser.bloqueado || false);
-      setEstadoOperativo(editingUser.estado_operativo || "disponible");
-      const rol =
-        editingUser.user_roles && editingUser.user_roles.length > 0
-          ? editingUser.user_roles[0].roles?.code
-          : "AGENTE";
-      setRoleCode(rol);
-      setPassword("");
-      setError("");
-    } else {
-      setFullName("");
-      setEmail("");
-      setPassword("");
-      setRoleCode("AGENTE");
-      setBloqueado(false);
-      setEstadoOperativo("disponible");
-      setError("");
-    }
-  }, [editingUser, isEdit]);
-
-  const parseJsonSafe = async (res) => {
-    const text = await res.text();
-    if (!text) return {};
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error("Respuesta no válida del servidor");
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-
-    try {
-      const body = {
-        full_name: fullName,
-        email,
-        role_code: roleCode,
-        bloqueado,
-        estado_operativo: estadoOperativo,
-      };
-
-      let url = `${apiBase}/admin/users`;
-      let method = "POST";
-
-      if (isEdit) {
-        url = `${apiBase}/admin/users/${editingUser.id}`;
-        method = "PUT";
-      } else {
-        if (!password) {
-          setSaving(false);
-          setError("La contraseña es obligatoria para nuevos usuarios.");
-          return;
+    // Cargar datos si es edición
+    useEffect(() => {
+        console.log("editingUser en useEffect:", editingUser);
+        if (editingUser) {
+            setForm({
+                IdUser: editingUser.IdUser || "",
+                Identification: editingUser.Identification || "",
+                FullNames: editingUser.FullNames || "",
+                FullSurnames: editingUser.FullSurnames || "",
+                dateBirth: editingUser.dateBirth || "",
+                Address: editingUser.Address || "",
+                ContacAddress: editingUser.ContacAddress || "",
+                Email: editingUser.Email || "",
+                UserGroup: editingUser.UserGroup || "",
+                Usuario: editingUser.Usuario || "",
+            });
+        } else {
+            setForm(initialForm);
         }
-        body.password = password;
-      }
+    }, [editingUser]);
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
+    const handleChange = (e) => {
+        setForm({
+            ...form,
+            [e.target.name]: e.target.value,
+        });
+    };
 
-      const data = await parseJsonSafe(res);
+    const parseJsonSafe = async (res) => {
+        const text = await res.text();
+        if (!text) return {};
+        return JSON.parse(text);
+    };
 
-      if (!res.ok) {
-        throw new Error(data.error || "Error guardando usuario");
-      }
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        setError("");
+        setSuccessMsg("");
 
-      await onSaved();
-      onClose();
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+        try {
+            // Separar nombres y apellidos
+            const [Name1 = "", Name2 = ""] = (form.FullNames || "").split(" ");
+            const [Surname1 = "", Surname2 = ""] = (
+                form.FullSurnames || ""
+            ).split(" ");
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(15,23,42,0.35)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "white",
-          borderRadius: "1.25rem",
-          padding: "1.75rem 1.75rem 1.5rem",
-          width: "100%",
-          maxWidth: "460px",
-          boxShadow: "0 24px 60px rgba(15, 23, 42, 0.35)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "1rem",
-          }}
+            const payload = {
+                ...form,
+                Name1,
+                Name2,
+                Surname1,
+                Surname2,
+            };
+
+            delete payload.FullNames;
+            delete payload.FullSurnames;
+
+            const method = form.IdUser ? "PUT" : "POST";
+            const url = form.IdUser
+                ? `${apiBase}/admin/users/${form.IdUser}`
+                : `${apiBase}/admin/users`;
+
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await parseJsonSafe(res);
+
+            if (!res.ok)
+                throw new Error(data.error || "Error al guardar usuario");
+
+            if (!editingUser) {
+                // Mensaje de éxito solo en creación
+                setSuccessMsg(
+                    `✅ Usuario creado: ${data.usuario} | Password: ${data.password}`,
+                );
+                setForm(initialForm);
+                setPassword(data.password);
+            } else {
+                setSuccessMsg("✅ Usuario actualizado correctamente");
+            }
+
+            await onSaved();
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleShowCredentials = async (masterKey) => {
+        console.log("editingUser:", editingUser);
+        console.log("IdUser:", editingUser?.IdUser);
+        try {
+            if (!masterKey) {
+                alert("Ingrese clave maestra");
+                return;
+            }
+
+            const res = await fetch(
+                `${apiBase}/admin/users/${form.IdUser}/credentials`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ masterKey }),
+                },
+            );
+
+            const data = await parseJsonSafe(res);
+
+            if (!res.ok) {
+                throw new Error(data.error || "Error obteniendo credenciales");
+            }
+
+            // ✅ cargar usuario y password reales
+            setForm((prev) => ({
+                ...prev,
+                Usuario: data.username,
+            }));
+
+            setPassword(data.password);
+            setShowCredentials(true);
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    return (
+        <Modal
+            isOpen={true}
+            onClose={onClose}
+            title={editingUser ? "Editar Usuario" : "Crear Usuario"}
+            size="lg"
         >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "1.2rem",
-              fontWeight: 700,
-              color: "#0f172a",
-            }}
-          >
-            {isEdit ? "Editar usuario" : "Crear usuario"}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              border: "none",
-              background: "none",
-              fontSize: "1.5rem",
-              lineHeight: 1,
-              cursor: "pointer",
-              color: "#9ca3af",
-            }}
-          >
-            ×
-          </button>
-        </div>
+            <form onSubmit={handleSubmit} className="user-form">
+                {/* Alertas */}
+                {error && (
+                    <Alert
+                        type="error"
+                        message={error}
+                        onClose={() => setError("")}
+                        closable={true}
+                    />
+                )}
+                {successMsg && (
+                    <Alert
+                        type="success"
+                        message={successMsg}
+                        onClose={() => setSuccessMsg("")}
+                        closable={true}
+                    />
+                )}
 
-        {error && (
-          <div
-            style={{
-              marginBottom: "0.75rem",
-              padding: "0.6rem 0.8rem",
-              backgroundColor: "#fef2f2",
-              borderRadius: "0.75rem",
-              border: "1px solid #fecaca",
-              fontSize: "0.8rem",
-              color: "#b91c1c",
-            }}
-          >
-            {error}
-          </div>
-        )}
+                {/* DATOS PERSONALES */}
+                <Title level="h3" variant="section">
+                    Datos Personales
+                </Title>
+                <div className="form-grid-4">
+                    <FormField
+                        label="Identificación"
+                        name="Identification"
+                        value={form.Identification}
+                        onChange={handleChange}
+                        required
+                    />
+                    <FormField
+                        label="Nombres"
+                        name="FullNames"
+                        placeholder="Nombres completos"
+                        value={form.FullNames}
+                        onChange={handleChange}
+                        required
+                    />
+                    <FormField
+                        label="Apellidos"
+                        name="FullSurnames"
+                        placeholder="Apellidos completos"
+                        value={form.FullSurnames}
+                        onChange={handleChange}
+                        required
+                    />
+                    <FormField
+                        label="Fecha Nacimiento"
+                        type="date"
+                        name="dateBirth"
+                        value={form.dateBirth}
+                        onChange={handleChange}
+                        required
+                    />
+                </div>
 
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
-        >
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                color: "#374151",
-                marginBottom: "0.2rem",
-              }}
-            >
-              Nombre completo
-            </label>
-            <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-              style={inputStyle}
-            />
-          </div>
+                {/* INFORMACIÓN DE CONTACTO */}
+                <Title level="h4" variant="section">
+                    Información de Contacto
+                </Title>
+                <div className="form-grid-4">
+                    <FormField
+                        label="Dirección"
+                        name="Address"
+                        placeholder="Dirección"
+                        value={form.Address}
+                        onChange={handleChange}
+                    />
+                    <FormField
+                        label="Celular"
+                        name="ContacAddress"
+                        placeholder="Número celular"
+                        value={form.ContacAddress}
+                        onChange={handleChange}
+                    />
+                    <FormField
+                        label="Email"
+                        type="email"
+                        name="Email"
+                        placeholder="correo@ejemplo.com"
+                        value={form.Email}
+                        onChange={handleChange}
+                        required
+                    />
+                    <FormField
+                        label="Perfil"
+                        type="select"
+                        name="UserGroup"
+                        value={form.UserGroup}
+                        onChange={handleChange}
+                        options={[
+                            { value: "1", label: "ADMINISTRADOR" },
+                            { value: "2", label: "ASESOR" },
+                            { value: "3", label: "SUPERVISOR" },
+                            { value: "4", label: "ESCUELA" },
+                        ]}
+                        required
+                    />
+                </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                color: "#374151",
-                marginBottom: "0.2rem",
-              }}
-            >
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={inputStyle}
-            />
-          </div>
+                {showCredentials && (
+                    <Alert
+                        type="info"
+                        message={`Usuario: ${form.Usuario} | Password: ${password || "******"}`}
+                        closable={false}
+                    />
+                )}
 
-          {!isEdit && (
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  color: "#374151",
-                  marginBottom: "0.2rem",
-                }}
-              >
-                Contraseña inicial
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={inputStyle}
-              />
-              <p
-                style={{
-                  margin: "0.25rem 0 0",
-                  fontSize: "0.75rem",
-                  color: "#9ca3af",
-                }}
-              >
-                El usuario podrá cambiarla después desde su cuenta.
-              </p>
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: "0.75rem" }}>
-            <div style={{ flex: 1 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  color: "#374151",
-                  marginBottom: "0.2rem",
-                }}
-              >
-                Rol
-              </label>
-              <select
-                value={roleCode}
-                onChange={(e) => setRoleCode(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="ADMIN">ADMIN</option>
-                <option value="AGENTE">AGENTE</option>
-                <option value="SUPERVISOR">SUPERVISOR</option>
-              </select>
-            </div>
-
-            <div style={{ flex: 1 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.85rem",
-                  color: "#374151",
-                  marginBottom: "0.2rem",
-                }}
-              >
-                Estado operativo
-              </label>
-              <select
-                value={estadoOperativo}
-                onChange={(e) => setEstadoOperativo(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="disponible">Disponible</option>
-                <option value="pausa">Pausa</option>
-                <option value="desconectado">Desconectado</option>
-              </select>
-            </div>
-          </div>
-
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              fontSize: "0.85rem",
-              color: "#374151",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={bloqueado}
-              onChange={(e) => setBloqueado(e.target.checked)}
-            />
-            Usuario bloqueado
-          </label>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "0.5rem",
-              marginTop: "0.75rem",
-            }}
-          >
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                padding: "0.55rem 1.1rem",
-                borderRadius: "999px",
-                border: "1px solid #e5e7eb",
-                backgroundColor: "white",
-                fontSize: "0.85rem",
-                cursor: "pointer",
-                color: "#4b5563",
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              style={{
-                padding: "0.55rem 1.3rem",
-                borderRadius: "999px",
-                border: "none",
-                backgroundColor: "#2563eb",
-                color: "white",
-                fontSize: "0.85rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                opacity: saving ? 0.7 : 1,
-              }}
-            >
-              {saving
-                ? "Guardando..."
-                : isEdit
-                ? "Guardar cambios"
-                : "Crear usuario"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
+                {/* ACCIONES */}
+                <div className="form-actions">
+                    {/* CREDENCIALES EN EDICIÓN */}
+                    {editingUser && !showCredentials && (
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                type="button"
+                                onClick={() => {
+                                    const key = window.prompt(
+                                        "Ingrese clave maestra",
+                                    );
+                                    if (key === null) return; // cancel
+                                    handleShowCredentials(key);
+                                }}
+                            >
+                                Mostrar credenciales
+                            </Button>
+                        </div>
+                    )}
+                    <Button variant="secondary" onClick={onClose} type="button">
+                        Cancelar
+                    </Button>
+                    <Button variant="primary" type="submit" disabled={saving}>
+                        {saving
+                            ? "Guardando..."
+                            : editingUser
+                              ? "Actualizar"
+                              : "Crear Usuario"}
+                    </Button>
+                </div>
+            </form>
+        </Modal>
+    );
 }
-
-const inputStyle = {
-  width: "100%",
-  padding: "0.55rem 0.7rem",
-  borderRadius: "0.6rem",
-  border: "1px solid #e5e7eb",
-  fontSize: "0.85rem",
-  outline: "none",
-};
 
 export default UserFormModal;

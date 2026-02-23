@@ -1,0 +1,114 @@
+/* Base de botones */
+.btn {
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Tamaños */
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+}
+
+.btn-md {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+}
+
+/* Variantes */
+
+/* Primary (Azul) */
+.btn-primary {
+    background-color: #2563eb;
+    color: white;
+    box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: #1e40af;
+}
+
+/* Secondary (Gris) */
+.btn-secondary {
+    background-color: #6b7280;
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background-color: #4b5563;
+}
+
+/* Danger (Rojo) */
+.btn-danger {
+    background-color: #dc2626;
+    color: white;
+    box-shadow: 0 5px 15px rgba(220, 38, 38, 0.3);
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #b91c1c;
+}
+
+/* Success (Verde) */
+.btn-success {
+    background-color: #16a34a;
+    color: white;
+    box-shadow: 0 5px 15px rgba(22, 163, 74, 0.3);
+}
+
+.btn-success:hover:not(:disabled) {
+    background-color: #15803d;
+}
+
+/* Edit (Azul claro) */
+.btn-edit {
+    background-color: #2563eb;
+    color: white;
+}
+
+.btn-edit:hover:not(:disabled) {
+    background-color: #1e40af;
+}
+
+/* Create (Verde) */
+.btn-create {
+    background-color: #2563eb;
+    color: white;
+    border-radius: 999px;
+    box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
+}
+
+.btn-create:hover:not(:disabled) {
+    background-color: #1e40af;
+}
+
+/* Outline variant */
+.btn-outline {
+    background-color: transparent;
+    border: 2px solid #e5e7eb;
+    color: #0f172a;
+}
+
+.btn-outline:hover:not(:disabled) {
+    background-color: #f9fafb;
+    border-color: #d1d5db;
+}

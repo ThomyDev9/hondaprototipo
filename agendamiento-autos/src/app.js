@@ -7,7 +7,7 @@ dotenv.config();
 import adminDashboardRoutes from "./routes/admin.dashboard.routes.js";
 import adminBasesRoutes from "./routes/admin.bases.routes.js";
 import authRoutes from "./routes/auth.routes.js";
-import usersRoutes from "./routes/users.routes.js";
+import adminUsersRoutes from "./routes/users.routes.js";
 import basesRoutes from "./routes/bases.routes.js";
 import agenteRoutes from "./routes/agente.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
@@ -44,7 +44,7 @@ app.get("/", (req, res) => {
 app.use("/auth", authRoutes);
 
 // Rutas de usuarios (solo accesibles por admin)
-app.use("/admin/users", usersRoutes);
+app.use("/admin/users", adminUsersRoutes);
 
 // Rutas de bases
 app.use("/bases", basesRoutes);

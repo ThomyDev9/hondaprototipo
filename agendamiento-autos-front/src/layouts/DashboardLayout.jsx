@@ -26,9 +26,7 @@ export default function DashboardLayout({
 const styles = {
     wrapper: {
         display: "flex",
-        minHeight: "100vh",
-        width: "100%",
-        background: "#f5f5f5",
+        background: "#990d0d",
     },
     content: {
         flex: 1,
@@ -36,7 +34,7 @@ const styles = {
         flexDirection: "column",
     },
     pageContent: {
-        padding: "2rem",
+        padding: "1rem",
         flex: 1,
     },
 };

@@ -1,6 +1,8 @@
-// src/components/Sidebar.jsx
+import { useState } from "react";
+
 export default function Sidebar({ role, adminPage, onChangeAdminPage }) {
-    const effectiveRole = role || "ADMIN";
+    const [collapsed, setCollapsed] = useState(false); // controla si la sidebar está colapsada
+    const effectiveRole = role || "ADMINISTRADOR";
 
     const menuAdmin = [
         { label: "Cargar bases", key: "cargar-bases" },
@@ -21,30 +23,40 @@ export default function Sidebar({ role, adminPage, onChangeAdminPage }) {
     ];
 
     const menu =
-        effectiveRole === "ADMIN"
+        effectiveRole === "ADMINISTRADOR"
             ? menuAdmin
             : effectiveRole === "SUPERVISOR"
               ? menuSupervisor
               : menuAgente;
 
     const handleClick = (item) => {
-        // Para ADMIN usamos adminPage para navegar entre pantallas internas
-        if (effectiveRole === "ADMIN" && onChangeAdminPage) {
-            onChangeAdminPage(item.key); // ahora soporta 'users' y 'settings' también
+        if (effectiveRole === "ADMINISTRADOR" && onChangeAdminPage) {
+            onChangeAdminPage(item.key);
         }
-        // Para SUPERVISOR / AGENTE ya verás luego cómo lo manejamos
     };
 
     const isActive = (item) => {
-        if (effectiveRole === "ADMIN") {
+        if (effectiveRole === "ADMINISTRADOR") {
             return item.key === adminPage;
         }
         return false;
     };
 
     return (
-        <div style={styles.sidebar}>
-            <h2 style={styles.title}>Citas</h2>
+        <div
+            style={{
+                ...styles.sidebar,
+                width: collapsed ? "60px" : "240px", // ancho según collapsed
+                padding: collapsed ? "1rem 0.5rem" : "1.5rem 1rem",
+            }}
+        >
+            <button
+                style={styles.collapseBtn}
+                onClick={() => setCollapsed(!collapsed)}
+            >
+                {collapsed ? "→" : "←"}
+            </button>
+
             <ul style={styles.menu}>
                 {menu.map((item) => (
                     <li
@@ -52,10 +64,11 @@ export default function Sidebar({ role, adminPage, onChangeAdminPage }) {
                         style={{
                             ...styles.menuItem,
                             ...(isActive(item) ? styles.menuItemActive : {}),
+                            justifyContent: collapsed ? "center" : "flex-start",
                         }}
                         onClick={() => handleClick(item)}
                     >
-                        {item.label}
+                        {collapsed ? item.label[0] : item.label}
                     </li>
                 ))}
             </ul>
@@ -65,19 +78,30 @@ export default function Sidebar({ role, adminPage, onChangeAdminPage }) {
 
 const styles = {
     sidebar: {
-        width: "240px",
         backgroundColor: "#1D4ED8",
         color: "white",
-        padding: "1.5rem 1rem",
         display: "flex",
         flexDirection: "column",
-        gap: "2rem",
+        alignItems: "center",
+        height: "100vh", // ocupa toda la altura
+        transition: "width 0.3s, padding 0.3s",
+        boxSizing: "border-box",
+        overflow: "hidden",
+    },
+    collapseBtn: {
+        alignSelf: "flex-end",
+        background: "transparent",
+        border: "none",
+        color: "white",
+        fontSize: "1.2rem",
+        cursor: "pointer",
+        marginBottom: "1rem",
     },
     title: {
-        textAlign: "center",
         fontSize: "1.4rem",
         fontWeight: "700",
         margin: 0,
+        textAlign: "center",
     },
     menu: {
         listStyle: "none",
@@ -86,12 +110,15 @@ const styles = {
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
+        width: "100%",
     },
     menuItem: {
         padding: "0.75rem 1rem",
         borderRadius: "0.5rem",
         cursor: "pointer",
         transition: "0.2s",
+        display: "flex",
+        alignItems: "center",
     },
     menuItemActive: {
         backgroundColor: "#2563EB",

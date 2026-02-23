@@ -1,6 +1,7 @@
 // src/pages/DashboardAgente.jsx
 import { useEffect, useRef, useState } from "react";
-import CalendarioCitas from "../components/CalendarioCitas";
+import CalendarioCitas from "../../components/CalendarioCitas";
+import { PageContainer } from "../../components/common";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutos
@@ -30,18 +31,20 @@ export default function DashboardAgente({ user }) {
     // si por alguna razón llega alguien sin rol AGENTE
     if (!isAgente) {
         return (
-            <div style={styles.page}>
-                <h1 style={styles.title}>Módulo de agente</h1>
-                <p style={styles.subtitle}>
-                    <strong>Permiso denegado.</strong> Tu usuario no tiene rol
-                    de agente asignado.
-                </p>
-                <p style={styles.subtitle}>
-                    Pide a un administrador que te asigne el rol{" "}
-                    <strong>AGENTE</strong>
-                    desde el módulo de Usuarios.
-                </p>
-            </div>
+            <PageContainer fullWidth>
+                <div style={styles.page}>
+                    <h1 style={styles.title}>Módulo de agente</h1>
+                    <p style={styles.subtitle}>
+                        <strong>Permiso denegado.</strong> Tu usuario no tiene
+                        rol de agente asignado.
+                    </p>
+                    <p style={styles.subtitle}>
+                        Pide a un administrador que te asigne el rol{" "}
+                        <strong>AGENTE</strong>
+                        desde el módulo de Usuarios.
+                    </p>
+                </div>
+            </PageContainer>
         );
     }
 
@@ -365,272 +368,291 @@ export default function DashboardAgente({ user }) {
     /* =====================  UI BLOQUEADO  ===================== */
     if (bloqueado) {
         return (
-            <div style={styles.page}>
-                <h1 style={styles.title}>Módulo de agente</h1>
-                <p style={styles.subtitle}>
-                    Tu usuario se encuentra{" "}
-                    <strong>bloqueado por inactividad</strong> o marcado como{" "}
-                    <strong>inactivo</strong>.
-                </p>
-                <p style={styles.subtitle}>
-                    Por favor, comunícate con un administrador para que te
-                    desbloquee.
-                </p>
-                {error && (
-                    <p style={{ color: "#EA580C", marginTop: "1rem" }}>
-                        {error}
+            <PageContainer fullWidth>
+                <div style={styles.page}>
+                    <h1 style={styles.title}>Módulo de agente</h1>
+                    <p style={styles.subtitle}>
+                        Tu usuario se encuentra{" "}
+                        <strong>bloqueado por inactividad</strong> o marcado
+                        como <strong>inactivo</strong>.
                     </p>
-                )}
-            </div>
+                    <p style={styles.subtitle}>
+                        Por favor, comunícate con un administrador para que te
+                        desbloquee.
+                    </p>
+                    {error && (
+                        <p style={{ color: "#EA580C", marginTop: "1rem" }}>
+                            {error}
+                        </p>
+                    )}
+                </div>
+            </PageContainer>
         );
     }
 
     /* =====================  UI NORMAL  ===================== */
     return (
-        <div style={styles.page}>
-            <div style={styles.headerRow}>
-                <div>
-                    <h1 style={styles.title}>Módulo de agente</h1>
-                    <p style={styles.subtitle}>
-                        Gestiona llamadas, registra estados y agenda citas de
-                        forma controlada.
-                    </p>
-                </div>
-
-                <div style={styles.estadoBox}>
-                    <span style={styles.estadoLabel}>Mi estado:</span>
-                    <div style={styles.estadoChips}>
-                        {ESTADOS_OPERATIVOS.map((st) => (
-                            <button
-                                key={st.code}
-                                type="button"
-                                onClick={() =>
-                                    handleCambioEstadoAgente(st.code)
-                                }
-                                style={{
-                                    ...styles.estadoChip,
-                                    ...(estadoAgente === st.code
-                                        ? styles.estadoChipActive
-                                        : {}),
-                                }}
-                            >
-                                {st.label}
-                            </button>
-                        ))}
+        <PageContainer fullWidth>
+            <div style={styles.page}>
+                <div style={styles.headerRow}>
+                    <div>
+                        <h1 style={styles.title}>Módulo de agente</h1>
+                        <p style={styles.subtitle}>
+                            Gestiona llamadas, registra estados y agenda citas
+                            de forma controlada.
+                        </p>
                     </div>
-                </div>
-            </div>
 
-            {/* Resumen de hoy */}
-            <section style={styles.cardRow}>
-                <div style={styles.card}>
-                    <h2 style={styles.cardTitle}>Mi gestión de hoy</h2>
-                    <p style={styles.cardText}>
-                        Resumen de tu actividad en el día. El sistema asigna
-                        automáticamente el siguiente registro después de cada
-                        gestión.
-                    </p>
-                    <div style={styles.metricsRow}>
-                        <div style={styles.metricBox}>
-                            <span style={styles.metricLabel}>
-                                Registros gestionados
-                            </span>
-                            <span style={styles.metricValue}>
-                                {resumenHoy?.total_gestionados ?? 0}
-                            </span>
-                        </div>
-                        <div style={styles.metricBox}>
-                            <span style={styles.metricLabel}>
-                                Citas agendadas
-                            </span>
-                            <span style={styles.metricValue}>
-                                {resumenHoy?.total_citas ?? 0}
-                            </span>
-                        </div>
-                        <div style={styles.metricBox}>
-                            <span style={styles.metricLabel}>Re-llamadas</span>
-                            <span style={styles.metricValue}>
-                                {resumenHoy?.total_rellamadas ?? 0}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Zona principal: gestión + calendario */}
-            <section style={styles.mainRow}>
-                {/* Panel de gestión */}
-                <div style={styles.leftColumn}>
-                    <div style={styles.card}>
-                        <h2 style={styles.cardTitle}>Registro actual</h2>
-
-                        {error && (
-                            <p
-                                style={{
-                                    color: "#EA580C",
-                                    marginBottom: "0.75rem",
-                                }}
-                            >
-                                {error}
-                            </p>
-                        )}
-
-                        {loadingRegistro && (
-                            <p style={{ color: "#64748B" }}>
-                                Asignando registro...
-                            </p>
-                        )}
-
-                        {!loadingRegistro && !registro && (
-                            <p style={{ color: "#64748B" }}>
-                                {estadoAgente !== "disponible"
-                                    ? 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'
-                                    : "No hay registros disponibles en tu cola en este momento."}
-                            </p>
-                        )}
-
-                        {registro && (
-                            <>
-                                <div style={styles.registroBox}>
-                                    <p>
-                                        <strong>Base:</strong>{" "}
-                                        {registro.base_nombre}
-                                    </p>
-                                    <p>
-                                        <strong>Nombre:</strong>{" "}
-                                        {registro.nombre_completo}
-                                    </p>
-                                    <p>
-                                        <strong>Placa:</strong>{" "}
-                                        {registro.placa || "N/D"}
-                                    </p>
-                                    <p>
-                                        <strong>Teléfono 1:</strong>{" "}
-                                        {registro.telefono1 || "N/D"}
-                                    </p>
-                                    <p>
-                                        <strong>Teléfono 2:</strong>{" "}
-                                        {registro.telefono2 || "N/D"}
-                                    </p>
-                                    <p>
-                                        <strong>Modelo:</strong>{" "}
-                                        {registro.modelo || "N/D"}
-                                    </p>
-                                    <p>
-                                        <strong>Intentos previos:</strong>{" "}
-                                        {registro.intentos_totales ?? 0}
-                                    </p>
-                                </div>
-
-                                <form
-                                    onSubmit={handleGuardarGestion}
-                                    style={{ marginTop: "1rem" }}
+                    <div style={styles.estadoBox}>
+                        <span style={styles.estadoLabel}>Mi estado:</span>
+                        <div style={styles.estadoChips}>
+                            {ESTADOS_OPERATIVOS.map((st) => (
+                                <button
+                                    key={st.code}
+                                    type="button"
+                                    onClick={() =>
+                                        handleCambioEstadoAgente(st.code)
+                                    }
+                                    style={{
+                                        ...styles.estadoChip,
+                                        ...(estadoAgente === st.code
+                                            ? styles.estadoChipActive
+                                            : {}),
+                                    }}
                                 >
-                                    <div>
-                                        <span style={styles.label}>
-                                            Resultado de la gestión
-                                        </span>
-                                        <div style={styles.chipsRow}>
-                                            {ESTADOS_RESULTADO.map((opt) => (
-                                                <button
-                                                    key={opt.code}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setEstadoSeleccionado(
-                                                            opt.code,
-                                                        )
-                                                    }
+                                    {st.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Resumen de hoy */}
+                <section style={styles.cardRow}>
+                    <div style={styles.card}>
+                        <h2 style={styles.cardTitle}>Mi gestión de hoy</h2>
+                        <p style={styles.cardText}>
+                            Resumen de tu actividad en el día. El sistema asigna
+                            automáticamente el siguiente registro después de
+                            cada gestión.
+                        </p>
+                        <div style={styles.metricsRow}>
+                            <div style={styles.metricBox}>
+                                <span style={styles.metricLabel}>
+                                    Registros gestionados
+                                </span>
+                                <span style={styles.metricValue}>
+                                    {resumenHoy?.total_gestionados ?? 0}
+                                </span>
+                            </div>
+                            <div style={styles.metricBox}>
+                                <span style={styles.metricLabel}>
+                                    Citas agendadas
+                                </span>
+                                <span style={styles.metricValue}>
+                                    {resumenHoy?.total_citas ?? 0}
+                                </span>
+                            </div>
+                            <div style={styles.metricBox}>
+                                <span style={styles.metricLabel}>
+                                    Re-llamadas
+                                </span>
+                                <span style={styles.metricValue}>
+                                    {resumenHoy?.total_rellamadas ?? 0}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Zona principal: gestión + calendario */}
+                <section style={styles.mainRow}>
+                    {/* Panel de gestión */}
+                    <div style={styles.leftColumn}>
+                        <div style={styles.card}>
+                            <h2 style={styles.cardTitle}>Registro actual</h2>
+
+                            {error && (
+                                <p
+                                    style={{
+                                        color: "#EA580C",
+                                        marginBottom: "0.75rem",
+                                    }}
+                                >
+                                    {error}
+                                </p>
+                            )}
+
+                            {loadingRegistro && (
+                                <p style={{ color: "#64748B" }}>
+                                    Asignando registro...
+                                </p>
+                            )}
+
+                            {!loadingRegistro && !registro && (
+                                <p style={{ color: "#64748B" }}>
+                                    {estadoAgente !== "disponible"
+                                        ? 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'
+                                        : "No hay registros disponibles en tu cola en este momento."}
+                                </p>
+                            )}
+
+                            {registro && (
+                                <>
+                                    <div style={styles.registroBox}>
+                                        <p>
+                                            <strong>Base:</strong>{" "}
+                                            {registro.base_nombre}
+                                        </p>
+                                        <p>
+                                            <strong>Nombre:</strong>{" "}
+                                            {registro.nombre_completo}
+                                        </p>
+                                        <p>
+                                            <strong>Placa:</strong>{" "}
+                                            {registro.placa || "N/D"}
+                                        </p>
+                                        <p>
+                                            <strong>Teléfono 1:</strong>{" "}
+                                            {registro.telefono1 || "N/D"}
+                                        </p>
+                                        <p>
+                                            <strong>Teléfono 2:</strong>{" "}
+                                            {registro.telefono2 || "N/D"}
+                                        </p>
+                                        <p>
+                                            <strong>Modelo:</strong>{" "}
+                                            {registro.modelo || "N/D"}
+                                        </p>
+                                        <p>
+                                            <strong>Intentos previos:</strong>{" "}
+                                            {registro.intentos_totales ?? 0}
+                                        </p>
+                                    </div>
+
+                                    <form
+                                        onSubmit={handleGuardarGestion}
+                                        style={{ marginTop: "1rem" }}
+                                    >
+                                        <div>
+                                            <span style={styles.label}>
+                                                Resultado de la gestión
+                                            </span>
+                                            <div style={styles.chipsRow}>
+                                                {ESTADOS_RESULTADO.map(
+                                                    (opt) => (
+                                                        <button
+                                                            key={opt.code}
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setEstadoSeleccionado(
+                                                                    opt.code,
+                                                                )
+                                                            }
+                                                            style={{
+                                                                ...styles.chip,
+                                                                ...(estadoSeleccionado ===
+                                                                opt.code
+                                                                    ? styles.chipActive
+                                                                    : {}),
+                                                            }}
+                                                        >
+                                                            {opt.label}
+                                                        </button>
+                                                    ),
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {estadoSeleccionado ===
+                                            "ub_exito_agendo_cita" && (
+                                            <>
+                                                <div
                                                     style={{
-                                                        ...styles.chip,
-                                                        ...(estadoSeleccionado ===
-                                                        opt.code
-                                                            ? styles.chipActive
-                                                            : {}),
+                                                        marginTop: "1rem",
                                                     }}
                                                 >
-                                                    {opt.label}
-                                                </button>
-                                            ))}
+                                                    <label style={styles.label}>
+                                                        Fecha y hora de la cita
+                                                        <input
+                                                            type="datetime-local"
+                                                            value={fechaCita}
+                                                            onChange={(e) =>
+                                                                setFechaCita(
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            style={styles.input}
+                                                        />
+                                                    </label>
+                                                </div>
+                                                <div
+                                                    style={{
+                                                        marginTop: "0.75rem",
+                                                    }}
+                                                >
+                                                    <label style={styles.label}>
+                                                        Agencia de la cita
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Ej: Agencia Norte, Agencia Matriz, etc."
+                                                            value={agenciaCita}
+                                                            onChange={(e) =>
+                                                                setAgenciaCita(
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            style={styles.input}
+                                                        />
+                                                    </label>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        <div style={{ marginTop: "1rem" }}>
+                                            <label style={styles.label}>
+                                                Comentarios de la llamada
+                                                <textarea
+                                                    placeholder="Ej: Cliente prefiere WhatsApp para confirmación."
+                                                    value={comentarios}
+                                                    onChange={(e) =>
+                                                        setComentarios(
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    style={styles.textarea}
+                                                />
+                                            </label>
                                         </div>
-                                    </div>
 
-                                    {estadoSeleccionado ===
-                                        "ub_exito_agendo_cita" && (
-                                        <>
-                                            <div style={{ marginTop: "1rem" }}>
-                                                <label style={styles.label}>
-                                                    Fecha y hora de la cita
-                                                    <input
-                                                        type="datetime-local"
-                                                        value={fechaCita}
-                                                        onChange={(e) =>
-                                                            setFechaCita(
-                                                                e.target.value,
-                                                            )
-                                                        }
-                                                        style={styles.input}
-                                                    />
-                                                </label>
-                                            </div>
-                                            <div
-                                                style={{ marginTop: "0.75rem" }}
+                                        <div style={{ marginTop: "1.25rem" }}>
+                                            <button
+                                                type="submit"
+                                                style={styles.primaryButton}
                                             >
-                                                <label style={styles.label}>
-                                                    Agencia de la cita
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Ej: Agencia Norte, Agencia Matriz, etc."
-                                                        value={agenciaCita}
-                                                        onChange={(e) =>
-                                                            setAgenciaCita(
-                                                                e.target.value,
-                                                            )
-                                                        }
-                                                        style={styles.input}
-                                                    />
-                                                </label>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    <div style={{ marginTop: "1rem" }}>
-                                        <label style={styles.label}>
-                                            Comentarios de la llamada
-                                            <textarea
-                                                placeholder="Ej: Cliente prefiere WhatsApp para confirmación."
-                                                value={comentarios}
-                                                onChange={(e) =>
-                                                    setComentarios(
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                style={styles.textarea}
-                                            />
-                                        </label>
-                                    </div>
-
-                                    <div style={{ marginTop: "1.25rem" }}>
-                                        <button
-                                            type="submit"
-                                            style={styles.primaryButton}
-                                        >
-                                            Guardar gestión y asignar siguiente
-                                        </button>
-                                    </div>
-                                </form>
-                            </>
-                        )}
+                                                Guardar gestión y asignar
+                                                siguiente
+                                            </button>
+                                        </div>
+                                    </form>
+                                </>
+                            )}
+                        </div>
                     </div>
-                </div>
 
-                {/* Calendario */}
-                <div style={styles.rightColumn}>
-                    <div style={styles.card}>
-                        <CalendarioCitas refreshToken={calendarRefreshToken} />
+                    {/* Calendario */}
+                    <div style={styles.rightColumn}>
+                        <div style={styles.card}>
+                            <CalendarioCitas
+                                refreshToken={calendarRefreshToken}
+                            />
+                        </div>
                     </div>
-                </div>
-            </section>
-        </div>
+                </section>
+            </div>
+        </PageContainer>
     );
 }
 

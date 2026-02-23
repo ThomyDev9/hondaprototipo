@@ -9,7 +9,7 @@ const router = express.Router();
 const adminMiddlewares = [
     requireAuth,
     loadUserRoles,
-    requireRole(["ADMIN", "SUPERVISOR"]),
+    requireRole(["ADMINISTRADOR", "SUPERVISOR"]),
 ];
 
 /**

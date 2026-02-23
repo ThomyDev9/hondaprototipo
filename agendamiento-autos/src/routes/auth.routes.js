@@ -1,61 +1,106 @@
-// backend/src/routes/auth.routes.js
 import express from "express";
-import pool from "../services/db.js"; // conexión a Postgres
+import pool from "../services/db.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
-import { generarToken } from "../utils/jwt.js"; // utilidades JWT
+import { generarToken } from "../utils/jwt.js";
+import { encriptar, desencriptar } from "../utils/crypto.js";
 import bcrypt from "bcrypt";
 
 const router = express.Router();
 
 /**
  * POST /auth/login
- * Valida credenciales contra la tabla users y devuelve token + usuario
  */
 router.post("/login", async (req, res) => {
-    const { email, password } = req.body;
+    // accept either username or email from the frontend
+    const { username, email, password } = req.body;
 
     try {
-        const result = await pool.query(
-            "SELECT id, email, full_name, password, is_active, bloqueado FROM user_profiles WHERE email=$1",
-            [email],
+        const loginId = username || email;
+
+        if (!loginId || !password) {
+            return res
+                .status(400)
+                .json({ error: "Usuario (o email) y password son requeridos" });
+        }
+
+        // First try matching by email
+        const [emailRows] = await pool.query(
+            "SELECT IdUser, Id, Email, Name1, Name2, Surname1, Surname2, password, UserGroup FROM user WHERE Email=?",
+            [loginId],
         );
 
-        if (result.rows.length === 0) {
+        let user = null;
+
+        if (emailRows && emailRows.length > 0) {
+            user = emailRows[0];
+        } else {
+            // If not found by email, try decrypting stored Id values to match username
+            const [idRows] = await pool.query(
+                "SELECT IdUser, Id, Email, Name1, Name2, Surname1, Surname2, password, UserGroup FROM user WHERE Id IS NOT NULL",
+            );
+
+            if (idRows && idRows.length > 0) {
+                for (const r of idRows) {
+                    try {
+                        const decrypted = desencriptar(r.Id);
+                        if (decrypted === loginId) {
+                            user = r;
+                            break;
+                        }
+                    } catch (err) {
+                        // ignore decrypt errors for individual rows
+                    }
+                }
+            }
+        }
+
+        if (!user) {
             return res.status(401).json({ error: "Credenciales inválidas" });
         }
 
-        const user = result.rows[0];
-
-        // 🔐 comparar password plano vs hash
         const isValid = await bcrypt.compare(password, user.password);
 
         if (!isValid) {
             return res.status(401).json({ error: "Credenciales inválidas" });
         }
 
-        // opcional: bloquear usuarios
-        if (user.bloqueado) {
-            return res.status(403).json({ error: "Usuario bloqueado" });
-        }
+        // Buscar rol desde workgroup
+        const [roleRows] = await pool.query(
+            "SELECT description FROM workgroup WHERE id=?",
+            [user.UserGroup],
+        );
+
+        const roles = roleRows.map((r) => r.description.toUpperCase());
+
+        // Generar token con roles
+        // Decrypt username from Id column if present
+        const usernameDecrypted = user.Id ? desencriptar(user.Id) : null;
 
         const token = generarToken({
-            id: user.id,
-            email: user.email,
+            id: user.IdUser,
+            email: user.Email || usernameDecrypted || null,
+            roles,
         });
 
-        // nunca mandes el password al frontend
-        delete user.password;
-
-        res.json({ token, user });
+        res.json({
+            token,
+            user: {
+                id: user.IdUser,
+                email: user.Email,
+                username: usernameDecrypted,
+                full_name:
+                    `${user.Name1} ${user.Name2 || ""} ${user.Surname1} ${user.Surname2 || ""}`.trim(),
+                workgroup_id: user.UserGroup,
+            },
+        });
     } catch (err) {
-        console.error("Error en /auth/login:", err);
+        console.error("ERROR EN /auth/login:", err);
         res.status(500).json({ error: "Error interno en login" });
     }
 });
 
 /**
  * GET /auth/me
- * Devuelve el usuario logueado + roles desde la base
  */
 router.get("/me", requireAuth, async (req, res) => {
     try {
@@ -67,36 +112,36 @@ router.get("/me", requireAuth, async (req, res) => {
                 .json({ error: "No se encontró el usuario en el token" });
         }
 
-        const result = await pool.query(
-            `SELECT u.id, u.email, u.full_name, u.is_active, u.bloqueado,
-              array_agg(r.code) AS roles
-       FROM user_profiles u
-       LEFT JOIN user_roles ur ON ur.user_id = u.id
-       LEFT JOIN roles r ON r.id = ur.role_id
-       WHERE u.id=$1
-       GROUP BY u.id`,
+        const [userRows] = await pool.query(
+            "SELECT IdUser, Email, Name1, Name2, Surname1, Surname2, UserGroup FROM user WHERE IdUser=?",
             [userId],
         );
 
-        if (result.rows.length === 0) {
+        if (!userRows || userRows.length === 0) {
             return res.status(404).json({ error: "Usuario no encontrado" });
         }
 
-        const profile = result.rows[0];
+        const user = userRows[0];
 
-        return res.json({
+        const [roleRows] = await pool.query(
+            "SELECT description AS role FROM workgroup WHERE id=?",
+            [user.UserGroup],
+        );
+
+        const roles = roleRows.map((r) => r.role.toUpperCase());
+
+        res.json({
             user: {
-                id: profile.id,
-                email: profile.email,
-                full_name: profile.full_name,
-                roles: profile.roles.filter(Boolean),
-                is_active: profile.is_active ?? true,
-                bloqueado: profile.bloqueado ?? false,
+                id: user.IdUser, // ✅ corregido
+                email: user.Email,
+                full_name:
+                    `${user.Name1} ${user.Name2 || ""} ${user.Surname1} ${user.Surname2 || ""}`.trim(),
+                roles,
             },
         });
     } catch (err) {
-        console.error("Error general en /auth/me:", err);
-        return res.status(500).json({ error: "Error interno en /auth/me" });
+        console.error("ERROR EN /auth/me:", err);
+        res.status(500).json({ error: "Error interno en /auth/me" });
     }
 });
 

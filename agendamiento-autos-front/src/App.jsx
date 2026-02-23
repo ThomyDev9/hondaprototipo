@@ -1,17 +1,17 @@
 import { useState } from "react";
 import DashboardLayout from "./layouts/DashboardLayout";
-import DashboardAdmin from "./pages/DashboardAdmin";
-import DashboardSupervisor from "./pages/DashboardSupervisor";
-import DashboardAgente from "./pages/DashboardAgente";
+import DashboardAdmin from "./pages/admin/DashboardAdmin";
+import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
+import DashboardAgente from "./pages/agente/DashboardAgente";
 import CargarBases from "./pages/CargarBases";
 import ListadoBases from "./pages/ListadoBases";
-import UsuariosAdmin from "./pages/UsuariosAdmin";
+import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
 function App() {
-    const [email, setEmail] = useState("admin@citas.com");
-    const [password, setPassword] = useState("admin");
+    const [username, setUsername] = useState("admin");
+    const [password, setPassword] = useState("admin123");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [userInfo, setUserInfo] = useState(null);
@@ -28,7 +28,7 @@ function App() {
             const resp = await fetch(`${API_BASE}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
+                body: JSON.stringify({ username, password }),
             });
 
             if (!resp.ok) {
@@ -73,7 +73,7 @@ function App() {
                 adminPage={adminPage}
                 onChangeAdminPage={setAdminPage}
             >
-                {userInfo.roles?.includes("ADMIN") && (
+                {userInfo.roles?.includes("ADMINISTRADOR") && (
                     <>
                         {adminPage === "cargar-bases" && <CargarBases />}
                         {adminPage === "listado-bases" && <DashboardAdmin />}
@@ -96,18 +96,21 @@ function App() {
     return (
         <div
             style={{
-                minHeight: "100vh",
+                background: "#c0bce4",
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
+                width: "100vw", // evita scroll horizontal
+                height: "100vh",
             }}
         >
             <form onSubmit={handleLogin}>
                 <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     required
+                    placeholder="Usuario"
                 />
                 <input
                     type="password"

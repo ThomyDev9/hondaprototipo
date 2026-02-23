@@ -1,0 +1,75 @@
+/* Contenedor principal */
+.usuarios-container {
+    height: 100%;
+    padding: 1rem 1rem;
+    margin: 0 auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Header con título y botón crear */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.header__search-action {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 0 1 auto;
+}
+
+/* Mensaje de error */
+.error-msg {
+    padding: 0.75rem 1rem;
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 0.75rem;
+    color: #b91c1c;
+    font-size: 0.85rem;
+}
+
+/* Barra de acción inline (dentro de tabs) */
+.action-bar-inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: #f3f4f6;
+    border-radius: 0.5rem;
+}
+
+.action-bar-inline span {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+@media (max-width: 768px) {
+    .usuarios-container {
+        gap: 1rem;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .header__search-action {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .action-bar-inline {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

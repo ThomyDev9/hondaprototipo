@@ -1,5 +1,6 @@
 // src/pages/ListadoBases.jsx
 import { useEffect, useState } from "react";
+import { PageContainer } from "../components/common";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -43,61 +44,64 @@ export default function ListadoBases() {
     }, []);
 
     return (
-        <div style={styles.wrapper}>
-            <h1 style={styles.title}>Listado de bases cargadas</h1>
-            <p style={styles.subtitle}>
-                Aquí puedes ver todas las bases importadas al sistema y su
-                estado.
-            </p>
+        <PageContainer title="Listado de bases cargadas">
+            <div style={styles.wrapper}>
+                <p style={styles.subtitle}>
+                    Aquí puedes ver todas las bases importadas al sistema y su
+                    estado.
+                </p>
 
-            {loading && <p>Cargando bases...</p>}
-            {error && <p style={styles.error}>{error}</p>}
+                {loading && <p>Cargando bases...</p>}
+                {error && <p style={styles.error}>{error}</p>}
 
-            {!loading && !error && bases.length === 0 && (
-                <p>No hay bases cargadas aún.</p>
-            )}
+                {!loading && !error && bases.length === 0 && (
+                    <p>No hay bases cargadas aún.</p>
+                )}
 
-            {!loading && !error && bases.length > 0 && (
-                <table style={styles.table}>
-                    <thead>
-                        <tr>
-                            <th style={styles.th}>Nombre</th>
-                            <th style={styles.th}>Descripción</th>
-                            <th style={styles.th}>Registros</th>
-                            <th style={styles.th}>Estado</th>
-                            <th style={styles.th}>Fecha de carga</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {bases.map((b) => (
-                            <tr key={b.id} style={styles.tr}>
-                                <td style={styles.td}>{b.name}</td>
-                                <td style={styles.td}>{b.description}</td>
-                                <td style={styles.tdCenter}>
-                                    {b.total_registros ?? b.total_records}
-                                </td>
-                                <td style={styles.td}>
-                                    <span
-                                        style={styles.badge(
-                                            b.estado || b.status,
-                                        )}
-                                    >
-                                        {b.estado || b.status || "pendiente"}
-                                    </span>
-                                </td>
-                                <td style={styles.td}>
-                                    {b.created_at || b.uploaded_at
-                                        ? new Date(
-                                              b.created_at || b.uploaded_at,
-                                          ).toLocaleString("es-EC")
-                                        : "-"}
-                                </td>
+                {!loading && !error && bases.length > 0 && (
+                    <table style={styles.table}>
+                        <thead>
+                            <tr>
+                                <th style={styles.th}>Nombre</th>
+                                <th style={styles.th}>Descripción</th>
+                                <th style={styles.th}>Registros</th>
+                                <th style={styles.th}>Estado</th>
+                                <th style={styles.th}>Fecha de carga</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            )}
-        </div>
+                        </thead>
+                        <tbody>
+                            {bases.map((b) => (
+                                <tr key={b.id} style={styles.tr}>
+                                    <td style={styles.td}>{b.name}</td>
+                                    <td style={styles.td}>{b.description}</td>
+                                    <td style={styles.tdCenter}>
+                                        {b.total_registros ?? b.total_records}
+                                    </td>
+                                    <td style={styles.td}>
+                                        <span
+                                            style={styles.badge(
+                                                b.estado || b.status,
+                                            )}
+                                        >
+                                            {b.estado ||
+                                                b.status ||
+                                                "pendiente"}
+                                        </span>
+                                    </td>
+                                    <td style={styles.td}>
+                                        {b.created_at || b.uploaded_at
+                                            ? new Date(
+                                                  b.created_at || b.uploaded_at,
+                                              ).toLocaleString("es-EC")
+                                            : "-"}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+        </PageContainer>
     );
 }
 

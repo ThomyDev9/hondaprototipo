@@ -4,7 +4,11 @@ const SECRET = process.env.JWT_SECRET || "supersecret";
 
 export function generarToken(user) {
     return jwt.sign(
-        { id: user.id, email: user.email, roles: user.roles || [] },
+        {
+            id: user.id,
+            email: user.email,
+            roles: user.roles || [],
+        },
         SECRET,
         { expiresIn: "8h" },
     );

@@ -15,7 +15,7 @@ router.get(
     "/gestion",
     requireAuth,
     loadUserRoles,
-    requireRole(["ADMIN"]),
+    requireRole(["ADMINISTRADOR"]),
     async (req, res) => {
         try {
             const { base_id } = req.query;
@@ -49,7 +49,7 @@ router.get(
     "/gestion/export",
     requireAuth,
     loadUserRoles,
-    requireRole(["ADMIN"]),
+    requireRole(["ADMINISTRADOR"]),
     async (req, res) => {
         try {
             const { base_id } = req.query;
@@ -66,11 +66,9 @@ router.get(
             const data = result.rows;
 
             if (!data || data.length === 0) {
-                return res
-                    .status(400)
-                    .json({
-                        error: "No hay datos en el reporte para exportar",
-                    });
+                return res.status(400).json({
+                    error: "No hay datos en el reporte para exportar",
+                });
             }
 
             // Orden de columnas EXACTO al de tu vista (sin incluir base_id)
