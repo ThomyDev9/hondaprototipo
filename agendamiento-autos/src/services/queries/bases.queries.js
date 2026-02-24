@@ -161,6 +161,98 @@ const basesQueries = {
         DELETE FROM bases
         WHERE id = ?
     `,
+
+    // ============= CSV IMPORT QUERIES =============
+
+    /**
+     * Validar campaña existente para importación (flujo PHP original)
+     */
+    checkCampaignForImport: `
+        SELECT DISTINCT CampaignId AS Id
+        FROM campaignresultmanagement
+        WHERE CampaignId = ?
+        LIMIT 1
+    `,
+
+    /**
+     * Validar nombre de importación existente
+     */
+    checkImportNameExists: `
+        SELECT DISTINCT LastUpdate
+        FROM contactimportcontact
+        WHERE LastUpdate = ?
+        LIMIT 1
+    `,
+
+    /**
+     * Validar contacto duplicado por identificación y campaña
+     */
+    checkContactDuplicate: `
+        SELECT Id
+        FROM contactimportcontact
+        WHERE Identification = ? AND Campaign = ?
+        LIMIT 1
+    `,
+
+    /**
+     * Validar contacto duplicado por ID (comportamiento legado PHP)
+     */
+    checkContactDuplicateById: `
+        SELECT Id
+        FROM contactimportcontact
+        WHERE Id = ?
+        LIMIT 1
+    `,
+
+    /**
+     * Insertar contacto importado en CCK
+     */
+    insertContactImportContact: `
+        INSERT INTO contactimportcontact
+        (VCC, Id, Name, Identification, Campaign, LastManagementResult, LastUpdate)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,
+
+    /**
+     * Insertar cliente en la base bancopichinchaencuesta_dev
+     */
+    insertClienteBancoPichincha: `
+        INSERT INTO bancopichinchaencuesta_dev.clientes
+        (VCC, CampaignId, ContactId, ContactName, ContactAddress, InteractionId,
+         ImportId, LastAgent, ResultLevel1, ResultLevel2, ResultLevel3, ManagementResultCode,
+         ManagementResultDescription, TmStmp, Intentos,
+         ID, CODIGO_CAMPANIA, NOMBRE_CAMPANIA, IDENTIFICACION, NOMBRE_CLIENTE,
+         CAMPO1, CAMPO2, CAMPO3, CAMPO4, CAMPO5, CAMPO6, CAMPO7, CAMPO8, CAMPO9, CAMPO10,
+         UserShift, Action)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+
+    /**
+     * Insertar teléfono importado
+     */
+    insertContactPhone: `
+        INSERT INTO contactimportphone
+        (ContactId, InteractionId, NumeroMarcado, Agente, Estado, FechaHora, FechaHoraFin, DescripcionTelefono, IdentificacionCliente)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+
+    /**
+     * Registrar detalle de importación
+     */
+    insertContactImportDetail: `
+        INSERT INTO contactimportdetail
+        (VCC, ImportId, UpdateNum, Date, ImportUser, ValidContacts, NewContacts, UpdatedContacts, InvalidContacts, DuplicatesContacts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+
+    /**
+     * Registrar cabecera de importación
+     */
+    insertContactImport: `
+        INSERT INTO contactimport
+        (VCC, ID, DBProvider, Updates, Status, ServiceId)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `,
 };
 
 export default basesQueries;

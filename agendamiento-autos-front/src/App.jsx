@@ -3,8 +3,8 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardAdmin from "./pages/admin/DashboardAdmin";
 import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
 import DashboardAgente from "./pages/agente/DashboardAgente";
-import CargarBases from "./pages/CargarBases";
-import ListadoBases from "./pages/ListadoBases";
+import CargarBases from "./pages/admin/CargarBases";
+// import ListadoBases from "./pages/ListadoBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -39,6 +39,7 @@ function App() {
             const json = await resp.json();
             const accessToken = json.token;
             localStorage.setItem("access_token", accessToken);
+            localStorage.setItem("import_user", username);
 
             // pedir datos del usuario
             const meResp = await fetch(`${API_BASE}/auth/me`, {
@@ -62,6 +63,7 @@ function App() {
 
     const handleLogout = async () => {
         localStorage.removeItem("access_token");
+        localStorage.removeItem("import_user");
         setUserInfo(null);
     };
 

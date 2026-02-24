@@ -26,7 +26,7 @@ export default function DashboardLayout({
 const styles = {
     wrapper: {
         display: "flex",
-        background: "#990d0d",
+        background: "#919192",
     },
     content: {
         flex: 1,
