@@ -97,6 +97,7 @@ router.post("/login", async (req, res) => {
         const token = generarToken({
             id: foundUser.IdUser,
             email: foundUser.Email || usernameDecrypted || null,
+            username: usernameDecrypted,
             roles,
         });
 
@@ -147,6 +148,7 @@ router.get("/me", requireAuth, async (req, res) => {
             user: {
                 id: user.IdUser, // ✅ corregido
                 email: user.Email,
+                username: req.user?.username || null,
                 full_name:
                     `${user.Name1} ${user.Name2 || ""} ${user.Surname1} ${user.Surname2 || ""}`.trim(),
                 roles,

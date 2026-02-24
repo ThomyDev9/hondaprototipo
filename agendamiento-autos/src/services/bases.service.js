@@ -146,6 +146,65 @@ export async function obtenerResumenBases() {
         throw error;
     }
 }
+
+/**
+ * Obtener importaciones por campaña
+ */
+export async function obtenerImportacionesPorCampania(campaignId) {
+    try {
+        console.log(
+            "🔍 Buscando importaciones en BD para campaña:",
+            campaignId,
+        );
+        const [rows] = await pool.query(basesQueries.getImportsByCampaign, [
+            campaignId,
+        ]);
+        console.log("📊 Query ejecutada. Filas encontradas:", rows.length);
+        return rows;
+    } catch (error) {
+        console.error("Error al obtener importaciones:", error);
+        throw error;
+    }
+}
+
+/**
+ * Activar o desactivar base
+ */
+export async function administrarBase(
+    campaignId,
+    importDate,
+    action,
+    username,
+) {
+    try {
+        const now = new Date();
+        const dateNow = now.toISOString().slice(0, 19).replace("T", " ");
+
+        if (action === "activar") {
+            await pool.query(basesQueries.activateBase, [
+                username,
+                dateNow,
+                importDate,
+                campaignId,
+            ]);
+            return { message: "Se ha asignado base exitosamente!" };
+        } else if (action === "desactivar") {
+            await pool.query(basesQueries.deactivateBase, [
+                username,
+                dateNow,
+                importDate,
+                campaignId,
+            ]);
+            return { message: "Se ha cancelado base exitosamente!" };
+        } else {
+            throw new Error("Acción no válida");
+        }
+    } catch (error) {
+        console.error("Error al administrar base:", error);
+        throw error;
+    }
+}
+
 /**
  * Procesar archivo CSV y cargar datos
  * @param {string} filePath - Ruta del archivo CSV

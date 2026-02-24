@@ -23,6 +23,8 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
     const [successMsg, setSuccessMsg] = useState("");
     const [showCredentials, setShowCredentials] = useState(false);
     const [password, setPassword] = useState("");
+    const [showMasterKeyInput, setShowMasterKeyInput] = useState(false);
+    const [masterKeyInput, setMasterKeyInput] = useState("");
 
     // Cargar datos si es edición
     useEffect(() => {
@@ -120,11 +122,11 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
         }
     };
 
-    const handleShowCredentials = async (masterKey) => {
+    const handleShowCredentials = async () => {
         console.log("editingUser:", editingUser);
         console.log("IdUser:", editingUser?.IdUser);
         try {
-            if (!masterKey) {
+            if (!masterKeyInput) {
                 alert("Ingrese clave maestra");
                 return;
             }
@@ -137,7 +139,7 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
                         "Content-Type": "application/json",
                         Authorization: `Bearer ${token}`,
                     },
-                    body: JSON.stringify({ masterKey }),
+                    body: JSON.stringify({ masterKey: masterKeyInput }),
                 },
             );
 
@@ -155,6 +157,8 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
 
             setPassword(data.password);
             setShowCredentials(true);
+            setShowMasterKeyInput(false);
+            setMasterKeyInput("");
         } catch (err) {
             alert(err.message);
         }
@@ -280,21 +284,67 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
                 <div className="form-actions">
                     {/* CREDENCIALES EN EDICIÓN */}
                     {editingUser && !showCredentials && (
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
-                            <Button
-                                variant="primary"
-                                size="sm"
-                                type="button"
-                                onClick={() => {
-                                    const key = window.prompt(
-                                        "Ingrese clave maestra",
-                                    );
-                                    if (key === null) return; // cancel
-                                    handleShowCredentials(key);
-                                }}
-                            >
-                                Mostrar credenciales
-                            </Button>
+                        <div
+                            style={{
+                                display: "flex",
+                                gap: "0.5rem",
+                                alignItems: "center",
+                                flex: 1,
+                            }}
+                        >
+                            {!showMasterKeyInput ? (
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    type="button"
+                                    onClick={() => setShowMasterKeyInput(true)}
+                                >
+                                    Mostrar credenciales
+                                </Button>
+                            ) : (
+                                <>
+                                    <input
+                                        type="password"
+                                        placeholder="Ingrese clave maestra"
+                                        value={masterKeyInput}
+                                        onChange={(e) =>
+                                            setMasterKeyInput(e.target.value)
+                                        }
+                                        style={{
+                                            padding: "0.5rem",
+                                            borderRadius: "0.375rem",
+                                            border: "1px solid #cbd5e1",
+                                            fontSize: "0.875rem",
+                                            flex: "0 0 200px",
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                handleShowCredentials();
+                                            }
+                                        }}
+                                    />
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        type="button"
+                                        onClick={handleShowCredentials}
+                                    >
+                                        Confirmar
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        type="button"
+                                        onClick={() => {
+                                            setShowMasterKeyInput(false);
+                                            setMasterKeyInput("");
+                                        }}
+                                    >
+                                        Cancelar
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     )}
                     <Button variant="secondary" onClick={onClose} type="button">

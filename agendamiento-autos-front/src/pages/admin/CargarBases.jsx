@@ -1,6 +1,6 @@
 // frontend/src/pages/bases/CargarBases.jsx
 import { useState, useEffect } from "react";
-import { PageContainer, Select, AutoComplete } from "../../components/common";
+import { Select, AutoComplete } from "../../components/common";
 import { obtenerMapeos } from "../../services/mapping.service";
 import { buscarCampanas } from "../../services/campaign.service";
 import "./CargarBases.css";
@@ -137,112 +137,106 @@ export default function CargarBases() {
     };
 
     return (
-        <PageContainer title="Cargar nueva base" fullWidth>
-            <div className="wrapper">
-                <form onSubmit={handleSubmit} className="form">
-                    {/* Nombre base - Solo visible cuando hay archivo */}
-                    {file && (
-                        <label className="label">
-                            Nombre de la base
-                            <input
-                                type="text"
-                                value={baseName}
-                                disabled={true}
-                                className="input inputDisabled"
-                                placeholder={file.name}
-                            />
-                            {errors.baseName && (
-                                <span className="errorText">
-                                    {errors.baseName}
-                                </span>
-                            )}
-                        </label>
-                    )}
-                    {/* Mapeo */}
-                    <Select
-                        label="Mapeo"
-                        options={mapeoOptions}
-                        value={mapeo}
-                        onChange={setMapeo}
-                        placeholder="Selecciona un mapeo"
-                        disabled={loadingMapeos}
-                        error={errors.mapeo}
-                        required
-                    />
-
-                    {/* Campaña */}
-                    <AutoComplete
-                        label="Campaña"
-                        value={campania}
-                        onChange={setCampania}
-                        onSearch={buscarCampanas}
-                        placeholder="Escribe el ID de la campaña..."
-                        error={errors.campania}
-                        required
-                    />
-
-                    {/* Archivo CSV */}
+        <div className="wrapper">
+            <form onSubmit={handleSubmit} className="form">
+                {/* Nombre base - Solo visible cuando hay archivo */}
+                {file && (
                     <label className="label">
-                        Archivo CSV (.csv)
+                        Nombre de la base
                         <input
-                            type="file"
-                            accept=".csv,text/csv"
-                            className="input"
-                            onChange={(e) => {
-                                const selectedFile = e.target.files[0];
-                                if (
-                                    selectedFile &&
-                                    !selectedFile.name.endsWith(".csv")
-                                ) {
-                                    setErrors({
-                                        ...errors,
-                                        file: "Solo se permiten archivos CSV",
-                                    });
-                                    setFile(null);
-                                    return;
-                                }
-                                setErrors({ ...errors, file: null });
-                                setFile(selectedFile || null);
-
-                                // ✅ Autocomplete: usar nombre del archivo como nombre de base
-                                if (selectedFile) {
-                                    const fileName = selectedFile.name.replace(
-                                        /\.csv$/i,
-                                        "",
-                                    );
-                                    setBaseName(fileName);
-                                }
-                            }}
+                            type="text"
+                            value={baseName}
+                            disabled={true}
+                            className="input inputDisabled"
+                            placeholder={file.name}
                         />
-                        {errors.file && (
-                            <span className="errorText">{errors.file}</span>
+                        {errors.baseName && (
+                            <span className="errorText">{errors.baseName}</span>
                         )}
                     </label>
-
-                    {file && (
-                        <p className="fileInfo">
-                            Archivo seleccionado: <strong>{file.name}</strong>
-                        </p>
-                    )}
-
-                    {status && <p className="status">{status}</p>}
-
-                    <button type="submit" className="button">
-                        Cargar base
-                    </button>
-                </form>
-
-                {preview.length > 0 && (
-                    <div className="previewBox">
-                        <h2 className="previewTitle">
-                            Preview (primeras filas)
-                        </h2>
-                        <pre className="previewPre">
-                            {JSON.stringify(preview, null, 2)}
-                        </pre>
-                    </div>
                 )}
-            </div>
-        </PageContainer>
+                {/* Mapeo */}
+                <Select
+                    label="Mapeo"
+                    options={mapeoOptions}
+                    value={mapeo}
+                    onChange={setMapeo}
+                    placeholder="Selecciona un mapeo"
+                    disabled={loadingMapeos}
+                    error={errors.mapeo}
+                    required
+                />
+
+                {/* Campaña */}
+                <AutoComplete
+                    label="Campaña"
+                    value={campania}
+                    onChange={setCampania}
+                    onSearch={buscarCampanas}
+                    placeholder="Escribe el ID de la campaña..."
+                    error={errors.campania}
+                    required
+                />
+
+                {/* Archivo CSV */}
+                <label className="label">
+                    Archivo CSV (.csv)
+                    <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="input"
+                        onChange={(e) => {
+                            const selectedFile = e.target.files[0];
+                            if (
+                                selectedFile &&
+                                !selectedFile.name.endsWith(".csv")
+                            ) {
+                                setErrors({
+                                    ...errors,
+                                    file: "Solo se permiten archivos CSV",
+                                });
+                                setFile(null);
+                                return;
+                            }
+                            setErrors({ ...errors, file: null });
+                            setFile(selectedFile || null);
+
+                            // ✅ Autocomplete: usar nombre del archivo como nombre de base
+                            if (selectedFile) {
+                                const fileName = selectedFile.name.replace(
+                                    /\.csv$/i,
+                                    "",
+                                );
+                                setBaseName(fileName);
+                            }
+                        }}
+                    />
+                    {errors.file && (
+                        <span className="errorText">{errors.file}</span>
+                    )}
+                </label>
+
+                {file && (
+                    <p className="fileInfo">
+                        Archivo seleccionado: <strong>{file.name}</strong>
+                    </p>
+                )}
+
+                {status && <p className="status">{status}</p>}
+
+                <button type="submit" className="button">
+                    Cargar base
+                </button>
+            </form>
+
+            {preview.length > 0 && (
+                <div className="previewBox">
+                    <h2 className="previewTitle">Preview (primeras filas)</h2>
+                    <pre className="previewPre">
+                        {JSON.stringify(preview, null, 2)}
+                    </pre>
+                </div>
+            )}
+        </div>
     );
 }

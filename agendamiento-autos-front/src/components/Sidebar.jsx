@@ -5,7 +5,7 @@ export default function Sidebar({ role, adminPage, onChangeAdminPage }) {
     const effectiveRole = role || "ADMINISTRADOR";
 
     const menuAdmin = [
-        { label: "Cargar bases", key: "cargar-bases" },
+        { label: "Administrar bases", key: "administrar-bases" },
         { label: "Ver bases", key: "listado-bases" },
         { label: "Usuarios", key: "users" },
         { label: "Configuración", key: "settings" },

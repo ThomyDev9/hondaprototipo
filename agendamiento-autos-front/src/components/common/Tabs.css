@@ -1,6 +1,8 @@
 .tabs {
     width: 100%;
-    margin-bottom: 1rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 .tabs--default {
@@ -68,7 +70,29 @@
 }
 
 .tabs__content {
+    flex: 1;
     padding: 1.5rem;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* Scroll personalizado para el contenido de tabs */
+.tabs__content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.tabs__content::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.tabs__content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.tabs__content::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 @media (max-width: 768px) {

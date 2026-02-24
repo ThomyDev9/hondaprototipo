@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardAdmin from "./pages/admin/DashboardAdmin";
 import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
 import DashboardAgente from "./pages/agente/DashboardAgente";
-import CargarBases from "./pages/admin/CargarBases";
+import AdministrarBases from "./pages/admin/AdministrarBases";
 // import ListadoBases from "./pages/ListadoBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 
@@ -16,8 +16,41 @@ function App() {
     const [error, setError] = useState("");
     const [userInfo, setUserInfo] = useState(null);
 
-    // 'cargar-bases' | 'listado-bases' | 'users' | 'settings'
-    const [adminPage, setAdminPage] = useState("cargar-bases");
+    // 'administrar-bases' | 'listado-bases' | 'users' | 'settings'
+    const [adminPage, setAdminPage] = useState("administrar-bases");
+
+    // ✅ Validar token al cargar la página
+    useEffect(() => {
+        const validateToken = async () => {
+            const token = localStorage.getItem("access_token");
+            if (!token) return;
+
+            try {
+                const meResp = await fetch(`${API_BASE}/auth/me`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+
+                if (!meResp.ok) {
+                    throw new Error("Token inválido");
+                }
+
+                const meJson = await meResp.json();
+
+                // ℹ️ Si username es null, solo advertir pero permitir continuar
+                if (!meJson.user.username) {
+                    console.warn("⚠️ Username no disponible en sesión actual");
+                }
+
+                setUserInfo(meJson.user);
+            } catch (err) {
+                console.error("Error validando token:", err);
+                localStorage.removeItem("access_token");
+                localStorage.removeItem("import_user");
+            }
+        };
+
+        validateToken();
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -52,6 +85,12 @@ function App() {
             }
 
             const meJson = await meResp.json();
+
+            // ⚠️ Si no hay username, solo advertir (puede ser null si no se desencriptó)
+            if (!meJson.user.username) {
+                console.warn("⚠️ Username no disponible en el token");
+            }
+
             setUserInfo(meJson.user);
         } catch (err) {
             console.error("Error login:", err);
@@ -77,7 +116,9 @@ function App() {
             >
                 {userInfo.roles?.includes("ADMINISTRADOR") && (
                     <>
-                        {adminPage === "cargar-bases" && <CargarBases />}
+                        {adminPage === "administrar-bases" && (
+                            <AdministrarBases />
+                        )}
                         {adminPage === "listado-bases" && <DashboardAdmin />}
                         {adminPage === "users" && <UsuariosAdmin />}
                     </>

@@ -44,18 +44,14 @@ const campaignQueries = {
     `,
 
     /**
-     * Obtener campañas activas/vigentes
-     * Usado en: Filtrar solo campañas actuales
+     * Obtener campañas activas/vigentes (State = '1')
+     * Usado en: Administrar bases - selector de campañas
      */
     getActive: `
-        SELECT DISTINCT
-            CampaignId,
-            COUNT(*) as registryCount,
-            MAX(CreatedDate) as lastUpdate
-        FROM campaignresultmanagement
-        WHERE CreatedDate >= DATE_SUB(NOW(), INTERVAL 90 DAY)
-        GROUP BY CampaignId
-        ORDER BY CampaignId ASC
+        SELECT Id
+        FROM campaign
+        WHERE State = '1'
+        ORDER BY Id
     `,
 
     /**

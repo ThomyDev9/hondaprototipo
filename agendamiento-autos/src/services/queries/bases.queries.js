@@ -253,6 +253,53 @@ const basesQueries = {
         (VCC, ID, DBProvider, Updates, Status, ServiceId)
         VALUES (?, ?, ?, ?, ?, ?)
     `,
+
+    // ============= ADMINISTRACIÓN DE BASES =============
+
+    /**
+     * Obtener importaciones distintas por campaña (excluye años 2019-2025)
+     * Filtros:
+     * - TmStmpShift: excluye años antiguos en fecha
+     * - LastUpdate: excluye si contiene años 2019-2025 en el texto
+     */
+    getImportsByCampaign: `
+        SELECT DISTINCT LastUpdate
+        FROM contactimportcontact
+        WHERE Campaign = ?
+          AND (TmStmpShift IS NULL OR YEAR(TmStmpShift) >= 2026)
+          AND LastUpdate NOT LIKE '%2019%'
+          AND LastUpdate NOT LIKE '%2020%'
+          AND LastUpdate NOT LIKE '%2021%'
+          AND LastUpdate NOT LIKE '%2022%'
+          AND LastUpdate NOT LIKE '%2023%'
+          AND LastUpdate NOT LIKE '%2024%'
+          AND LastUpdate NOT LIKE '%2025%'
+        ORDER BY LastUpdate DESC
+    `,
+
+    /**
+     * Activar base (asignar a agentes)
+     */
+    activateBase: `
+        UPDATE contactimportcontact
+        SET Action = '',
+            UserShift = ?,
+            TmStmpShift = ?
+        WHERE LastUpdate = ?
+          AND Campaign = ?
+    `,
+
+    /**
+     * Desactivar base (cancelar base)
+     */
+    deactivateBase: `
+        UPDATE contactimportcontact
+        SET Action = 'Cancelar base',
+            UserShift = ?,
+            TmStmpShift = ?
+        WHERE LastUpdate = ?
+          AND Campaign = ?
+    `,
 };
 
 export default basesQueries;

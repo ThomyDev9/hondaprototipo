@@ -7,6 +7,7 @@ export function generarToken(user) {
         {
             id: user.id,
             email: user.email,
+            username: user.username,
             roles: user.roles || [],
         },
         SECRET,

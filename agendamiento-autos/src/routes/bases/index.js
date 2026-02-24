@@ -95,4 +95,66 @@ router.post(
     },
 );
 
+/**
+ * GET /bases/importaciones/:campaignId
+ * Obtiene lista de importaciones (fechas LastUpdate) para una campaña
+ */
+router.get("/importaciones/:campaignId", requireAuth, async (req, res) => {
+    try {
+        const { campaignId } = req.params;
+        console.log("📥 Obteniendo importaciones para campaña:", campaignId);
+
+        const importaciones =
+            await basesService.obtenerImportacionesPorCampania(campaignId);
+
+        console.log("✅ Importaciones encontradas:", importaciones.length);
+        console.log("Datos:", importaciones);
+
+        res.json({ importaciones });
+    } catch (err) {
+        console.error("❌ Error obteniendo importaciones:", err);
+        res.status(500).json({ error: "Error obteniendo importaciones" });
+    }
+});
+
+/**
+ * POST /bases/administrar
+ * Activa o desactiva una base (importación)
+ * Body: { campaignId, importDate, action: 'activar' | 'desactivar' }
+ */
+router.post(
+    "/administrar",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const { campaignId, importDate, action } = req.body;
+            const username = req.user?.username || String(req.user?.id);
+
+            if (!campaignId || !importDate || !action) {
+                return res.status(400).json({
+                    error: "campaignId, importDate y action son requeridos",
+                });
+            }
+
+            const resultado = await basesService.administrarBase(
+                campaignId,
+                importDate,
+                action,
+                username,
+            );
+
+            res.json({
+                success: true,
+                message: resultado.message,
+            });
+        } catch (err) {
+            console.error("Error administrando base:", err);
+            res.status(500).json({
+                error: err.message || "Error al administrar base",
+            });
+        }
+    },
+);
+
 export default router;
