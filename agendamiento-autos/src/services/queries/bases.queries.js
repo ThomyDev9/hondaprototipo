@@ -5,6 +5,9 @@
  * Organizadas por operación (SELECT, INSERT, UPDATE, DELETE)
  */
 
+const encuestaSchema =
+    process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev";
+
 const basesQueries = {
     // ============= SELECT QUERIES =============
 
@@ -217,7 +220,7 @@ const basesQueries = {
      * Insertar cliente en la base bancopichinchaencuesta_dev
      */
     insertClienteBancoPichincha: `
-        INSERT INTO bancopichinchaencuesta_dev.clientes
+        INSERT INTO ${encuestaSchema}.clientes
         (VCC, CampaignId, ContactId, ContactName, ContactAddress, InteractionId,
          ImportId, LastAgent, ResultLevel1, ResultLevel2, ResultLevel3, ManagementResultCode,
          ManagementResultDescription, TmStmp, Intentos,
