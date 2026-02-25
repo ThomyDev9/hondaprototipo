@@ -4,7 +4,6 @@ import DashboardAdmin from "./pages/admin/DashboardAdmin";
 import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
 import DashboardAgente from "./pages/agente/DashboardAgente";
 import AdministrarBases from "./pages/admin/AdministrarBases";
-// import ListadoBases from "./pages/ListadoBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -128,7 +127,7 @@ function App() {
                     <DashboardSupervisor />
                 )}
 
-                {userInfo.roles?.includes("AGENTE") && (
+                {userInfo.roles?.includes("ASESOR") && (
                     <DashboardAgente user={userInfo} />
                 )}
             </DashboardLayout>

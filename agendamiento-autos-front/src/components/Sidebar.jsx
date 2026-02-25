@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function Sidebar({ role, adminPage, onChangeAdminPage }) {
+function Sidebar({ role, adminPage, onChangeAdminPage }) {
     const [collapsed, setCollapsed] = useState(false); // controla si la sidebar está colapsada
     const effectiveRole = role || "ADMINISTRADOR";
 
@@ -22,12 +22,17 @@ export default function Sidebar({ role, adminPage, onChangeAdminPage }) {
         { label: "Tomar siguiente", key: "next" },
     ];
 
-    const menu =
-        effectiveRole === "ADMINISTRADOR"
-            ? menuAdmin
-            : effectiveRole === "SUPERVISOR"
-              ? menuSupervisor
-              : menuAgente;
+    const getMenu = () => {
+        if (effectiveRole === "ADMINISTRADOR") {
+            return menuAdmin;
+        }
+        if (effectiveRole === "SUPERVISOR") {
+            return menuSupervisor;
+        }
+        return menuAgente;
+    };
+
+    const menu = getMenu();
 
     const handleClick = (item) => {
         if (effectiveRole === "ADMINISTRADOR" && onChangeAdminPage) {
@@ -61,12 +66,20 @@ export default function Sidebar({ role, adminPage, onChangeAdminPage }) {
                 {menu.map((item) => (
                     <li
                         key={item.key}
+                        role="button"
+                        tabIndex={0}
                         style={{
                             ...styles.menuItem,
                             ...(isActive(item) ? styles.menuItemActive : {}),
                             justifyContent: collapsed ? "center" : "flex-start",
                         }}
                         onClick={() => handleClick(item)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                handleClick(item);
+                            }
+                        }}
                     >
                         {collapsed ? item.label[0] : item.label}
                     </li>
@@ -124,3 +137,5 @@ const styles = {
         backgroundColor: "#2563EB",
     },
 };
+
+export default Sidebar;

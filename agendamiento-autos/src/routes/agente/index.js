@@ -1,6 +1,7 @@
 // src/routes/agente.routes.js
 import express from "express";
 import pool from "../../services/db.js"; // conexión a MySQL
+import { agenteQueries } from "../../services/queries/index.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -10,13 +11,13 @@ import {
 const router = express.Router();
 
 // Estados operativos válidos del agente
-const ESTADOS_OPERATIVOS = [
+const ESTADOS_OPERATIVOS = new Set([
     "disponible",
     "baño",
     "consulta",
     "lunch",
     "reunion",
-];
+]);
 
 /**
  * Middleware: verifica que el agente NO esté bloqueado
@@ -28,18 +29,19 @@ async function requireNotBlocked(req, res, next) {
             return res.status(401).json({ error: "Usuario no autenticado" });
         }
 
-        const [rows] = await pool.query(
-            `SELECT bloqueado
-       FROM user_profiles
-       WHERE id = ?`,
-            [userId],
-        );
+        const [rows] = await pool.query(agenteQueries.getUserStateByIdUser, [
+            userId,
+        ]);
 
         if (rows.length === 0) {
             return res.status(404).json({ error: "Usuario no encontrado" });
         }
 
-        const bloqueado = rows[0].bloqueado;
+        const userState = String(rows[0].State || "").toUpperCase();
+        const bloqueado =
+            userState === "0" ||
+            userState === "BLOQUEADO" ||
+            userState === "INACTIVO";
 
         if (bloqueado) {
             return res.status(403).json({
@@ -60,122 +62,121 @@ async function requireNotBlocked(req, res, next) {
 const agenteMiddlewares = [
     requireAuth,
     loadUserRoles,
-    requireRole(["AGENTE", "SUPERVISOR", "ADMINISTRADOR"]),
+    requireRole(["ASESOR", "SUPERVISOR", "ADMINISTRADOR"]),
     requireNotBlocked,
 ];
 
-/* ============================================================================
-   1. RESUMEN DEL DÍA (persistente, desde agente_gestiones_log)
-============================================================================ */
-router.get("/resumen-hoy", ...agenteMiddlewares, async (req, res) => {
-    try {
-        const agenteId = req.user.id;
-
-        const hoy = new Date();
-        const inicio = new Date(
-            hoy.getFullYear(),
-            hoy.getMonth(),
-            hoy.getDate(),
-        );
-        const fin = new Date(inicio.getTime() + 24 * 60 * 60 * 1000); // +1 día
-
-        const [rows] = await pool.query(
-            `SELECT estado_final
-             FROM agente_gestiones_log
-             WHERE agente_id = ?
-               AND created_at >= ?
-               AND created_at < ?`,
-            [agenteId, inicio.toISOString(), fin.toISOString()],
-        );
-
-        const gestiones = rows;
-
-        const total_gestionados = gestiones.length;
-        const total_citas = gestiones.filter(
-            (g) => g.estado_final === "ub_exito_agendo_cita",
-        ).length;
-        const total_rellamadas = gestiones.filter(
-            (g) => g.estado_final === "re_llamada",
-        ).length;
-
-        return res.json({
-            resumen: {
-                total_gestionados,
-                total_citas,
-                total_rellamadas,
-            },
-        });
-    } catch (err) {
-        console.error("Error en /agente/resumen-hoy:", err);
-        return res.status(500).json({ error: "Error en resumen del día" });
-    }
-});
+function getAgentActor(req) {
+    return req.user?.username || req.user?.email || String(req.user?.id);
+}
 
 /* ============================================================================
-   2. TOMAR SIGUIENTE REGISTRO (auto-asignación)
+   1. TOMAR SIGUIENTE REGISTRO (auto-asignación)
 ============================================================================ */
 router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
     try {
-        const agenteId = req.user.id;
-        const estadosElegibles = ["pendiente", "re_llamada", "sin_contacto"];
+        const agenteActor = getAgentActor(req);
+        const campaignFromBody = req.body?.campaignId;
 
-        // Buscar siguiente registro
-        const [registros] = await pool.query(
-            `SELECT id, base_id, nombre_completo, placa, telefono1, telefono2, modelo, intentos_totales, pool, estado
-       FROM base_registros
-       WHERE pool = ?
-         AND estado IN (?)
-         AND (intentos_totales IS NULL OR intentos_totales < 6)
-       ORDER BY intentos_totales ASC
-       LIMIT 1`,
-            ["activo", estadosElegibles],
+        if (!campaignFromBody) {
+            return res.status(400).json({
+                error: "Debes seleccionar una campaña para tomar registros",
+            });
+        }
+
+        let registroTomado = null;
+
+        const [latestImportRows] = await pool.query(
+            agenteQueries.getActiveImportByCampaign,
+            [campaignFromBody],
         );
-        if (registros.length === 0) {
+
+        let latestImportId = latestImportRows[0]?.ImportId || null;
+
+        if (!latestImportId) {
+            const [fallbackImportRows] = await pool.query(
+                agenteQueries.getLatestImportWithPendingByCampaign,
+                [campaignFromBody],
+            );
+
+            latestImportId = fallbackImportRows[0]?.ImportId || null;
+
+            if (!latestImportId) {
+                return res.status(404).json({
+                    error: "No hay registros pendientes para esta campaña",
+                });
+            }
+
+            await pool.query(agenteQueries.upsertCampaignActiveBase, [
+                campaignFromBody,
+                latestImportId,
+                agenteActor,
+            ]);
+        }
+
+        for (let intento = 0; intento < 5; intento++) {
+            const [candidatos] = await pool.query(
+                agenteQueries.getNextCandidateByCampaignAndImport,
+                [campaignFromBody, latestImportId],
+            );
+
+            if (candidatos.length === 0) {
+                break;
+            }
+
+            const candidato = candidatos[0];
+            const assignAction = candidato.LastManagementResult
+                ? "Reciclar Base"
+                : "Asignar Base";
+
+            const [updResult] = await pool.query(
+                agenteQueries.takeCandidateForAgent,
+                [
+                    agenteActor,
+                    assignAction,
+                    agenteActor,
+                    candidato.Id,
+                    candidato.Campaign,
+                ],
+            );
+
+            if (updResult.affectedRows > 0) {
+                registroTomado = {
+                    id: candidato.Id,
+                    nombre_completo: candidato.Name,
+                    placa: null,
+                    telefono1: null,
+                    telefono2: null,
+                    modelo: null,
+                    intentos_totales:
+                        Number(candidato.intentos_totales || 0) + 1,
+                    base_nombre: candidato.LastUpdate || "Base activa",
+                    campaign_id: candidato.Campaign,
+                    identification: candidato.Identification || null,
+                };
+                break;
+            }
+        }
+
+        if (!registroTomado) {
             return res
                 .status(404)
                 .json({ error: "No hay registros disponibles en tu cola" });
         }
 
-        const reg = registros[0];
-        const nuevosIntentos = (reg.intentos_totales || 0) + 1;
+        const [phones] = await pool.query(agenteQueries.getPhonesByContactId, [
+            registroTomado.id,
+        ]);
 
-        // Actualizar registro a "en_gestion"
-        const updResult = await pool.query(
-            `UPDATE base_registros
-       SET estado = ?,
-           agente_id = ?,
-           updated_at = ?,
-           intentos_totales = ?
-       WHERE id = ?`,
-            [
-                "en_gestion",
-                agenteId,
-                new Date().toISOString(),
-                nuevosIntentos,
-                reg.id,
-            ],
-        );
+        const numeros = phones
+            .map((row) => row.NumeroMarcado)
+            .filter(Boolean)
+            .slice(0, 2);
 
-        if (updResult.affectedRows === 0) {
-            return res
-                .status(500)
-                .json({ error: "Error tomando el registro para gestión" });
-        }
+        registroTomado.telefono1 = numeros[0] || null;
+        registroTomado.telefono2 = numeros[1] || null;
 
-        // Obtener nombre de la base
-        const [baseRows] = await pool.query(
-            `SELECT name FROM bases WHERE id = ?`,
-            [reg.base_id],
-        );
-        const baseInfo = baseRows[0];
-
-        return res.json({
-            registro: {
-                ...reg,
-                base_nombre: baseInfo ? baseInfo.name : "Base desconocida",
-                intentos_totales: nuevosIntentos,
-            },
-        });
+        return res.json({ registro: registroTomado });
     } catch (err) {
         console.error("Error en /agente/siguiente:", err);
         return res
@@ -185,120 +186,66 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
 });
 
 /* ============================================================================
-   3. GUARDAR GESTIÓN + CREAR CITA (si aplica) + LOG DE GESTIONES
+    3. GUARDAR GESTIÓN (cck_dev)
 ============================================================================ */
 router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
     try {
-        const agenteId = req.user.id;
-        const {
-            registro_id,
-            estado_final,
-            fecha_cita,
-            agencia_cita,
-            comentarios,
-        } = req.body;
+        const agenteActor = getAgentActor(req);
+        const { registro_id, estado_final, fecha_cita, agencia_cita } =
+            req.body;
 
         if (!registro_id || !estado_final) {
             return res.status(400).json({ error: "Faltan datos obligatorios" });
         }
 
-        // 1) Leer registro
-        const [regRows] = await pool.query(
-            `SELECT id, base_id, nombre_completo, placa, intentos_totales, telefono1, telefono2
-       FROM base_registros
-       WHERE id = ?`,
+        const [contactRows] = await pool.query(
+            `SELECT Id
+             FROM contactimportcontact
+             WHERE Id = ?
+             LIMIT 1`,
             [registro_id],
         );
-        const reg = regRows[0];
-        if (!reg) {
+
+        if (contactRows.length === 0) {
             return res.status(404).json({ error: "Registro no encontrado" });
         }
 
-        const ahora = new Date().toISOString();
-
-        // 2) Actualizar estado del registro
         await pool.query(
-            `UPDATE base_registros
-       SET estado = ?,
-           agente_id = ?,
-           updated_at = ?
-       WHERE id = ?`,
-            [estado_final, agenteId, ahora, registro_id],
+            `UPDATE contactimportcontact
+             SET Action = ?,
+                 LastAgent = ?,
+                 UserShift = ?,
+                 TmStmpShift = NOW()
+             WHERE Id = ?`,
+            [estado_final, agenteActor, agenteActor, registro_id],
         );
 
-        // 3) Insertar cita si aplica
-        if (estado_final === "ub_exito_agendo_cita" && fecha_cita) {
-            const fechaISO = new Date(fecha_cita).toISOString();
-            await pool.query(
-                `INSERT INTO citas
-         (base_registro_id, base_id, agente_id, fecha_cita, agencia_cita, estado_cita, comentarios, nombre_cliente, placa)
-         VALUES (?,?,?,?,?,'programada',?,?,?)`,
-                [
-                    registro_id,
-                    reg.base_id,
-                    agenteId,
-                    fechaISO,
-                    agencia_cita || null,
-                    comentarios || null,
-                    reg.nombre_completo || null,
-                    reg.placa || null,
-                ],
-            );
-        }
+        const citaCreada =
+            estado_final === "ub_exito_agendo_cita" &&
+            Boolean(fecha_cita) &&
+            Boolean(agencia_cita);
 
-        // 4) Insertar gestión en tabla gestiones
-        const telefonoContacto = reg.telefono1 || reg.telefono2 || null;
-        await pool.query(
-            `INSERT INTO gestiones
-       (base_id, base_registro_id, agente_id, telefono_contacto, intento_n, comentario, estado_gestion, sub_estatus)
-       VALUES (?,?,?,?,?,?,?,?)`,
-            [
-                reg.base_id,
-                registro_id,
-                agenteId,
-                telefonoContacto,
-                reg.intentos_totales || 1,
-                comentarios || null,
-                estado_final,
-                null,
-            ],
+        const [rows] = await pool.query(
+            `SELECT Action
+             FROM contactimportcontact
+             WHERE LastAgent = ?
+               AND DATE(TmStmpShift) = CURDATE()
+               AND Action IS NOT NULL
+               AND Action <> ''`,
+            [agenteActor],
         );
 
-        // 5) Insertar log de gestión
-        await pool.query(
-            `INSERT INTO agente_gestiones_log
-       (agente_id, base_registro_id, estado_final, created_at)
-       VALUES (?,?,?,?)`,
-            [agenteId, registro_id, estado_final, ahora],
-        );
-
-        // 6) Resumen del día
-        const hoy = new Date();
-        const inicio = new Date(
-            hoy.getFullYear(),
-            hoy.getMonth(),
-            hoy.getDate(),
-        );
-        const fin = new Date(inicio.getTime() + 24 * 60 * 60 * 1000);
-
-        const [gestionesHoy] = await pool.query(
-            `SELECT estado_final
-       FROM agente_gestiones_log
-       WHERE agente_id = ?
-         AND created_at >= ?
-         AND created_at < ?`,
-            [agenteId, inicio.toISOString(), fin.toISOString()],
-        );
-        const total_gestionados = gestionesHoy.length;
-        const total_citas = gestionesHoy.filter(
-            (g) => g.estado_final === "ub_exito_agendo_cita",
+        const total_gestionados = rows.length;
+        const total_citas = rows.filter(
+            (g) => g.Action === "ub_exito_agendo_cita",
         ).length;
-        const total_rellamadas = gestionesHoy.filter(
-            (g) => g.estado_final === "re_llamada",
+        const total_rellamadas = rows.filter(
+            (g) => g.Action === "re_llamada",
         ).length;
 
         return res.json({
             message: "Gestión guardada",
+            cita_creada: citaCreada,
             resumenHoy: { total_gestionados, total_citas, total_rellamadas },
         });
     } catch (err) {
@@ -314,10 +261,10 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
 ============================================================================ */
 router.post("/estado", ...agenteMiddlewares, async (req, res) => {
     try {
-        const agenteId = req.user.id;
         const { estado, registro_id } = req.body;
+        const agenteActor = getAgentActor(req);
 
-        if (!estado || !ESTADOS_OPERATIVOS.includes(estado)) {
+        if (!estado || !ESTADOS_OPERATIVOS.has(estado)) {
             return res
                 .status(400)
                 .json({ error: "Estado de agente no válido" });
@@ -330,33 +277,15 @@ router.post("/estado", ...agenteMiddlewares, async (req, res) => {
         // Si el agente estaba gestionando un registro y entra en pausa, liberamos el registro
         if (esPausa && registro_id) {
             await pool.query(
-                `UPDATE base_registros
-         SET estado = 'pendiente'
-         WHERE id = ? AND estado = 'en_gestion'`,
-                [registro_id],
+                `UPDATE contactimportcontact
+                 SET LastAgent = 'Pendiente',
+                     UserShift = ?,
+                     TmStmpShift = NOW()
+                 WHERE Id = ?
+                   AND LastAgent = ?`,
+                [agenteActor, registro_id, agenteActor],
             );
         }
-
-        // Actualizar estado operativo del agente
-        const updResult = await pool.query(
-            `UPDATE user_profiles
-       SET estado_operativo = ?
-       WHERE id = ?`,
-            [estado, agenteId],
-        );
-
-        if (updResult.affectedRows === 0) {
-            return res
-                .status(500)
-                .json({ error: "No se pudo actualizar el estado del agente" });
-        }
-
-        // Insertar log de cambio de estado
-        await pool.query(
-            `INSERT INTO agente_estados_log (agente_id, estado, created_at)
-       VALUES (?, ?, ?)`,
-            [agenteId, estado, new Date().toISOString()],
-        );
 
         return res.json({ estado });
     } catch (err) {
@@ -368,21 +297,11 @@ router.post("/estado", ...agenteMiddlewares, async (req, res) => {
 });
 
 /* ============================================================================
-   5. LISTADO DE CITAS DEL AGENTE (para calendario)
+   5. LISTADO DE CITAS DEL AGENTE (no persistidas en cck_dev)
 ============================================================================ */
 router.get("/citas", ...agenteMiddlewares, async (req, res) => {
     try {
-        const agenteId = req.user.id;
-
-        const [citas] = await pool.query(
-            `SELECT id, fecha_cita, estado_cita, nombre_cliente, placa, agencia_cita
-       FROM citas
-       WHERE agente_id = ?
-       ORDER BY fecha_cita ASC`,
-            [agenteId],
-        );
-
-        return res.json({ citas });
+        return res.json({ citas: [] });
     } catch (err) {
         console.error("Error en /agente/citas:", err);
         return res.status(500).json({ error: "Error consultando citas" });
@@ -396,38 +315,48 @@ router.get("/citas", ...agenteMiddlewares, async (req, res) => {
 router.post("/bloquearme", requireAuth, async (req, res) => {
     try {
         const userId = req.user.id;
+        const actor = getAgentActor(req);
         const { registro_id } = req.body || {};
 
         // Si hay un registro en gestión, lo liberamos
         if (registro_id) {
             await pool.query(
-                `UPDATE base_registros
-         SET estado = 'pendiente'
-         WHERE id = ? AND estado = 'en_gestion'`,
-                [registro_id],
+                `UPDATE contactimportcontact
+                 SET LastAgent = 'Pendiente',
+                     UserShift = ?,
+                     TmStmpShift = NOW()
+                 WHERE Id = ?
+                   AND LastAgent = ?`,
+                [actor, registro_id, actor],
             );
         }
 
         // Marcar al agente como bloqueado
-        const updResult = await pool.query(
-            `UPDATE user_profiles
-       SET bloqueado = true
-       WHERE id = ?`,
-            [userId],
+        const [updResult] = await pool.query(
+            `UPDATE user
+             SET State = '0',
+                 UserShift = ?,
+                 TmStmpShift = NOW()
+             WHERE IdUser = ?`,
+            [actor, userId],
         );
 
         if (updResult.affectedRows === 0) {
-            return res
-                .status(500)
-                .json({ error: "No se pudo bloquear al usuario" });
-        }
+            const [fallbackUpdate] = await pool.query(
+                `UPDATE user
+                 SET State = '0',
+                     UserShift = ?,
+                     TmStmpShift = NOW()
+                 WHERE Id = ?`,
+                [actor, actor],
+            );
 
-        // Registrar log de bloqueo
-        await pool.query(
-            `INSERT INTO agente_estados_log (agente_id, estado, created_at)
-       VALUES (?, ?, ?)`,
-            [userId, "bloqueado", new Date().toISOString()],
-        );
+            if (fallbackUpdate.affectedRows === 0) {
+                return res
+                    .status(500)
+                    .json({ error: "No se pudo bloquear al usuario" });
+            }
+        }
 
         return res.json({ message: "Usuario bloqueado por inactividad" });
     } catch (err) {
@@ -438,55 +367,34 @@ router.post("/bloquearme", requireAuth, async (req, res) => {
 
 /* ============================================================================
    7. LIMPIAR REGISTROS COLGADOS (ADMIN)
-      Todos los base_registros en 'en_gestion' más antiguos que X minutos
-      se devuelven a 'pendiente'.
+    Todos los contactos asignados más antiguos que X minutos
+    se devuelven a 'Pendiente'.
 ============================================================================ */
 router.post(
     "/limpiar-colgados",
     requireAuth,
     loadUserRoles,
-    requireRole(["ADMIN"]),
+    requireRole(["ADMINISTRADOR"]),
     async (req, res) => {
         try {
-            const LIMITE_MINUTOS = 30; // puedes cambiarlo si quieres
-            const ahora = Date.now();
-            const limite = new Date(
-                ahora - LIMITE_MINUTOS * 60 * 1000,
-            ).toISOString();
+            const LIMITE_MINUTOS = 30;
 
-            // Buscar registros en_gestion viejos
-            const [colgados] = await pool.query(
-                `SELECT id
-         FROM base_registros
-         WHERE estado = 'en_gestion'
-           AND updated_at < ?`,
-                [limite],
+            const [result] = await pool.query(
+                `UPDATE contactimportcontact
+                 SET LastAgent = 'Pendiente',
+                     UserShift = 'system',
+                     TmStmpShift = NOW()
+                 WHERE LastAgent IS NOT NULL
+                   AND LastAgent <> ''
+                   AND LastAgent <> 'Pendiente'
+                   AND TmStmpShift IS NOT NULL
+                   AND TmStmpShift < DATE_SUB(NOW(), INTERVAL ? MINUTE)`,
+                [LIMITE_MINUTOS],
             );
-            if (colgados.length === 0) {
-                return res.json({
-                    message: "No hay registros colgados para limpiar.",
-                    count: 0,
-                });
-            }
-
-            const ids = colgados.map((r) => r.id);
-
-            // Actualizar registros colgados a pendiente
-            if (ids.length > 0) {
-                const placeholders = ids.map(() => "?").join(",");
-                await pool.query(
-                    `UPDATE base_registros
-         SET estado = 'pendiente',
-             agente_id = NULL,
-             updated_at = ?
-         WHERE id IN (${placeholders})`,
-                    [new Date().toISOString(), ...ids],
-                );
-            }
 
             return res.json({
                 message: "Registros colgados limpiados correctamente",
-                count: ids.length,
+                count: result.affectedRows || 0,
             });
         } catch (err) {
             console.error("Error en /agente/limpiar-colgados:", err);

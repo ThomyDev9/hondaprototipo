@@ -1,18 +1,6 @@
 version: "3.9"
 
 services:
-  postgres:
-    image: postgres:15
-    container_name: honda-postgres
-    restart: always
-    env_file:
-      - .env.docker
-    ports:
-      - "5433:5432"
-    volumes:
-      - honda-db-data:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d
-
   backend:
     build:
       context: ./agendamiento-autos
@@ -23,8 +11,6 @@ services:
       - .env.docker
     ports:
       - "4004:4004"
-    depends_on:
-      - postgres
 
   frontend:
     build:
@@ -38,6 +24,3 @@ services:
       - "5173:80"
     depends_on:
       - backend
-
-volumes:
-  honda-db-data:

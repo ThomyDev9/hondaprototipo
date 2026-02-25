@@ -300,6 +300,37 @@ const basesQueries = {
         WHERE LastUpdate = ?
           AND Campaign = ?
     `,
+
+    ensureCampaignActiveBaseTable: `
+        CREATE TABLE IF NOT EXISTS campaign_active_base (
+            CampaignId VARCHAR(100) NOT NULL,
+            ImportId VARCHAR(100) NOT NULL,
+            State VARCHAR(10) NOT NULL DEFAULT '1',
+            UserShift VARCHAR(50) NOT NULL,
+            UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (CampaignId),
+            KEY idx_cab_import (ImportId),
+            KEY idx_cab_state (State)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `,
+
+    upsertCampaignActiveBase: `
+        INSERT INTO campaign_active_base
+            (CampaignId, ImportId, State, UserShift, UpdatedAt)
+        VALUES
+            (?, ?, '1', ?, NOW())
+        ON DUPLICATE KEY UPDATE
+            ImportId = VALUES(ImportId),
+            State = '1',
+            UserShift = VALUES(UserShift),
+            UpdatedAt = NOW()
+    `,
+
+    clearCampaignActiveBase: `
+        DELETE FROM campaign_active_base
+        WHERE CampaignId = ?
+          AND ImportId = ?
+    `,
 };
 
 export default basesQueries;

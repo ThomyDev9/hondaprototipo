@@ -45,6 +45,7 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
         } else {
             setForm(initialForm);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingUser]);
 
     const handleChange = (e) => {
@@ -103,7 +104,8 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
             if (!res.ok)
                 throw new Error(data.error || "Error al guardar usuario");
 
-            if (!editingUser) {
+            const isCreating = !editingUser;
+            if (isCreating) {
                 // Mensaje de éxito solo en creación
                 setSuccessMsg(
                     ` Usuario creado: ${data.usuario} | Password: ${data.password}`,
@@ -292,16 +294,7 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
                                 flex: 1,
                             }}
                         >
-                            {!showMasterKeyInput ? (
-                                <Button
-                                    variant="primary"
-                                    size="sm"
-                                    type="button"
-                                    onClick={() => setShowMasterKeyInput(true)}
-                                >
-                                    Mostrar credenciales
-                                </Button>
-                            ) : (
+                            {showMasterKeyInput ? (
                                 <>
                                     <input
                                         type="password"
@@ -344,6 +337,15 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
                                         Cancelar
                                     </Button>
                                 </>
+                            ) : (
+                                <Button
+                                    variant="primary"
+                                    size="sm"
+                                    type="button"
+                                    onClick={() => setShowMasterKeyInput(true)}
+                                >
+                                    Mostrar credenciales
+                                </Button>
                             )}
                         </div>
                     )}
@@ -351,16 +353,16 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
                         Cancelar
                     </Button>
                     <Button variant="primary" type="submit" disabled={saving}>
-                        {saving
-                            ? "Guardando..."
-                            : editingUser
-                              ? "Actualizar"
-                              : "Crear Usuario"}
+                        {saving ? "Guardando..." : getButtonLabel()}
                     </Button>
                 </div>
             </form>
         </Modal>
     );
+
+    function getButtonLabel() {
+        return editingUser ? "Actualizar" : "Crear Usuario";
+    }
 }
 
 export default UserFormModal;

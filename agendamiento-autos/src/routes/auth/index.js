@@ -3,10 +3,146 @@ import pool from "../../services/db.js";
 import * as userService from "../../services/user.service.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { generarToken } from "../../utils/jwt.js";
-import { encriptar, desencriptar } from "../../utils/crypto.js";
-import bcrypt from "bcrypt";
+import { desencriptar } from "../../utils/crypto.js";
 
 const router = express.Router();
+
+/**
+ * Helper: Finds user by username (decrypt stored Id values)
+ */
+async function findUserByUsername(loginId) {
+    const allUsers = await userService.obtenerUsuarios();
+
+    if (!allUsers || allUsers.length === 0) {
+        return null;
+    }
+
+    for (const u of allUsers) {
+        let decrypted;
+        try {
+            decrypted = desencriptar(u.Id);
+        } catch (err) {
+            // Some users may have invalid encrypted values, skip them
+            console.error(
+                "Could not decrypt Id for user:",
+                u.IdUser,
+                err.message,
+            );
+            continue;
+        }
+
+        if (decrypted === loginId) {
+            return u;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Helper: Finds user by email or username, then validates password
+ */
+async function findUserByCredentials(loginId, password) {
+    // Try matching by email first
+    let foundUser = await userService.obtenerUsuarioPorEmail(loginId);
+
+    // If not found, try by username
+    if (!foundUser) {
+        foundUser = await findUserByUsername(loginId);
+    }
+
+    if (!foundUser) {
+        return null;
+    }
+
+    console.log("✓ Usuario encontrado:", foundUser.IdUser, foundUser.Email);
+    console.log(
+        "Password en BD:",
+        foundUser.Password ? "✓ existe" : "✗ NO existe",
+    );
+
+    // Decrypt and validate password
+    let passwordDesencriptada;
+    try {
+        passwordDesencriptada = desencriptar(foundUser.Password);
+        console.log("✓ Password desencriptada correctamente");
+    } catch (err) {
+        console.error("✗ Error desencriptando password:", err.message);
+        return null;
+    }
+
+    const isValid = password === passwordDesencriptada;
+    console.log("Comparación:", isValid ? "✓ MATCH" : "✗ NO MATCH");
+
+    return isValid ? foundUser : null;
+}
+
+/**
+ * Helper: Gets user roles from workgroup
+ */
+async function getUserRoles(userGroupId) {
+    const [roleRows] = await pool.query(
+        "SELECT description FROM workgroup WHERE id=?",
+        [userGroupId],
+    );
+
+    return roleRows.map((r) => r.description.toUpperCase());
+}
+
+/**
+ * Helper: Builds auth token response
+ */
+function buildAuthToken(foundUser, roles) {
+    const usernameDecrypted = foundUser.Id ? desencriptar(foundUser.Id) : null;
+
+    const token = generarToken({
+        id: foundUser.IdUser,
+        email: foundUser.Email || usernameDecrypted || null,
+        username: usernameDecrypted,
+        roles,
+    });
+
+    return {
+        token,
+        user: {
+            id: foundUser.IdUser,
+            email: foundUser.Email,
+            username: usernameDecrypted,
+            full_name:
+                `${foundUser.Name1} ${foundUser.Name2 || ""} ${foundUser.Surname1} ${foundUser.Surname2 || ""}`.trim(),
+            workgroup_id: foundUser.UserGroup,
+        },
+    };
+}
+
+async function markUserAsActive(foundUser) {
+    const actor =
+        foundUser.Email ||
+        (foundUser.Id ? desencriptar(foundUser.Id) : null) ||
+        String(foundUser.IdUser);
+
+    const [byIdUser] = await pool.query(
+        `UPDATE user
+         SET State = '1',
+             UserShift = ?,
+             TmStmpShift = NOW()
+         WHERE IdUser = ?`,
+        [actor, foundUser.IdUser],
+    );
+
+    if (byIdUser.affectedRows > 0) {
+        return;
+    }
+
+    await pool.query(
+        `UPDATE user
+         SET State = '1',
+             UserShift = ?,
+             TmStmpShift = NOW()
+         WHERE Id = ?`,
+        [actor, foundUser.Id],
+    );
+}
 
 /**
  * POST /auth/login
@@ -24,94 +160,18 @@ router.post("/login", async (req, res) => {
                 .json({ error: "Usuario (o email) y password son requeridos" });
         }
 
-        // First try matching by email
-        const user = await userService.obtenerUsuarioPorEmail(loginId);
-
-        let foundUser = null;
-
-        if (user) {
-            foundUser = user;
-        } else {
-            // If not found by email, try by username (decrypt stored Id values)
-            const allUsers = await userService.obtenerUsuarios();
-
-            if (allUsers && allUsers.length > 0) {
-                for (const u of allUsers) {
-                    try {
-                        const decrypted = desencriptar(u.Id);
-                        if (decrypted === loginId) {
-                            foundUser = u;
-                            break;
-                        }
-                    } catch (err) {
-                        // ignore decrypt errors for individual rows
-                    }
-                }
-            }
-        }
+        const foundUser = await findUserByCredentials(loginId, password);
 
         if (!foundUser) {
             return res.status(401).json({ error: "Credenciales inválidas" });
         }
 
-        console.log("✓ Usuario encontrado:", foundUser.IdUser, foundUser.Email);
-        console.log(
-            "Password en BD:",
-            foundUser.Password ? "✓ existe" : "✗ NO existe",
-        );
+        await markUserAsActive(foundUser);
 
-        // Desencriptar la contraseña almacenada y comparar directamente
-        let passwordDesencriptada;
-        try {
-            passwordDesencriptada = desencriptar(foundUser.Password);
-            console.log("✓ Password desencriptada correctamente");
-        } catch (err) {
-            console.error("✗ Error desencriptando password:", err.message);
-            return res.status(401).json({ error: "Credenciales inválidas" });
-        }
+        const roles = await getUserRoles(foundUser.UserGroup);
+        const authResponse = buildAuthToken(foundUser, roles);
 
-        const isValid = password === passwordDesencriptada;
-        console.log(
-            "Comparación:",
-            password === passwordDesencriptada ? "✓ MATCH" : "✗ NO MATCH",
-        );
-
-        if (!isValid) {
-            return res.status(401).json({ error: "Credenciales inválidas" });
-        }
-
-        // Buscar rol desde workgroup
-        const [roleRows] = await pool.query(
-            "SELECT description FROM workgroup WHERE id=?",
-            [foundUser.UserGroup],
-        );
-
-        const roles = roleRows.map((r) => r.description.toUpperCase());
-
-        // Generar token con roles
-        // Decrypt username from Id column if present
-        const usernameDecrypted = foundUser.Id
-            ? desencriptar(foundUser.Id)
-            : null;
-
-        const token = generarToken({
-            id: foundUser.IdUser,
-            email: foundUser.Email || usernameDecrypted || null,
-            username: usernameDecrypted,
-            roles,
-        });
-
-        res.json({
-            token,
-            user: {
-                id: foundUser.IdUser,
-                email: foundUser.Email,
-                username: usernameDecrypted,
-                full_name:
-                    `${foundUser.Name1} ${foundUser.Name2 || ""} ${foundUser.Surname1} ${foundUser.Surname2 || ""}`.trim(),
-                workgroup_id: foundUser.UserGroup,
-            },
-        });
+        res.json(authResponse);
     } catch (err) {
         console.error("ERROR EN /auth/login:", err);
         res.status(500).json({ error: "Error interno en login" });

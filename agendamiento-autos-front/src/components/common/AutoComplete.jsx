@@ -72,6 +72,42 @@ export function AutoComplete({
         setFilteredSuggestions([]);
     };
 
+    // Renderizar contenido de sugerencias
+    const renderSuggestionsContent = () => {
+        if (loading) {
+            return <div className="autocomplete-loading">Buscando...</div>;
+        }
+
+        if (filteredSuggestions.length > 0) {
+            return (
+                <ul className="autocomplete-list">
+                    {filteredSuggestions.map((suggestion, idx) => {
+                        const keyValue = `suggestion-${idx}`;
+                        return (
+                            <li key={keyValue}>
+                                <button
+                                    type="button"
+                                    className="autocomplete-item"
+                                    onClick={() =>
+                                        handleSelectSuggestion(
+                                            suggestion.value || suggestion,
+                                        )
+                                    }
+                                >
+                                    {suggestion.label ||
+                                        suggestion.value ||
+                                        suggestion}
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
+            );
+        }
+
+        return <div className="autocomplete-empty">No hay resultados</div>;
+    };
+
     // Cerrar cuando se clickea afuera
     useEffect(() => {
         function handleClickOutside(event) {
@@ -112,33 +148,7 @@ export function AutoComplete({
 
             {isOpen && (
                 <div ref={suggestionsRef} className="autocomplete-suggestions">
-                    {loading ? (
-                        <div className="autocomplete-loading">Buscando...</div>
-                    ) : filteredSuggestions.length > 0 ? (
-                        <ul className="autocomplete-list">
-                            {filteredSuggestions.map((suggestion, idx) => (
-                                <li key={idx}>
-                                    <button
-                                        type="button"
-                                        className="autocomplete-item"
-                                        onClick={() =>
-                                            handleSelectSuggestion(
-                                                suggestion.value || suggestion,
-                                            )
-                                        }
-                                    >
-                                        {suggestion.label ||
-                                            suggestion.value ||
-                                            suggestion}
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div className="autocomplete-empty">
-                            No hay resultados
-                        </div>
-                    )}
+                    {renderSuggestionsContent()}
                 </div>
             )}
 

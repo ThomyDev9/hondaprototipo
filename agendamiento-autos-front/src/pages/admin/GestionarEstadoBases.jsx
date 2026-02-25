@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Select, Button, Alert } from "../../components/common";
+import { obtenerCampaniasActivas } from "../../services/campaign.service";
 import "./CargarBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -30,24 +31,7 @@ export default function GestionarEstadoBases() {
 
     const cargarCampanias = async () => {
         try {
-            const token = localStorage.getItem("access_token");
-            const response = await fetch(`${API_BASE}/campaigns/active`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error("Error en la respuesta del servidor");
-            }
-
-            const json = await response.json();
-            console.log("Campañas cargadas:", json);
-
-            const options = (json.data || []).map((camp) => ({
-                id: camp.Id,
-                label: camp.Id,
-            }));
+            const options = await obtenerCampaniasActivas();
             setCampanias(options);
         } catch (err) {
             console.error("Error cargando campañas:", err);

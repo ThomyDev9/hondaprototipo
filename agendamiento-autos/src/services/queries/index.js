@@ -20,11 +20,22 @@
  */
 
 // Importar queries por módulo
-export { default as userQueries } from "./user.queries.js";
-export { default as basesQueries } from "./bases.queries.js";
-export { default as mappingQueries } from "./mapping.queries.js";
-export { default as campaignQueries } from "./campaign.queries.js";
-export { default as sharedQueries } from "./shared.queries.js";
+import userQueries from "./user.queries.js";
+import basesQueries from "./bases.queries.js";
+import mappingQueries from "./mapping.queries.js";
+import campaignQueries from "./campaign.queries.js";
+import sharedQueries from "./shared.queries.js";
+import agenteQueries from "./agente.queries.js";
+
+// Export named por compatibilidad
+export {
+    userQueries,
+    basesQueries,
+    mappingQueries,
+    campaignQueries,
+    sharedQueries,
+    agenteQueries,
+};
 
 // Exportar todas juntas para acceso centralizado
 export const allQueries = {
@@ -33,4 +44,5 @@ export const allQueries = {
     mapping: mappingQueries,
     campaign: campaignQueries,
     shared: sharedQueries,
+    agente: agenteQueries,
 };

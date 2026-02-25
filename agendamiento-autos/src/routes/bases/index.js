@@ -73,6 +73,7 @@ router.post(
             }
 
             // Procesar el CSV
+            // NOSONAR - procesarCSV is async function
             const resultado = await basesService.procesarCSV(
                 file.path,
                 campaignId,

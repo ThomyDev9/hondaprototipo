@@ -1,7 +1,6 @@
 // src/routes/admin.bases.routes.js
 import express from "express";
 import pool from "../../services/db.js";
-import * as basesService from "../../services/bases.service.js";
 
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
@@ -18,7 +17,7 @@ const adminMiddlewares = [
 ];
 
 // POST /admin/bases/:baseId/reciclar
-// Recicla registros de una base que aún no superan el máximo de intentos.
+// Recicla contactos de campaña en cck_dev.
 router.post(
     "/bases/:baseId/reciclar",
     ...adminMiddlewares,
@@ -26,48 +25,33 @@ router.post(
         try {
             const { baseId } = req.params;
             const MAX_INTENTOS = 6; // regla de negocio: hasta 6 intentos
+            const campaignId = baseId;
 
-            if (!baseId) {
+            if (!campaignId) {
                 return res.status(400).json({ error: "Falta baseId" });
             }
 
-            // Estados que consideramos reciclables
-            // (no tocamos 'ub_exito_agendo_cita' ni 'no_desea')
-            const ESTADOS_RECICLABLES = [
-                "rellamada",
-                "regestionable",
-                "inubicable",
-                "en_gestion", // por si quedó algo atrapado
-                "sin_contacto",
-                "numero_incorrecto", // si lo sigues usando
-            ];
-
             const [result] = await pool.query(
                 `
-                    UPDATE base_registros
-                    SET estado = 'pendiente',
-                        pool = 'activo',
-                        agente_id = NULL,
-                        intentos_totales = 0
-                    WHERE base_id = ?
-                        AND estado IN (?, ?, ?, ?, ?, ?)
-                        AND intentos_totales < ?
+                    UPDATE contactimportcontact
+                    SET LastAgent = 'Pendiente',
+                        Action = 're_llamada',
+                        UserShift = ?,
+                        TmStmpShift = NOW()
+                    WHERE Campaign = ?
+                      AND COALESCE(Number, 0) < ?
+                      AND Action IN ('re_llamada', 'sin_contacto', 'numero_incorrecto', 'inubicable')
                     `,
                 [
-                    baseId,
-                    "rellamada",
-                    "regestionable",
-                    "inubicable",
-                    "en_gestion",
-                    "sin_contacto",
-                    "numero_incorrecto",
+                    req.user?.username || String(req.user?.id),
+                    campaignId,
                     MAX_INTENTOS,
                 ],
             );
 
             return res.json({
                 ok: true,
-                base_id: baseId,
+                base_id: campaignId,
                 registros_reciclados: result.affectedRows,
             });
         } catch (err) {

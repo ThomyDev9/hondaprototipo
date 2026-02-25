@@ -3,8 +3,8 @@ import { encriptar } from "./crypto.js";
 function normalizarTexto(texto) {
     return texto
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // quitar tildes
-        .replace(/\s+/g, "")
+        .replaceAll(/[\u0300-\u036f]/g, "") // quitar tildes
+        .replaceAll(/\s+/g, "")
         .toLowerCase();
 }
 

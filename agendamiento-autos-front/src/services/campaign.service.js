@@ -53,7 +53,38 @@ export async function buscarCampanas(searchTerm) {
     }
 }
 
+/**
+ * Obtener campañas activas (misma fuente usada en gestión de bases)
+ * @returns {Promise<Array>} Array con formato [{id, label}]
+ */
+export async function obtenerCampaniasActivas() {
+    try {
+        const token = localStorage.getItem("access_token") || "";
+        const response = await fetch(`${API_BASE}/campaigns/active`, {
+            headers: {
+                Authorization: token ? `Bearer ${token}` : "",
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error("Error obteniendo campañas activas");
+        }
+
+        const json = await response.json();
+        return (json.data || [])
+            .map((item) => ({
+                id: item.Id,
+                label: item.Id,
+            }))
+            .filter((item) => item.id);
+    } catch (err) {
+        console.error("Error en obtenerCampaniasActivas:", err);
+        throw err;
+    }
+}
+
 export default {
     obtenerCampanas,
     buscarCampanas,
+    obtenerCampaniasActivas,
 };

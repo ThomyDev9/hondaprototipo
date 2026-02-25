@@ -141,19 +141,22 @@ export default function CargarBases() {
             <form onSubmit={handleSubmit} className="form">
                 {/* Nombre base - Solo visible cuando hay archivo */}
                 {file && (
-                    <label className="label">
+                    <label className="label" htmlFor="baseName">
                         Nombre de la base
-                        <input
-                            type="text"
-                            value={baseName}
-                            disabled={true}
-                            className="input inputDisabled"
-                            placeholder={file.name}
-                        />
-                        {errors.baseName && (
-                            <span className="errorText">{errors.baseName}</span>
-                        )}
                     </label>
+                )}
+                {file && (
+                    <input
+                        id="baseName"
+                        type="text"
+                        value={baseName}
+                        disabled
+                        className="input inputDisabled"
+                        placeholder={file.name}
+                    />
+                )}
+                {file && errors.baseName && (
+                    <span className="errorText">{errors.baseName}</span>
                 )}
                 {/* Mapeo */}
                 <Select
@@ -179,42 +182,43 @@ export default function CargarBases() {
                 />
 
                 {/* Archivo CSV */}
-                <label className="label">
+                <label className="label" htmlFor="csvFile">
                     Archivo CSV (.csv)
-                    <input
-                        type="file"
-                        accept=".csv,text/csv"
-                        className="input"
-                        onChange={(e) => {
-                            const selectedFile = e.target.files[0];
-                            if (
-                                selectedFile &&
-                                !selectedFile.name.endsWith(".csv")
-                            ) {
-                                setErrors({
-                                    ...errors,
-                                    file: "Solo se permiten archivos CSV",
-                                });
-                                setFile(null);
-                                return;
-                            }
-                            setErrors({ ...errors, file: null });
-                            setFile(selectedFile || null);
-
-                            // ✅ Autocomplete: usar nombre del archivo como nombre de base
-                            if (selectedFile) {
-                                const fileName = selectedFile.name.replace(
-                                    /\.csv$/i,
-                                    "",
-                                );
-                                setBaseName(fileName);
-                            }
-                        }}
-                    />
-                    {errors.file && (
-                        <span className="errorText">{errors.file}</span>
-                    )}
                 </label>
+                <input
+                    id="csvFile"
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="input"
+                    onChange={(e) => {
+                        const selectedFile = e.target.files[0];
+                        if (
+                            selectedFile &&
+                            !selectedFile.name.endsWith(".csv")
+                        ) {
+                            setErrors({
+                                ...errors,
+                                file: "Solo se permiten archivos CSV",
+                            });
+                            setFile(null);
+                            return;
+                        }
+                        setErrors({ ...errors, file: null });
+                        setFile(selectedFile || null);
+
+                        // ✅ Autocomplete: usar nombre del archivo como nombre de base
+                        if (selectedFile) {
+                            const fileName = selectedFile.name.replace(
+                                /\.csv$/i,
+                                "",
+                            );
+                            setBaseName(fileName);
+                        }
+                    }}
+                />
+                {errors.file && (
+                    <span className="errorText">{errors.file}</span>
+                )}
 
                 {file && (
                     <p className="fileInfo">

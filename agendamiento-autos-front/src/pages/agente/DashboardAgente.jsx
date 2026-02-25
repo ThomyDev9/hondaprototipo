@@ -1,4 +1,5 @@
 // src/pages/DashboardAgente.jsx
+/* eslint-disable react/prop-types */
 import { useEffect, useRef, useState } from "react";
 import CalendarioCitas from "../../components/CalendarioCitas";
 import { PageContainer } from "../../components/common";
@@ -26,29 +27,8 @@ const ESTADOS_OPERATIVOS = [
 
 export default function DashboardAgente({ user }) {
     const roles = user?.roles || [];
-    const isAgente = roles.includes("AGENTE");
+    const isAgente = roles.includes("ASESOR");
 
-    // si por alguna razón llega alguien sin rol AGENTE
-    if (!isAgente) {
-        return (
-            <PageContainer fullWidth>
-                <div style={styles.page}>
-                    <h1 style={styles.title}>Módulo de agente</h1>
-                    <p style={styles.subtitle}>
-                        <strong>Permiso denegado.</strong> Tu usuario no tiene
-                        rol de agente asignado.
-                    </p>
-                    <p style={styles.subtitle}>
-                        Pide a un administrador que te asigne el rol{" "}
-                        <strong>AGENTE</strong>
-                        desde el módulo de Usuarios.
-                    </p>
-                </div>
-            </PageContainer>
-        );
-    }
-
-    const [resumenHoy, setResumenHoy] = useState(null);
     const [registro, setRegistro] = useState(null);
     const [loadingRegistro, setLoadingRegistro] = useState(false);
     const [error, setError] = useState("");
@@ -67,6 +47,8 @@ export default function DashboardAgente({ user }) {
 
     const [estadoAgente, setEstadoAgente] = useState("disponible");
     const [calendarRefreshToken, setCalendarRefreshToken] = useState(0);
+    const [campanias, setCampanias] = useState([]);
+    const [campaignIdSeleccionada, setCampaignIdSeleccionada] = useState("");
 
     // para inactividad
     const lastActivityRef = useRef(Date.now());
@@ -90,51 +72,49 @@ export default function DashboardAgente({ user }) {
         setRegistro(null);
     };
 
-    /* =====================  RESUMEN DE HOY  ===================== */
-    const fetchResumen = async () => {
-        try {
-            setError("");
-            const token = localStorage.getItem("access_token");
-
-            const resp = await fetch(`${API_BASE}/agente/resumen-hoy`, {
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: token ? `Bearer ${token}` : "",
-                },
-            });
-
-            const json = await resp.json();
-
-            if (resp.status === 403) {
-                handle403(json);
-                return;
-            }
-
-            if (!resp.ok) {
-                setError(json.error || "No se pudo cargar el resumen de hoy");
-                return;
-            }
-
-            setResumenHoy(json.resumen || null);
-        } catch (err) {
-            console.error(err);
-            setError("Error de conexión con el servidor");
-        }
-    };
-
     useEffect(() => {
-        if (!bloqueado) {
-            fetchResumen();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [bloqueado]);
+        const cargarCampanias = async () => {
+            try {
+                const token = localStorage.getItem("access_token");
+                const resp = await fetch(`${API_BASE}/campaigns/active`, {
+                    headers: {
+                        Authorization: token ? `Bearer ${token}` : "",
+                    },
+                });
+
+                const json = await resp.json();
+                if (!resp.ok) return;
+
+                const lista = (json.data || [])
+                    .map((c) => c.Id)
+                    .filter(Boolean);
+                setCampanias(lista);
+
+                if (lista.length > 0) {
+                    setCampaignIdSeleccionada((prev) => prev || lista[0]);
+                }
+            } catch (err) {
+                console.error("Error cargando campañas activas:", err);
+            }
+        };
+
+        cargarCampanias();
+    }, []);
 
     /* =====================  SIGUIENTE REGISTRO  ===================== */
-    const fetchSiguienteRegistro = async () => {
+    const fetchSiguienteRegistro = async (campaignIdOverride = null) => {
         try {
             setLoadingRegistro(true);
             setError("");
             setRegistro(null);
+
+            const campaignIdToUse =
+                campaignIdOverride || campaignIdSeleccionada;
+
+            if (!campaignIdToUse) {
+                setError("Selecciona una campaña antes de tomar registros");
+                return;
+            }
 
             const token = localStorage.getItem("access_token");
 
@@ -144,6 +124,7 @@ export default function DashboardAgente({ user }) {
                     "Content-Type": "application/json",
                     Authorization: token ? `Bearer ${token}` : "",
                 },
+                body: JSON.stringify({ campaignId: campaignIdToUse }),
             });
 
             const json = await resp.json();
@@ -182,7 +163,7 @@ export default function DashboardAgente({ user }) {
 
     // Cargar automáticamente el primer registro cuando entra al módulo
     useEffect(() => {
-        if (!bloqueado) {
+        if (!bloqueado && campaignIdSeleccionada) {
             fetchSiguienteRegistro();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -294,9 +275,6 @@ export default function DashboardAgente({ user }) {
                 return;
             }
 
-            // refrescamos resumen desde BD
-            await fetchResumen();
-
             // si se creó cita, refrescamos calendario
             if (json.cita_creada) {
                 setCalendarRefreshToken((prev) => prev + 1);
@@ -320,9 +298,9 @@ export default function DashboardAgente({ user }) {
 
         const handler = () => marcarActividad();
 
-        window.addEventListener("click", handler);
-        window.addEventListener("keydown", handler);
-        window.addEventListener("mousemove", handler);
+        globalThis.addEventListener("click", handler);
+        globalThis.addEventListener("keydown", handler);
+        globalThis.addEventListener("mousemove", handler);
 
         const interval = setInterval(async () => {
             if (bloqueado || !registro) return;
@@ -358,12 +336,30 @@ export default function DashboardAgente({ user }) {
         }, 30_000);
 
         return () => {
-            window.removeEventListener("click", handler);
-            window.removeEventListener("keydown", handler);
-            window.removeEventListener("mousemove", handler);
+            globalThis.removeEventListener("click", handler);
+            globalThis.removeEventListener("keydown", handler);
+            globalThis.removeEventListener("mousemove", handler);
             clearInterval(interval);
         };
     }, [bloqueado, registro]);
+
+    if (!isAgente) {
+        return (
+            <PageContainer fullWidth>
+                <div style={styles.page}>
+                    <h1 style={styles.title}>Módulo de asesor</h1>
+                    <p style={styles.subtitle}>
+                        <strong>Permiso denegado.</strong> Tu usuario no tiene
+                        rol de asesor asignado.
+                    </p>
+                    <p style={styles.subtitle}>
+                        Pide a un administrador que te asigne el rol ASESOR
+                        desde el módulo de Usuarios.
+                    </p>
+                </div>
+            </PageContainer>
+        );
+    }
 
     /* =====================  UI BLOQUEADO  ===================== */
     if (bloqueado) {
@@ -396,7 +392,7 @@ export default function DashboardAgente({ user }) {
             <div style={styles.page}>
                 <div style={styles.headerRow}>
                     <div>
-                        <h1 style={styles.title}>Módulo de agente</h1>
+                        <h1 style={styles.title}>Módulo de asesor</h1>
                         <p style={styles.subtitle}>
                             Gestiona llamadas, registra estados y agenda citas
                             de forma controlada.
@@ -427,50 +423,47 @@ export default function DashboardAgente({ user }) {
                     </div>
                 </div>
 
-                {/* Resumen de hoy */}
-                <section style={styles.cardRow}>
-                    <div style={styles.card}>
-                        <h2 style={styles.cardTitle}>Mi gestión de hoy</h2>
-                        <p style={styles.cardText}>
-                            Resumen de tu actividad en el día. El sistema asigna
-                            automáticamente el siguiente registro después de
-                            cada gestión.
-                        </p>
-                        <div style={styles.metricsRow}>
-                            <div style={styles.metricBox}>
-                                <span style={styles.metricLabel}>
-                                    Registros gestionados
-                                </span>
-                                <span style={styles.metricValue}>
-                                    {resumenHoy?.total_gestionados ?? 0}
-                                </span>
-                            </div>
-                            <div style={styles.metricBox}>
-                                <span style={styles.metricLabel}>
-                                    Citas agendadas
-                                </span>
-                                <span style={styles.metricValue}>
-                                    {resumenHoy?.total_citas ?? 0}
-                                </span>
-                            </div>
-                            <div style={styles.metricBox}>
-                                <span style={styles.metricLabel}>
-                                    Re-llamadas
-                                </span>
-                                <span style={styles.metricValue}>
-                                    {resumenHoy?.total_rellamadas ?? 0}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
                 {/* Zona principal: gestión + calendario */}
                 <section style={styles.mainRow}>
                     {/* Panel de gestión */}
                     <div style={styles.leftColumn}>
                         <div style={styles.card}>
                             <h2 style={styles.cardTitle}>Registro actual</h2>
+
+                            <div style={styles.campaignSelectorRow}>
+                                <label
+                                    htmlFor="campania-asesor"
+                                    style={styles.label}
+                                >
+                                    Campaña
+                                </label>
+                                <select
+                                    id="campania-asesor"
+                                    value={campaignIdSeleccionada}
+                                    onChange={async (e) => {
+                                        const nuevaCampania = e.target.value;
+                                        setCampaignIdSeleccionada(
+                                            nuevaCampania,
+                                        );
+
+                                        if (!bloqueado && nuevaCampania) {
+                                            await fetchSiguienteRegistro(
+                                                nuevaCampania,
+                                            );
+                                        }
+                                    }}
+                                    style={styles.input}
+                                >
+                                    <option value="">
+                                        Selecciona una campaña...
+                                    </option>
+                                    {campanias.map((camp) => (
+                                        <option key={camp} value={camp}>
+                                            {camp}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
                             {error && (
                                 <p
@@ -491,9 +484,9 @@ export default function DashboardAgente({ user }) {
 
                             {!loadingRegistro && !registro && (
                                 <p style={{ color: "#64748B" }}>
-                                    {estadoAgente !== "disponible"
-                                        ? 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'
-                                        : "No hay registros disponibles en tu cola en este momento."}
+                                    {estadoAgente === "disponible"
+                                        ? "No hay registros disponibles en tu cola en este momento."
+                                        : 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'}
                                 </p>
                             )}
 
@@ -573,7 +566,10 @@ export default function DashboardAgente({ user }) {
                                                     }}
                                                 >
                                                     <label style={styles.label}>
-                                                        Fecha y hora de la cita
+                                                        <span>
+                                                            Fecha y hora de la
+                                                            cita
+                                                        </span>
                                                         <input
                                                             type="datetime-local"
                                                             value={fechaCita}
@@ -593,7 +589,9 @@ export default function DashboardAgente({ user }) {
                                                     }}
                                                 >
                                                     <label style={styles.label}>
-                                                        Agencia de la cita
+                                                        <span>
+                                                            Agencia de la cita
+                                                        </span>
                                                         <input
                                                             type="text"
                                                             placeholder="Ej: Agencia Norte, Agencia Matriz, etc."
@@ -613,7 +611,9 @@ export default function DashboardAgente({ user }) {
 
                                         <div style={{ marginTop: "1rem" }}>
                                             <label style={styles.label}>
-                                                Comentarios de la llamada
+                                                <span>
+                                                    Comentarios de la llamada
+                                                </span>
                                                 <textarea
                                                     placeholder="Ej: Cliente prefiere WhatsApp para confirmación."
                                                     value={comentarios}
@@ -772,6 +772,9 @@ const styles = {
         marginBottom: "1rem",
         fontSize: "0.9rem",
         color: "#111827",
+    },
+    campaignSelectorRow: {
+        marginBottom: "0.75rem",
     },
     label: {
         display: "block",

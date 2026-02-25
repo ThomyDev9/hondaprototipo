@@ -9,6 +9,55 @@ import {
 
 const router = express.Router();
 
+function buildGestionReportQuery(baseId) {
+    let query = `
+        SELECT
+            c.Campaign AS CODIGO_DE_CAMPANA,
+            c.Campaign AS NOMBRE_DE_CAMPANA,
+            c.Identification AS IDENTIFICACION,
+            c.Name AS NOMBRE_CLIENTE,
+            '' AS PROVINCIA,
+            '' AS ANIO,
+            '' AS ETIQUETAS,
+            '' AS PLACA,
+            '' AS RAMV,
+            '' AS MODELO,
+            '' AS CORREO,
+            c.LastUpdate AS CAMPO,
+            (
+                SELECT p.NumeroMarcado
+                FROM contactimportphone p
+                WHERE p.ContactId = c.Id
+                  AND p.NumeroMarcado IS NOT NULL
+                  AND p.NumeroMarcado <> ''
+                ORDER BY p.DescripcionTelefono ASC
+                LIMIT 1
+            ) AS TELEFONO_DE_CONTACTO,
+            c.LastAgent AS ASESOR,
+            COALESCE(c.Number, 0) AS INTENTOS,
+            '' AS OBSERVACIONES,
+            c.TmStmpShift AS FECHA_DE_GESTION,
+            c.Action AS ESTADO_DE_GESTION,
+            '' AS SUB_ESTATUS,
+            '' AS AGENCIA_CITA,
+            NULL AS FECHA_DE_CITA,
+            NULL AS HORARIO_DE_CITA
+        FROM contactimportcontact c
+        WHERE c.Campaign IS NOT NULL
+          AND c.Campaign <> ''
+    `;
+
+    const params = [];
+
+    if (baseId) {
+        query += " AND c.Campaign = ?";
+        params.push(baseId);
+    }
+
+    query += " ORDER BY c.Campaign ASC, c.TmStmpShift DESC, c.Id DESC";
+    return { query, params };
+}
+
 /**
  * 1) Endpoint JSON para ver el reporte en tablas
  *    GET /admin/reportes/gestion
@@ -23,13 +72,7 @@ router.get(
         try {
             const { base_id } = req.query;
 
-            let query = "SELECT * FROM vw_reporte_gestion";
-            const params = [];
-
-            if (base_id) {
-                query += " WHERE base_id = ?";
-                params.push(base_id);
-            }
+            const { query, params } = buildGestionReportQuery(base_id);
 
             const [rows] = await pool.query(query, params);
 
@@ -57,13 +100,7 @@ router.get(
         try {
             const { base_id } = req.query;
 
-            let query = "SELECT * FROM vw_reporte_gestion";
-            const params = [];
-
-            if (base_id) {
-                query += " WHERE base_id = ?";
-                params.push(base_id);
-            }
+            const { query, params } = buildGestionReportQuery(base_id);
 
             const [data] = await pool.query(query, params);
 
