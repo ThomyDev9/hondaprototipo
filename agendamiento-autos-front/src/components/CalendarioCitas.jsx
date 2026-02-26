@@ -5,7 +5,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4004/api";
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 export default function CalendarioCitas({ refreshToken }) {
     const [events, setEvents] = useState([]);

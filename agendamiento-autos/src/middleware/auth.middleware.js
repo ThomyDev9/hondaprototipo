@@ -10,6 +10,9 @@ export const requireAuth = (req, res, next) => {
 
         const token = authHeader.slice(7);
         const payload = verificarToken(token);
+        if (!payload) {
+            console.error("[AUTH] Token inválido recibido:", token);
+        }
 
         if (!payload) {
             return res.status(401).json({ error: "Invalid token" });

@@ -6,7 +6,7 @@ import { buscarCampanas } from "../../services/campaign.service";
 import "./CargarBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
-const token = localStorage.getItem("access_token");
+// El token se obtiene justo antes de cada petición
 
 const MAPEO_TO_IMPORT_CASE = {
     "banco pichincha encuestas": "bancoPichinchaEncuestasGenericas",
@@ -102,6 +102,7 @@ export default function CargarBases() {
             formData.append("importCase", importCase);
             formData.append("importUser", importUser);
 
+            const token = localStorage.getItem("access_token") || "";
             const resp = await fetch(`${API_BASE}/bases/upload`, {
                 method: "POST",
                 body: formData,
