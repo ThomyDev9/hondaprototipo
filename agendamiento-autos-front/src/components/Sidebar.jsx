@@ -1,7 +1,10 @@
 import { useState } from "react";
+import PropTypes from "prop-types";
+import AccordionMenu from "./AccordionMenu";
 
 function Sidebar({ role, adminPage, onChangeAdminPage }) {
-    const [collapsed, setCollapsed] = useState(false); // controla si la sidebar está colapsada
+    const [collapsed, setCollapsed] = useState(false);
+    const [showOutbound, setShowOutbound] = useState(false);
     const effectiveRole = role || "ADMINISTRADOR";
 
     const menuAdmin = [
@@ -10,40 +13,48 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
         { label: "Usuarios", key: "users" },
         { label: "Configuración", key: "settings" },
     ];
-
     const menuSupervisor = [
         { label: "Dashboard", key: "dashboard" },
         { label: "Agentes", key: "agents" },
         { label: "Reportes", key: "reports" },
     ];
-
     const menuAgente = [
         { label: "Mi Gestión", key: "gestion" },
-        { label: "Tomar siguiente", key: "next" },
+        {
+            label: "Campañas Outbound",
+            key: "campanias-outbound",
+            isAccordion: true,
+        },
     ];
 
     const getMenu = () => {
-        if (effectiveRole === "ADMINISTRADOR") {
-            return menuAdmin;
-        }
-        if (effectiveRole === "SUPERVISOR") {
-            return menuSupervisor;
-        }
+        if (effectiveRole === "ADMINISTRADOR") return menuAdmin;
+        if (effectiveRole === "SUPERVISOR") return menuSupervisor;
         return menuAgente;
     };
-
     const menu = getMenu();
 
     const handleClick = (item) => {
-        if (effectiveRole === "ADMINISTRADOR" && onChangeAdminPage) {
+        if (
+            effectiveRole.toUpperCase() === "ADMINISTRADOR" &&
+            onChangeAdminPage
+        ) {
             onChangeAdminPage(item.key);
         }
-    };
-
-    const isActive = (item) => {
-        if (effectiveRole === "ADMINISTRADOR") {
-            return item.key === adminPage;
+        if (
+            effectiveRole.toUpperCase() === "ASESOR" &&
+            item.key === "campanias-outbound"
+        ) {
+            setShowOutbound((prev) => !prev);
+        } else if (
+            effectiveRole.toUpperCase() === "ASESOR" &&
+            item.key !== "campanias-outbound"
+        ) {
+            setShowOutbound(false);
         }
+    };
+    const isActive = (item) => {
+        if (effectiveRole === "ADMINISTRADOR") return item.key === adminPage;
         return false;
     };
 
@@ -51,7 +62,7 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
         <div
             style={{
                 ...styles.sidebar,
-                width: collapsed ? "60px" : "240px", // ancho según collapsed
+                width: collapsed ? "60px" : "240px",
                 padding: collapsed ? "1rem 0.5rem" : "1.5rem 1rem",
             }}
         >
@@ -66,22 +77,46 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
                 {menu.map((item) => (
                     <li
                         key={item.key}
-                        role="button"
-                        tabIndex={0}
                         style={{
-                            ...styles.menuItem,
-                            ...(isActive(item) ? styles.menuItemActive : {}),
-                            justifyContent: collapsed ? "center" : "flex-start",
-                        }}
-                        onClick={() => handleClick(item)}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                handleClick(item);
-                            }
+                            padding: 0,
+                            background: "none",
+                            border: "none",
                         }}
                     >
-                        {collapsed ? item.label[0] : item.label}
+                        <button
+                            type="button"
+                            style={{
+                                ...styles.menuItem,
+                                ...(isActive(item)
+                                    ? styles.menuItemActive
+                                    : {}),
+                                justifyContent: collapsed
+                                    ? "center"
+                                    : "flex-start",
+                                width: "100%",
+                                background: "none",
+                                border: "none",
+                                color: "inherit",
+                                textAlign: "left",
+                            }}
+                            onClick={() => handleClick(item)}
+                        >
+                            {collapsed ? item.label[0] : item.label}
+                        </button>
+                        {/* Solo para ASESOR, mostrar el AccordionMenu al hacer clic en Campañas Outbound */}
+                        {effectiveRole.toUpperCase() === "ASESOR" &&
+                            item.key === "campanias-outbound" &&
+                            showOutbound &&
+                            !collapsed && (
+                                <div
+                                    style={{
+                                        marginTop: "0.5rem",
+                                        width: "100%",
+                                    }}
+                                >
+                                    <AccordionMenu />
+                                </div>
+                            )}
                     </li>
                 ))}
             </ul>
@@ -96,10 +131,10 @@ const styles = {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        height: "100vh", // ocupa toda la altura
         transition: "width 0.3s, padding 0.3s",
         boxSizing: "border-box",
         overflow: "hidden",
+        flex: "none",
     },
     collapseBtn: {
         alignSelf: "flex-end",
@@ -136,6 +171,12 @@ const styles = {
     menuItemActive: {
         backgroundColor: "#2563EB",
     },
+};
+
+Sidebar.propTypes = {
+    role: PropTypes.string,
+    adminPage: PropTypes.string,
+    onChangeAdminPage: PropTypes.func,
 };
 
 export default Sidebar;

@@ -83,6 +83,12 @@ export const routeRegistry = [
         module: () => import("./shared/campaign.js"),
         description: "Gestión de campañas",
     },
+
+    {
+        path: "/api/menu",
+        module: () => import("./menu.routes.js"),
+        description: "Menú jerárquico de campañas (outbound)",
+    },
 ];
 
 /**
