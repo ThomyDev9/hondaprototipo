@@ -1,11 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import AccordionMenu from "./AccordionMenu";
 
 function Sidebar({ role, adminPage, onChangeAdminPage }) {
     const [collapsed, setCollapsed] = useState(false);
-    const [showOutbound, setShowOutbound] = useState(false);
+    const [outboundCategory, setOutboundCategory] = useState("Campañas Outbound");
     const effectiveRole = role || "ADMINISTRADOR";
+    // Obtener el nombre de la categoría Outbound dinámicamente
+    useEffect(() => {
+        if (effectiveRole.toUpperCase() === "ASESOR") {
+            const apiUrl = window.location.hostname === "localhost"
+                ? "http://localhost:4004/api/menu/outbound-category"
+                : "/api/menu/outbound-category";
+            fetch(apiUrl)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.name) setOutboundCategory(data.name);
+                });
+        }
+    }, [effectiveRole]);
 
     const menuAdmin = [
         { label: "Administrar bases", key: "administrar-bases" },
@@ -18,13 +31,11 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
         { label: "Agentes", key: "agents" },
         { label: "Reportes", key: "reports" },
     ];
+
+    // El menú del agente incluye la opción dinámica de categoría
     const menuAgente = [
         { label: "Mi Gestión", key: "gestion" },
-        {
-            label: "Campañas Outbound",
-            key: "campanias-outbound",
-            isAccordion: true,
-        },
+        { label: outboundCategory, key: "outbound-category", isAccordion: true },
     ];
 
     const getMenu = () => {
@@ -34,6 +45,7 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
     };
     const menu = getMenu();
 
+    const [showOutbound, setShowOutbound] = useState(false);
     const handleClick = (item) => {
         if (
             effectiveRole.toUpperCase() === "ADMINISTRADOR" &&
@@ -43,12 +55,12 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
         }
         if (
             effectiveRole.toUpperCase() === "ASESOR" &&
-            item.key === "campanias-outbound"
+            item.key === "outbound-category"
         ) {
             setShowOutbound((prev) => !prev);
         } else if (
             effectiveRole.toUpperCase() === "ASESOR" &&
-            item.key !== "campanias-outbound"
+            item.key !== "outbound-category"
         ) {
             setShowOutbound(false);
         }
@@ -63,7 +75,7 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
             style={{
                 ...styles.sidebar,
                 width: collapsed ? "60px" : "240px",
-                padding: collapsed ? "1rem 0.5rem" : "1.5rem 1rem",
+                
             }}
         >
             <button
@@ -94,31 +106,25 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
                                     ? "center"
                                     : "flex-start",
                                 width: "100%",
-                                background: "none",
                                 border: "none",
                                 color: "inherit",
+                                background: "darkblue",
                                 textAlign: "left",
                             }}
                             onClick={() => handleClick(item)}
                         >
                             {collapsed ? item.label[0] : item.label}
                         </button>
-                        {/* Solo para ASESOR, mostrar el AccordionMenu al hacer clic en Campañas Outbound */}
-                        {effectiveRole.toUpperCase() === "ASESOR" &&
-                            item.key === "campanias-outbound" &&
-                            showOutbound &&
-                            !collapsed && (
-                                <div
-                                    style={{
-                                        marginTop: "0.5rem",
-                                        width: "100%",
-                                    }}
-                                >
-                                    <AccordionMenu />
-                                </div>
-                            )}
                     </li>
                 ))}
+                {/* Para ASESOR, mostrar el AccordionMenu solo al hacer clic en la opción de categoría */}
+                {effectiveRole.toUpperCase() === "ASESOR" && !collapsed && showOutbound && (
+                    <li style={{ padding: 0, background: "none", border: "none" }}>
+                        <div style={{ marginTop: 0, width: "100%" }}>
+                            <AccordionMenu />
+                        </div>
+                    </li>
+                )}
             </ul>
         </div>
     );
@@ -157,11 +163,10 @@ const styles = {
         margin: 0,
         display: "flex",
         flexDirection: "column",
-        gap: "1rem",
+        gap: "0.25rem",
         width: "100%",
     },
     menuItem: {
-        padding: "0.75rem 1rem",
         borderRadius: "0.5rem",
         cursor: "pointer",
         transition: "0.2s",

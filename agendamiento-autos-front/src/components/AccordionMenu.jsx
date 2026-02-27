@@ -1,4 +1,6 @@
+
 import { useEffect, useState } from "react";
+import { FaChevronRight, FaChevronDown, FaRegDotCircle } from "react-icons/fa";
 
 const styles = {
     menu: {
@@ -6,8 +8,8 @@ const styles = {
         margin: 0,
         padding: 0,
         width: "100%",
-        maxWidth: 520,
-        minWidth: 320,
+        maxWidth: 340,
+        minWidth: 220,
         maxHeight: "60vh",
         overflowY: "auto",
         overflowX: "hidden",
@@ -17,18 +19,18 @@ const styles = {
     },
     menuItem: {
         position: "relative",
-        padding: "0.12rem 0.3rem 0.12rem 0.3rem",
+        padding: "0.10rem 0.18rem 0.10rem 0.18rem",
         color: "#1D4ED8",
         fontWeight: 500,
         fontSize: "0.93rem",
         borderRadius: "4px",
         cursor: "pointer",
         background: "rgba(255,255,255,1)",
-        marginBottom: "0.03rem",
+        marginBottom: "0.01rem",
         transition: "background 0.2s",
         display: "flex",
         alignItems: "center",
-        gap: "0.15rem",
+        gap: "0.10rem",
         minWidth: 0,
         width: "100%",
         whiteSpace: "normal",
@@ -41,9 +43,9 @@ const styles = {
         color: "#2563EB",
     },
     submenu: {
-        marginLeft: 8,
+        marginLeft: 4,
         borderLeft: "1px solid #e5e7eb",
-        paddingLeft: 4,
+        paddingLeft: 2,
     },
 };
 
@@ -73,14 +75,14 @@ function AccordionMenu() {
                         ? node.subcampanias
                         : [];
                     const hasChildren = children.length > 0;
-                    const isOpen = open[key];
+                    const isOpen = open[level] === key;
                     return (
                         <li
                             key={key}
                             style={{
                                 minWidth: 0,
                                 width: "100%",
-                                marginBottom: 1,
+                                marginBottom: 0,
                                 ...(level === 0
                                     ? { fontWeight: 600, fontSize: "1rem" }
                                     : {}),
@@ -90,7 +92,7 @@ function AccordionMenu() {
                                 style={{
                                     ...styles.menuItem,
                                     ...(isOpen ? styles.menuItemActive : {}),
-                                    paddingLeft: 6 + 10 * level,
+                                    paddingLeft: 4 + 8 * level,
                                     userSelect: "none",
                                     border:
                                         level === 0
@@ -106,28 +108,38 @@ function AccordionMenu() {
                                             ? "#f1f5fb"
                                             : styles.menuItem.background,
                                 }}
-                                onClick={() =>
-                                    hasChildren &&
-                                    setOpen((prev) => ({
-                                        ...prev,
-                                        [key]: !prev[key],
-                                    }))
-                                }
+                                onClick={() => {
+                                    if (hasChildren) {
+                                        setOpen((prev) => ({
+                                            ...prev,
+                                            [level]: isOpen ? null : key,
+                                        }));
+                                    }
+                                }}
                                 title={node.campania || node}
                             >
                                 <span
                                     style={{
-                                        marginRight: 3,
+                                        marginRight: 4,
                                         fontWeight: 700,
                                         color: hasChildren
                                             ? "#2563EB"
                                             : "#9ca3af",
-                                        minWidth: 14,
-                                        display: "inline-block",
-                                        textAlign: "center",
+                                        minWidth: 16,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        fontSize: level === 0 ? 16 : 14,
                                     }}
                                 >
-                                    {hasChildren ? (isOpen ? "▼" : "▶") : "•"}
+                                    {hasChildren ? (
+                                        isOpen ? (
+                                            <FaChevronDown />
+                                        ) : (
+                                            <FaChevronRight />
+                                        )
+                                    ) : (
+                                        <FaRegDotCircle />
+                                    )}
                                 </span>
                                 <span
                                     style={{
@@ -145,12 +157,12 @@ function AccordionMenu() {
                             {hasChildren && isOpen && (
                                 <div
                                     style={{
-                                        marginTop: "0.15rem",
+                                        marginTop: "0.08rem",
                                         width: "100%",
                                         background: "#fff",
-                                        borderRadius: "0.3rem",
-                                        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-                                        padding: "0.15rem 0.10rem",
+                                        borderRadius: "0.2rem",
+                                        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                                        padding: "0.08rem 0.05rem",
                                     }}
                                 >
                                     {renderTree(children, level + 1, key + "-")}

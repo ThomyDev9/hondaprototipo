@@ -1,5 +1,5 @@
 import pool from "./db.js";
-import { GET_OUTBOUND_MENU_TREE } from "./queries/menu.queries.js";
+import { GET_OUTBOUND_MENU_TREE, GET_OUTBOUND_MENU_CATEGORY_NAME } from "./queries/menu.queries.js";
 
 export async function getOutboundMenuTree() {
     // Usa la consulta del sistema de queries
@@ -18,4 +18,10 @@ export async function getOutboundMenuTree() {
         }
     }
     return tree;
+}
+
+// Nuevo: obtener el nombre de la categoría dinámicamente
+export async function getOutboundMenuCategoryName() {
+    const [rows] = await pool.query(GET_OUTBOUND_MENU_CATEGORY_NAME);
+    return rows[0]?.nombre_categoria || "Campañas Outbound";
 }

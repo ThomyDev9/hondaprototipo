@@ -19,12 +19,16 @@ export default function Topbar({ user, onLogout }) {
 const styles = {
     topbar: {
         height: "60px",
+        minHeight: "60px",
+        maxHeight: "60px",
         backgroundColor: "#69b413",
         boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
         padding: "0 1.5rem",
+        boxSizing: "border-box",
+        width: "100%",
     },
     right: {
         display: "flex",

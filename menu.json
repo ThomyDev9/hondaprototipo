@@ -1,0 +1,27 @@
+﻿
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : [{"campania":"Banco de Loja","subcampanias":["Desembolso 
+                    CRD"]},{"campania":"Banco VisionFund","subcampanias":["BVF 
+                    Créditos","BVF Encuesta Postventa","BVF 
+                    Encuestas"]},{"campania":"Cacpe Zamora Chinc...
+RawContent        : HTTP/1.1 200 OK
+                    Vary: Origin
+                    Access-Control-Allow-Credentials: true
+                    Connection: keep-alive
+                    Keep-Alive: timeout=5
+                    Content-Length: 1107
+                    Content-Type: application/json; charset=utf-8
+                    Date: Fri, 27...
+Forms             : {}
+Headers           : {[Vary, Origin], [Access-Control-Allow-Credentials, true], 
+                    [Connection, keep-alive], [Keep-Alive, timeout=5]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : mshtml.HTMLDocumentClass
+RawContentLength  : 1107
+
+
+

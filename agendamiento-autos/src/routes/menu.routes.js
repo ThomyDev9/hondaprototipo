@@ -1,5 +1,5 @@
 import express from "express";
-import { getOutboundMenuTree } from "../services/menu.service.js";
+import { getOutboundMenuTree, getOutboundMenuCategoryName } from "../services/menu.service.js";
 
 const router = express.Router();
 
@@ -9,6 +9,16 @@ router.get("/outbound", async (req, res) => {
         res.json(tree);
     } catch (err) {
         res.status(500).json({ error: "Error al obtener el menú outbound" });
+    }
+});
+
+// Nuevo endpoint para obtener el nombre de la categoría outbound
+router.get("/outbound-category", async (req, res) => {
+    try {
+        const name = await getOutboundMenuCategoryName();
+        res.json({ name });
+    } catch (err) {
+        res.status(500).json({ error: "Error al obtener el nombre de la categoría outbound" });
     }
 });
 

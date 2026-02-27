@@ -11,3 +11,7 @@ export const GET_OUTBOUND_MENU_TREE = `
     AND p.estado = 'activo'
   ORDER BY p.nombre_item, s.nombre_item
 `;
+
+export const GET_OUTBOUND_MENU_CATEGORY_NAME = `
+  SELECT nombre_categoria FROM menu_categorias WHERE id_categoria = '544fb0a6-1345-11f1-b790-000c2904c92f'
+`;
