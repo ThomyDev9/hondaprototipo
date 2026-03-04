@@ -1,8 +1,8 @@
 // frontend/src/pages/bases/CargarBases.jsx
 import { useState, useEffect } from "react";
-import { Select, AutoComplete } from "../../components/common";
+import { Select } from "../../components/common";
 import { obtenerMapeos } from "../../services/mapping.service";
-import { buscarCampanas } from "../../services/campaign.service";
+import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
 import "./CargarBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -27,11 +27,14 @@ export default function CargarBases() {
     const [baseName, setBaseName] = useState("");
     const [mapeo, setMapeo] = useState("");
     const [campania, setCampania] = useState("");
+    const [campaniaPadre, setCampaniaPadre] = useState("");
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState("");
     const [preview, setPreview] = useState([]);
     const [mapeoOptions, setMapeoOptions] = useState([]);
+    const [menuCampanias, setMenuCampanias] = useState([]);
     const [loadingMapeos, setLoadingMapeos] = useState(false);
+    const [loadingCampanias, setLoadingCampanias] = useState(false);
     const [errors, setErrors] = useState({});
 
     // ✅ Cargar mapeos
@@ -55,14 +58,43 @@ export default function CargarBases() {
         loadMapeos();
     }, []);
 
+    useEffect(() => {
+        const loadCampanias = async () => {
+            try {
+                setLoadingCampanias(true);
+                const tree = await obtenerCampaniasDesdeMenu();
+                setMenuCampanias(tree);
+            } catch (err) {
+                console.error("Error cargando campañas de menú:", err);
+                setStatus("Error al cargar campañas y subcampañas desde menú.");
+            } finally {
+                setLoadingCampanias(false);
+            }
+        };
+
+        loadCampanias();
+    }, []);
+
+    const campaniaPadreOptions = menuCampanias
+        .map((item) => item.campania)
+        .filter(Boolean)
+        .map((nombre) => ({ id: nombre, label: nombre }));
+
+    const subcampaniaOptions = (
+        menuCampanias.find((item) => item.campania === campaniaPadre)
+            ?.subcampanias || []
+    ).map((nombre) => ({ id: nombre, label: nombre }));
+
     // ✅ Validación
     const validarFormulario = () => {
         const nuevosErrores = {};
         if (!baseName.trim())
             nuevosErrores.baseName = "El nombre de la base es obligatorio";
         if (!mapeo) nuevosErrores.mapeo = "Debe seleccionar un mapeo";
+        if (!campaniaPadre.trim())
+            nuevosErrores.campaniaPadre = "La campaña es obligatoria";
         if (!campania.trim())
-            nuevosErrores.campania = "La campaña es obligatoria";
+            nuevosErrores.campania = "La subcampaña es obligatoria";
         if (!file) nuevosErrores.file = "Debe seleccionar un archivo CSV";
         setErrors(nuevosErrores);
         return Object.keys(nuevosErrores).length === 0;
@@ -129,6 +161,7 @@ export default function CargarBases() {
             // limpiar formulario
             setBaseName("");
             setMapeo("");
+            setCampaniaPadre("");
             setCampania("");
             setFile(null);
         } catch (err) {
@@ -171,13 +204,31 @@ export default function CargarBases() {
                     required
                 />
 
-                {/* Campaña */}
-                <AutoComplete
+                <Select
                     label="Campaña"
+                    options={campaniaPadreOptions}
+                    value={campaniaPadre}
+                    onChange={(value) => {
+                        setCampaniaPadre(value);
+                        setCampania("");
+                    }}
+                    placeholder="Selecciona campaña padre"
+                    disabled={loadingCampanias}
+                    error={errors.campaniaPadre}
+                    required
+                />
+
+                <Select
+                    label="Subcampaña"
+                    options={subcampaniaOptions}
                     value={campania}
                     onChange={setCampania}
-                    onSearch={buscarCampanas}
-                    placeholder="Escribe el ID de la campaña..."
+                    placeholder={
+                        campaniaPadre
+                            ? "Selecciona subcampaña"
+                            : "Primero selecciona campaña"
+                    }
+                    disabled={!campaniaPadre || loadingCampanias}
                     error={errors.campania}
                     required
                 />

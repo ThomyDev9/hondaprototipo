@@ -83,8 +83,37 @@ export async function obtenerCampaniasActivas() {
     }
 }
 
+/**
+ * Obtener árbol de campañas outbound desde menu_items
+ * @returns {Promise<Array>} [{ campania, subcampanias: string[] }]
+ */
+export async function obtenerCampaniasDesdeMenu() {
+    try {
+        const response = await fetch(`${API_BASE}/api/menu/outbound`);
+        if (!response.ok) {
+            throw new Error("Error obteniendo campañas desde menú");
+        }
+
+        const json = await response.json();
+        if (!Array.isArray(json)) return [];
+
+        return json.map((item) => ({
+            campania: String(item?.campania || "").trim(),
+            subcampanias: Array.isArray(item?.subcampanias)
+                ? item.subcampanias
+                      .map((sub) => String(sub || "").trim())
+                      .filter(Boolean)
+                : [],
+        }));
+    } catch (err) {
+        console.error("Error en obtenerCampaniasDesdeMenu:", err);
+        throw err;
+    }
+}
+
 export default {
     obtenerCampanas,
     buscarCampanas,
     obtenerCampaniasActivas,
+    obtenerCampaniasDesdeMenu,
 };

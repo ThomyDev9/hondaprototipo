@@ -20,7 +20,7 @@ export default function AdministrarBases() {
     ];
 
     return (
-        <PageContainer title="Administrar Bases" fullWidth>
+        <PageContainer fullWidth>
             <Tabs
                 tabs={tabs}
                 activeTab={activeTab}

@@ -1,21 +1,16 @@
 // src/pages/DashboardAgente.jsx
-/* eslint-disable react/prop-types */
 import { useEffect, useRef, useState } from "react";
-import CalendarioCitas from "../../components/CalendarioCitas";
+import PropTypes from "prop-types";
 import { PageContainer } from "../../components/common";
+import AgentGestionForm from "./components/AgentGestionForm";
+import outboundCampaignResolvers from "./campanias-outbound/index.js";
+import "./DashboardAgente.css";
+
+const { resolveDynamicFormConfig, resolveDynamicSurveyConfig } =
+    outboundCampaignResolvers;
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutos
-
-const ESTADOS_RESULTADO = [
-    { code: "ub_exito_agendo_cita", label: "Contacto - Cita agendada" },
-    { code: "no_desea", label: "No desea / No interesado" },
-    { code: "re_llamada", label: "Volver a llamar" },
-    { code: "sin_contacto", label: "No contesta / Buzón" },
-    { code: "numero_incorrecto", label: "Número incorrecto" },
-    { code: "ya_tiene_cita", label: "Ya tiene cita" },
-    { code: "inubicable", label: "Inubicable / No llamar más" },
-];
 
 const ESTADOS_OPERATIVOS = [
     { code: "disponible", label: "Disponible" },
@@ -25,7 +20,44 @@ const ESTADOS_OPERATIVOS = [
     { code: "reunion", label: "Reunión" },
 ];
 
-export default function DashboardAgente({ user }) {
+function buildInitialSurveyAnswers(surveyConfig) {
+    if (!surveyConfig?.fields?.length) return {};
+    return surveyConfig.fields.reduce((acc, field) => {
+        acc[field.key] = "";
+        return acc;
+    }, {});
+}
+
+function findOptionIgnoreCase(options, target) {
+    const normalizedTarget = String(target || "")
+        .trim()
+        .toLowerCase();
+    if (!normalizedTarget) return "";
+
+    return (
+        options.find(
+            (option) =>
+                String(option || "")
+                    .trim()
+                    .toLowerCase() === normalizedTarget,
+        ) || ""
+    );
+}
+
+const CREDIT_OPTION_FIELD = {
+    key: "respuesta10",
+    label: "Opción de crédito seleccionada",
+    type: "select",
+    options: ["Opción 1", "Opción 2", "Opción 3", "Opción 4"],
+};
+
+export default function DashboardAgente({
+    user,
+    selectedCampaignId,
+    selectedCampaignTick,
+    requestedAgentStatus,
+    onAgentStatusSync,
+}) {
     const roles = user?.roles || [];
     const isAgente = roles.includes("ASESOR");
 
@@ -37,22 +69,47 @@ export default function DashboardAgente({ user }) {
     const [bloqueado, setBloqueado] = useState(
         user?.bloqueado === true || user?.is_active === false,
     );
-
-    const [estadoSeleccionado, setEstadoSeleccionado] = useState(
-        "ub_exito_agendo_cita",
-    );
-    const [fechaCita, setFechaCita] = useState("");
-    const [agenciaCita, setAgenciaCita] = useState("");
-    const [comentarios, setComentarios] = useState("");
+    const [observacion, setObservacion] = useState("");
 
     const [estadoAgente, setEstadoAgente] = useState("disponible");
-    const [calendarRefreshToken, setCalendarRefreshToken] = useState(0);
-    const [campanias, setCampanias] = useState([]);
     const [campaignIdSeleccionada, setCampaignIdSeleccionada] = useState("");
+    const [levels, setLevels] = useState([]);
+    const [level1Seleccionado, setLevel1Seleccionado] = useState("");
+    const [level2Seleccionado, setLevel2Seleccionado] = useState("");
+    const [telefonos, setTelefonos] = useState([]);
+    const [telefonoSeleccionado, setTelefonoSeleccionado] = useState("");
+    const [estadoTelefonos, setEstadoTelefonos] = useState([]);
+    const [estadoTelefonoSeleccionado, setEstadoTelefonoSeleccionado] =
+        useState("");
+    const [interactionIdActual, setInteractionIdActual] = useState("");
+    const [dynamicFormConfig, setDynamicFormConfig] = useState(null);
+    const [dynamicFormDetail, setDynamicFormDetail] = useState(null);
+    const [dynamicSurveyConfig, setDynamicSurveyConfig] = useState(null);
+    const [surveyAnswers, setSurveyAnswers] = useState({});
+
+    const activeCampaignForSurvey =
+        campaignIdSeleccionada || registro?.campaign_id || "";
+    const isBvfPreAprobados = /BVF PRE APROBADOS/i.test(
+        String(activeCampaignForSurvey),
+    );
+    const hasCreditField = dynamicSurveyConfig?.fields?.some(
+        (field) => field.key === CREDIT_OPTION_FIELD.key,
+    );
+    let surveyFieldsToRender = [];
+    if (dynamicSurveyConfig) {
+        surveyFieldsToRender = dynamicSurveyConfig.fields;
+        if (isBvfPreAprobados && !hasCreditField) {
+            surveyFieldsToRender = [
+                ...dynamicSurveyConfig.fields,
+                CREDIT_OPTION_FIELD,
+            ];
+        }
+    }
 
     // para inactividad
     const lastActivityRef = useRef(Date.now());
     const inactivityHandledRef = useRef(false);
+    const initialCampaignTickRef = useRef(selectedCampaignTick || 0);
 
     const marcarActividad = () => {
         lastActivityRef.current = Date.now();
@@ -73,33 +130,24 @@ export default function DashboardAgente({ user }) {
     };
 
     useEffect(() => {
-        const cargarCampanias = async () => {
-            try {
-                const token = localStorage.getItem("access_token");
-                const resp = await fetch(`${API_BASE}/campaigns/active`, {
-                    headers: {
-                        Authorization: token ? `Bearer ${token}` : "",
-                    },
-                });
+        if (!selectedCampaignId || !selectedCampaignTick || bloqueado) return;
 
-                const json = await resp.json();
-                if (!resp.ok) return;
+        if (selectedCampaignTick === initialCampaignTickRef.current) {
+            return;
+        }
 
-                const lista = (json.data || [])
-                    .map((c) => c.Id)
-                    .filter(Boolean);
-                setCampanias(lista);
+        setCampaignIdSeleccionada(selectedCampaignId);
+        fetchSiguienteRegistro(selectedCampaignId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedCampaignId, selectedCampaignTick, bloqueado]);
 
-                if (lista.length > 0) {
-                    setCampaignIdSeleccionada((prev) => prev || lista[0]);
-                }
-            } catch (err) {
-                console.error("Error cargando campañas activas:", err);
-            }
-        };
+    useEffect(() => {
+        if (!requestedAgentStatus || bloqueado) return;
+        if (requestedAgentStatus === estadoAgente) return;
 
-        cargarCampanias();
-    }, []);
+        handleCambioEstadoAgente(requestedAgentStatus);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [requestedAgentStatus, bloqueado]);
 
     /* =====================  SIGUIENTE REGISTRO  ===================== */
     const fetchSiguienteRegistro = async (campaignIdOverride = null) => {
@@ -112,7 +160,13 @@ export default function DashboardAgente({ user }) {
                 campaignIdOverride || campaignIdSeleccionada;
 
             if (!campaignIdToUse) {
-                setError("Selecciona una campaña antes de tomar registros");
+                setError(
+                    "Selecciona una opción del menú de campañas para cargar registros",
+                );
+                setDynamicFormConfig(null);
+                setDynamicFormDetail(null);
+                setDynamicSurveyConfig(null);
+                setSurveyAnswers({});
                 return;
             }
 
@@ -131,11 +185,19 @@ export default function DashboardAgente({ user }) {
 
             if (resp.status === 403) {
                 handle403(json);
+                setDynamicFormConfig(null);
+                setDynamicFormDetail(null);
+                setDynamicSurveyConfig(null);
+                setSurveyAnswers({});
                 return;
             }
 
             if (resp.status === 404) {
                 setRegistro(null);
+                setDynamicFormConfig(null);
+                setDynamicFormDetail(null);
+                setDynamicSurveyConfig(null);
+                setSurveyAnswers({});
                 setError(
                     json.error || "No hay registros disponibles en tu cola",
                 );
@@ -143,15 +205,62 @@ export default function DashboardAgente({ user }) {
             }
 
             if (!resp.ok) {
+                setDynamicFormConfig(null);
+                setDynamicFormDetail(null);
+                setDynamicSurveyConfig(null);
+                setSurveyAnswers({});
                 setError(json.error || "No se pudo asignar siguiente registro");
                 return;
             }
 
             setRegistro(json.registro || null);
-            setEstadoSeleccionado("ub_exito_agendo_cita");
-            setFechaCita("");
-            setAgenciaCita("");
-            setComentarios("");
+            setObservacion("");
+
+            const record = json.registro || null;
+            const nextDynamicConfig = resolveDynamicFormConfig(campaignIdToUse);
+            const nextSurveyConfig =
+                resolveDynamicSurveyConfig(campaignIdToUse);
+            setDynamicFormConfig(nextDynamicConfig);
+            setDynamicFormDetail(json.detalleCliente || null);
+            setDynamicSurveyConfig(nextSurveyConfig);
+            setSurveyAnswers(buildInitialSurveyAnswers(nextSurveyConfig));
+
+            if (record?.id && campaignIdToUse) {
+                const catalogResp = await fetch(
+                    `${API_BASE}/agente/form-catalogos?campaignId=${encodeURIComponent(campaignIdToUse)}&contactId=${encodeURIComponent(record.id)}`,
+                    {
+                        headers: {
+                            Authorization: token ? `Bearer ${token}` : "",
+                        },
+                    },
+                );
+
+                if (catalogResp.ok) {
+                    const catalog = await catalogResp.json();
+                    const levelsData = Array.isArray(catalog.levels)
+                        ? catalog.levels
+                        : [];
+                    const telefonosData = Array.isArray(catalog.telefonos)
+                        ? catalog.telefonos
+                        : [];
+                    const estadosData = Array.isArray(catalog.estadoTelefonos)
+                        ? catalog.estadoTelefonos
+                        : [];
+                    setLevels(levelsData);
+                    setTelefonos(telefonosData);
+                    setEstadoTelefonos(estadosData);
+                    setLevel1Seleccionado("");
+                    setLevel2Seleccionado("");
+                    setTelefonoSeleccionado("");
+                    setEstadoTelefonoSeleccionado("");
+                    setInteractionIdActual("");
+                }
+
+                if (nextDynamicConfig && !json.detalleCliente) {
+                    setDynamicFormDetail(null);
+                }
+            }
+
             marcarActividad();
         } catch (err) {
             console.error(err);
@@ -161,13 +270,191 @@ export default function DashboardAgente({ user }) {
         }
     };
 
-    // Cargar automáticamente el primer registro cuando entra al módulo
     useEffect(() => {
-        if (!bloqueado && campaignIdSeleccionada) {
-            fetchSiguienteRegistro();
+        if (!level1Seleccionado) {
+            setLevel2Seleccionado("");
+            return;
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [bloqueado]);
+
+        const validLevel2Options = levels
+            .filter((item) => item.level1 === level1Seleccionado)
+            .map((item) => item.level2)
+            .filter(Boolean);
+
+        if (!validLevel2Options.includes(level2Seleccionado)) {
+            setLevel2Seleccionado("");
+        }
+    }, [level1Seleccionado, level2Seleccionado, levels]);
+
+    const buildInteractionId = () => {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mm = String(now.getMinutes()).padStart(2, "0");
+        const ss = String(now.getSeconds()).padStart(2, "0");
+        const micro = String(
+            now.getMilliseconds() * 1000 + Math.floor(Math.random() * 1000),
+        ).padStart(6, "0");
+        const rand8 = String(Math.floor(Math.random() * 100000000)).padStart(
+            8,
+            "0",
+        );
+        const yyyy = String(now.getFullYear());
+        const mon = String(now.getMonth() + 1).padStart(2, "0");
+        const dd = String(now.getDate()).padStart(2, "0");
+        return `${hh}${mm}${ss}${micro}-${rand8}-${yyyy}${mon}${dd}`;
+    };
+
+    const formatNowForMysql = () => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+        const hours = String(now.getHours()).padStart(2, "0");
+        const minutes = String(now.getMinutes()).padStart(2, "0");
+        const seconds = String(now.getSeconds()).padStart(2, "0");
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
+    const handleEstadoTelefonoChange = async (nuevoEstado) => {
+        setEstadoTelefonoSeleccionado(nuevoEstado);
+
+        if (!nuevoEstado) {
+            return;
+        }
+
+        const newInteractionId = buildInteractionId();
+        setInteractionIdActual(newInteractionId);
+
+        if (!(registro?.contact_id || registro?.id) || !telefonoSeleccionado) {
+            setError("Selecciona un teléfono antes de actualizar estado");
+            return;
+        }
+
+        await persistPhoneStatus(
+            telefonoSeleccionado,
+            nuevoEstado,
+            newInteractionId,
+        );
+    };
+
+    const persistPhoneStatus = async (telefono, estado, interactionIdValue) => {
+        const contactIdToUse = registro?.contact_id || registro?.id;
+        const interactionToUse = String(
+            interactionIdValue || interactionIdActual || "",
+        ).trim();
+
+        if (!telefono || !estado || !contactIdToUse || !interactionToUse) {
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem("access_token");
+            const payload = {
+                IDC: contactIdToUse,
+                fonos: telefono,
+                estatusTel: estado,
+                horaInicioLlamada: formatNowForMysql(),
+                interactionId: interactionToUse,
+                identificacionCliente: registro?.identification || "",
+            };
+
+            const resp = await fetch(`${API_BASE}/agente/update-phones`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: token ? `Bearer ${token}` : "",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const json = await resp.json();
+
+            if (resp.status === 403) {
+                handle403(json);
+                return;
+            }
+
+            if (!resp.ok) {
+                setError(
+                    json.error ||
+                        "No se pudo actualizar el estado del teléfono",
+                );
+            }
+        } catch (err) {
+            console.error(err);
+            setError("Error actualizando estado de teléfono");
+        }
+    };
+
+    const handleTelefonoChange = async (nuevoTelefono) => {
+        setTelefonoSeleccionado(nuevoTelefono);
+
+        const contactIdToUse = registro?.contact_id || registro?.id;
+
+        if (!contactIdToUse || !nuevoTelefono) {
+            setEstadoTelefonoSeleccionado("");
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem("access_token");
+            const resp = await fetch(
+                `${API_BASE}/agente/ultimo-estado-telefono?contactId=${encodeURIComponent(contactIdToUse)}&telefono=${encodeURIComponent(nuevoTelefono)}`,
+                {
+                    headers: {
+                        Authorization: token ? `Bearer ${token}` : "",
+                    },
+                },
+            );
+
+            if (resp.ok) {
+                const json = await resp.json();
+                setEstadoTelefonoSeleccionado(json.ultimoEstado || "");
+                setInteractionIdActual(json.interactionId || "");
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleSurveyFieldChange = (fieldKey, value) => {
+        setSurveyAnswers((prev) => ({
+            ...prev,
+            [fieldKey]: value,
+        }));
+    };
+
+    const handleNoContestaAutofill = () => {
+        const defaultLevel1 = "NU1 Regestionables";
+        const defaultLevel2Target = "no contesta";
+        const defaultEstadoTelefonoTarget = "no contesta";
+
+        const level1Options = [
+            ...new Set(levels.map((item) => item.level1).filter(Boolean)),
+        ];
+        const matchedLevel1 =
+            findOptionIgnoreCase(level1Options, defaultLevel1) || defaultLevel1;
+
+        const level2Options = levels
+            .filter((item) => item.level1 === matchedLevel1)
+            .map((item) => item.level2)
+            .filter(Boolean);
+
+        const matchedLevel2 =
+            findOptionIgnoreCase(level2Options, defaultLevel2Target) ||
+            defaultLevel2Target;
+
+        const matchedEstadoTelefono =
+            findOptionIgnoreCase(
+                estadoTelefonos,
+                defaultEstadoTelefonoTarget,
+            ) || defaultEstadoTelefonoTarget;
+
+        setLevel1Seleccionado(matchedLevel1);
+        setLevel2Seleccionado(matchedLevel2);
+        setEstadoTelefonoSeleccionado(matchedEstadoTelefono);
+        setObservacion("");
+    };
 
     /* =====================  CAMBIO DE ESTADO DEL AGENTE  ===================== */
     const handleCambioEstadoAgente = async (nuevoEstado) => {
@@ -204,6 +491,7 @@ export default function DashboardAgente({ user }) {
             }
 
             setEstadoAgente(nuevoEstado);
+            onAgentStatusSync?.(nuevoEstado);
             marcarActividad();
 
             if (
@@ -212,7 +500,7 @@ export default function DashboardAgente({ user }) {
                 setRegistro(null);
             }
 
-            if (nuevoEstado === "disponible") {
+            if (nuevoEstado === "disponible" && campaignIdSeleccionada) {
                 await fetchSiguienteRegistro();
             }
         } catch (err) {
@@ -232,27 +520,25 @@ export default function DashboardAgente({ user }) {
 
             const payload = {
                 registro_id: registro.id,
-                estado_final: estadoSeleccionado,
-                fecha_cita:
-                    estadoSeleccionado === "ub_exito_agendo_cita"
-                        ? fechaCita
-                        : null,
-                agencia_cita:
-                    estadoSeleccionado === "ub_exito_agendo_cita"
-                        ? agenciaCita
-                        : null,
-                comentarios: comentarios || null,
+                estado_final: level2Seleccionado || level1Seleccionado,
+                level1: level1Seleccionado,
+                level2: level2Seleccionado,
+                campaign_id: registro?.campaign_id || campaignIdSeleccionada,
+                interactionId: interactionIdActual || null,
+                telefono_ad: telefonoSeleccionado || null,
+                comentarios: observacion || null,
+                fecha_agendamiento: surveyAnswers?.respuesta1 || null,
+                encuesta: surveyAnswers,
+                encuestaPreguntas: surveyFieldsToRender.map((field) =>
+                    String(field.label || "").trim(),
+                ),
+                encuestaRespuestas: surveyFieldsToRender.map((field) =>
+                    String(surveyAnswers?.[field.key] || "").trim(),
+                ),
+                encuestaKeys: surveyFieldsToRender.map((field) =>
+                    String(field.key || "").trim(),
+                ),
             };
-
-            if (
-                estadoSeleccionado === "ub_exito_agendo_cita" &&
-                (!fechaCita || !agenciaCita)
-            ) {
-                setError(
-                    "Para agendar una cita debes ingresar fecha/hora y agencia.",
-                );
-                return;
-            }
 
             const resp = await fetch(`${API_BASE}/agente/guardar-gestion`, {
                 method: "POST",
@@ -273,11 +559,6 @@ export default function DashboardAgente({ user }) {
             if (!resp.ok) {
                 setError(json.error || "No se pudo guardar la gestión");
                 return;
-            }
-
-            // si se creó cita, refrescamos calendario
-            if (json.cita_creada) {
-                setCalendarRefreshToken((prev) => prev + 1);
             }
 
             // Después de guardar, el sistema pide automáticamente el siguiente registro
@@ -345,14 +626,14 @@ export default function DashboardAgente({ user }) {
 
     if (!isAgente) {
         return (
-            <PageContainer fullWidth>
-                <div style={styles.page}>
-                    <h1 style={styles.title}>Módulo de asesor</h1>
-                    <p style={styles.subtitle}>
+            <PageContainer fullWidth className="agent-page-container">
+                <div className="agent-page">
+                    <h1 className="agent-title">Módulo de asesor</h1>
+                    <p className="agent-subtitle">
                         <strong>Permiso denegado.</strong> Tu usuario no tiene
                         rol de asesor asignado.
                     </p>
-                    <p style={styles.subtitle}>
+                    <p className="agent-subtitle">
                         Pide a un administrador que te asigne el rol ASESOR
                         desde el módulo de Usuarios.
                     </p>
@@ -364,469 +645,93 @@ export default function DashboardAgente({ user }) {
     /* =====================  UI BLOQUEADO  ===================== */
     if (bloqueado) {
         return (
-            <PageContainer fullWidth>
-                <div style={styles.page}>
-                    <h1 style={styles.title}>Módulo de agente</h1>
-                    <p style={styles.subtitle}>
+            <PageContainer fullWidth className="agent-page-container">
+                <div className="agent-page">
+                    <h1 className="agent-title">Módulo de agente</h1>
+                    <p className="agent-subtitle">
                         Tu usuario se encuentra{" "}
                         <strong>bloqueado por inactividad</strong> o marcado
                         como <strong>inactivo</strong>.
                     </p>
-                    <p style={styles.subtitle}>
+                    <p className="agent-subtitle">
                         Por favor, comunícate con un administrador para que te
                         desbloquee.
                     </p>
-                    {error && (
-                        <p style={{ color: "#EA580C", marginTop: "1rem" }}>
-                            {error}
-                        </p>
-                    )}
+                    {error && <p className="agent-error-blocked">{error}</p>}
                 </div>
             </PageContainer>
         );
     }
 
+    const hasCampaignSelection = Boolean(campaignIdSeleccionada);
+    const shouldShowQueueMessage =
+        !loadingRegistro && !registro && hasCampaignSelection;
+
     /* =====================  UI NORMAL  ===================== */
     return (
-        <PageContainer fullWidth>
-            <div style={styles.page}>
-                <div style={styles.headerRow}>
-                    <div>
-                        <h1 style={styles.title}>Módulo de asesor</h1>
-                        <p style={styles.subtitle}>
-                            Gestiona llamadas, registra estados y agenda citas
-                            de forma controlada.
+        <PageContainer fullWidth className="agent-page-container">
+            {/* Zona principal: gestión */}
+            <section className="agent-main-row">
+                {/* Panel de gestión */}
+                <div className="agent-left-column">
+                    {error && <p className="agent-error">{error}</p>}
+
+                    {loadingRegistro && (
+                        <p className="agent-info-text">Asignando registro...</p>
+                    )}
+
+                    {shouldShowQueueMessage && (
+                        <p className="agent-info-text">
+                            {estadoAgente === "disponible"
+                                ? "No hay registros disponibles en tu cola en este momento."
+                                : 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'}
                         </p>
-                    </div>
+                    )}
 
-                    <div style={styles.estadoBox}>
-                        <span style={styles.estadoLabel}>Mi estado:</span>
-                        <div style={styles.estadoChips}>
-                            {ESTADOS_OPERATIVOS.map((st) => (
-                                <button
-                                    key={st.code}
-                                    type="button"
-                                    onClick={() =>
-                                        handleCambioEstadoAgente(st.code)
-                                    }
-                                    style={{
-                                        ...styles.estadoChip,
-                                        ...(estadoAgente === st.code
-                                            ? styles.estadoChipActive
-                                            : {}),
-                                    }}
-                                >
-                                    {st.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                    {registro && (
+                        <AgentGestionForm
+                            registro={registro}
+                            onSubmit={handleGuardarGestion}
+                            levels={levels}
+                            level1Seleccionado={level1Seleccionado}
+                            level2Seleccionado={level2Seleccionado}
+                            onLevel1Change={setLevel1Seleccionado}
+                            onLevel2Change={setLevel2Seleccionado}
+                            telefonos={telefonos}
+                            telefonoSeleccionado={telefonoSeleccionado}
+                            onTelefonoChange={handleTelefonoChange}
+                            estadoTelefonos={estadoTelefonos}
+                            estadoTelefonoSeleccionado={
+                                estadoTelefonoSeleccionado
+                            }
+                            onEstadoTelefonoChange={handleEstadoTelefonoChange}
+                            observacion={observacion}
+                            onObservacionChange={setObservacion}
+                            onNoContestaClick={handleNoContestaAutofill}
+                            dynamicFormConfig={dynamicFormConfig}
+                            dynamicFormDetail={dynamicFormDetail}
+                            dynamicSurveyConfig={dynamicSurveyConfig}
+                            surveyFieldsToRender={surveyFieldsToRender}
+                            surveyAnswers={surveyAnswers}
+                            onSurveyFieldChange={handleSurveyFieldChange}
+                        />
+                    )}
                 </div>
-
-                {/* Zona principal: gestión + calendario */}
-                <section style={styles.mainRow}>
-                    {/* Panel de gestión */}
-                    <div style={styles.leftColumn}>
-                        <div style={styles.card}>
-                            <h2 style={styles.cardTitle}>Registro actual</h2>
-
-                            <div style={styles.campaignSelectorRow}>
-                                <label
-                                    htmlFor="campania-asesor"
-                                    style={styles.label}
-                                >
-                                    Campaña
-                                </label>
-                                <select
-                                    id="campania-asesor"
-                                    value={campaignIdSeleccionada}
-                                    onChange={async (e) => {
-                                        const nuevaCampania = e.target.value;
-                                        setCampaignIdSeleccionada(
-                                            nuevaCampania,
-                                        );
-
-                                        if (!bloqueado && nuevaCampania) {
-                                            await fetchSiguienteRegistro(
-                                                nuevaCampania,
-                                            );
-                                        }
-                                    }}
-                                    style={styles.input}
-                                >
-                                    <option value="">
-                                        Selecciona una campaña...
-                                    </option>
-                                    {campanias.map((camp) => (
-                                        <option key={camp} value={camp}>
-                                            {camp}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {error && (
-                                <p
-                                    style={{
-                                        color: "#EA580C",
-                                        marginBottom: "0.75rem",
-                                    }}
-                                >
-                                    {error}
-                                </p>
-                            )}
-
-                            {loadingRegistro && (
-                                <p style={{ color: "#64748B" }}>
-                                    Asignando registro...
-                                </p>
-                            )}
-
-                            {!loadingRegistro && !registro && (
-                                <p style={{ color: "#64748B" }}>
-                                    {estadoAgente === "disponible"
-                                        ? "No hay registros disponibles en tu cola en este momento."
-                                        : 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'}
-                                </p>
-                            )}
-
-                            {registro && (
-                                <>
-                                    <div style={styles.registroBox}>
-                                        <p>
-                                            <strong>Base:</strong>{" "}
-                                            {registro.base_nombre}
-                                        </p>
-                                        <p>
-                                            <strong>Nombre:</strong>{" "}
-                                            {registro.nombre_completo}
-                                        </p>
-                                        <p>
-                                            <strong>Placa:</strong>{" "}
-                                            {registro.placa || "N/D"}
-                                        </p>
-                                        <p>
-                                            <strong>Teléfono 1:</strong>{" "}
-                                            {registro.telefono1 || "N/D"}
-                                        </p>
-                                        <p>
-                                            <strong>Teléfono 2:</strong>{" "}
-                                            {registro.telefono2 || "N/D"}
-                                        </p>
-                                        <p>
-                                            <strong>Modelo:</strong>{" "}
-                                            {registro.modelo || "N/D"}
-                                        </p>
-                                        <p>
-                                            <strong>Intentos previos:</strong>{" "}
-                                            {registro.intentos_totales ?? 0}
-                                        </p>
-                                    </div>
-
-                                    <form
-                                        onSubmit={handleGuardarGestion}
-                                        style={{ marginTop: "1rem" }}
-                                    >
-                                        <div>
-                                            <span style={styles.label}>
-                                                Resultado de la gestión
-                                            </span>
-                                            <div style={styles.chipsRow}>
-                                                {ESTADOS_RESULTADO.map(
-                                                    (opt) => (
-                                                        <button
-                                                            key={opt.code}
-                                                            type="button"
-                                                            onClick={() =>
-                                                                setEstadoSeleccionado(
-                                                                    opt.code,
-                                                                )
-                                                            }
-                                                            style={{
-                                                                ...styles.chip,
-                                                                ...(estadoSeleccionado ===
-                                                                opt.code
-                                                                    ? styles.chipActive
-                                                                    : {}),
-                                                            }}
-                                                        >
-                                                            {opt.label}
-                                                        </button>
-                                                    ),
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {estadoSeleccionado ===
-                                            "ub_exito_agendo_cita" && (
-                                            <>
-                                                <div
-                                                    style={{
-                                                        marginTop: "1rem",
-                                                    }}
-                                                >
-                                                    <label style={styles.label}>
-                                                        <span>
-                                                            Fecha y hora de la
-                                                            cita
-                                                        </span>
-                                                        <input
-                                                            type="datetime-local"
-                                                            value={fechaCita}
-                                                            onChange={(e) =>
-                                                                setFechaCita(
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            style={styles.input}
-                                                        />
-                                                    </label>
-                                                </div>
-                                                <div
-                                                    style={{
-                                                        marginTop: "0.75rem",
-                                                    }}
-                                                >
-                                                    <label style={styles.label}>
-                                                        <span>
-                                                            Agencia de la cita
-                                                        </span>
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Ej: Agencia Norte, Agencia Matriz, etc."
-                                                            value={agenciaCita}
-                                                            onChange={(e) =>
-                                                                setAgenciaCita(
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            style={styles.input}
-                                                        />
-                                                    </label>
-                                                </div>
-                                            </>
-                                        )}
-
-                                        <div style={{ marginTop: "1rem" }}>
-                                            <label style={styles.label}>
-                                                <span>
-                                                    Comentarios de la llamada
-                                                </span>
-                                                <textarea
-                                                    placeholder="Ej: Cliente prefiere WhatsApp para confirmación."
-                                                    value={comentarios}
-                                                    onChange={(e) =>
-                                                        setComentarios(
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    style={styles.textarea}
-                                                />
-                                            </label>
-                                        </div>
-
-                                        <div style={{ marginTop: "1.25rem" }}>
-                                            <button
-                                                type="submit"
-                                                style={styles.primaryButton}
-                                            >
-                                                Guardar gestión y asignar
-                                                siguiente
-                                            </button>
-                                        </div>
-                                    </form>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Calendario */}
-                    <div style={styles.rightColumn}>
-                        <div style={styles.card}>
-                            <CalendarioCitas
-                                refreshToken={calendarRefreshToken}
-                            />
-                        </div>
-                    </div>
-                </section>
-            </div>
+            </section>
         </PageContainer>
     );
 }
 
-/* =====================  ESTILOS  ===================== */
-
-const styles = {
-    page: {
-        padding: "2rem",
-        backgroundColor: "#F3F4F6",
-        minHeight: "100vh",
-    },
-    headerRow: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: "1.25rem",
-    },
-    title: {
-        fontSize: "1.75rem",
-        fontWeight: 700,
-        color: "#0F172A",
-        marginBottom: "0.25rem",
-    },
-    subtitle: {
-        fontSize: "0.95rem",
-        color: "#6B7280",
-        marginBottom: "0.25rem",
-    },
-    estadoBox: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: "999px",
-        padding: "0.4rem 0.8rem",
-        boxShadow: "0 8px 20px rgba(15, 23, 42, 0.08)",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.5rem",
-    },
-    estadoLabel: {
-        fontSize: "0.8rem",
-        color: "#6B7280",
-    },
-    estadoChips: {
-        display: "flex",
-        gap: "0.3rem",
-    },
-    estadoChip: {
-        borderRadius: "999px",
-        border: "1px solid #E5E7EB",
-        padding: "0.25rem 0.6rem",
-        fontSize: "0.75rem",
-        backgroundColor: "#FFFFFF",
-        color: "#374151",
-        cursor: "pointer",
-    },
-    estadoChipActive: {
-        backgroundColor: "#22C55E",
-        color: "#FFFFFF",
-        borderColor: "#22C55E",
-    },
-    cardRow: {
-        display: "flex",
-        gap: "1.5rem",
-        marginBottom: "1.5rem",
-    },
-    card: {
-        flex: 1,
-        backgroundColor: "#FFFFFF",
-        borderRadius: "1rem",
-        padding: "1.25rem 1.5rem",
-        boxShadow: "0 10px 25px rgba(15, 23, 42, 0.04)",
-    },
-    cardTitle: {
-        fontSize: "1.1rem",
-        fontWeight: 600,
-        color: "#111827",
-        marginBottom: "0.5rem",
-    },
-    cardText: {
-        fontSize: "0.9rem",
-        color: "#6B7280",
-        marginBottom: "1rem",
-    },
-    metricsRow: {
-        display: "flex",
-        gap: "1rem",
-    },
-    metricBox: {
-        flex: 1,
-        backgroundColor: "#EFF6FF",
-        borderRadius: "0.75rem",
-        padding: "0.75rem 1rem",
-    },
-    metricLabel: {
-        fontSize: "0.8rem",
-        color: "#64748B",
-    },
-    metricValue: {
-        fontSize: "1.4rem",
-        fontWeight: 700,
-        color: "#111827",
-    },
-    mainRow: {
-        display: "flex",
-        gap: "1.5rem",
-        marginTop: "1rem",
-    },
-    leftColumn: {
-        flex: 3,
-    },
-    rightColumn: {
-        flex: 4,
-    },
-    registroBox: {
-        backgroundColor: "#F9FAFB",
-        borderRadius: "0.75rem",
-        padding: "0.75rem 1rem",
-        marginBottom: "1rem",
-        fontSize: "0.9rem",
-        color: "#111827",
-    },
-    campaignSelectorRow: {
-        marginBottom: "0.75rem",
-    },
-    label: {
-        display: "block",
-        fontSize: "0.85rem",
-        fontWeight: 500,
-        color: "#374151",
-        marginBottom: "0.35rem",
-    },
-    chipsRow: {
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "0.5rem",
-        marginTop: "0.25rem",
-    },
-    chip: {
-        borderRadius: "999px",
-        border: "1px solid #E5E7EB",
-        padding: "0.35rem 0.75rem",
-        fontSize: "0.8rem",
-        backgroundColor: "#FFFFFF",
-        color: "#374151",
-        cursor: "pointer",
-    },
-    chipActive: {
-        backgroundColor: "#2563EB",
-        color: "#FFFFFF",
-        borderColor: "#2563EB",
-    },
-    input: {
-        width: "100%",
-        padding: "0.5rem 0.6rem",
-        borderRadius: "0.6rem",
-        border: "1px solid #E5E7EB",
-        fontSize: "0.9rem",
-    },
-    textarea: {
-        width: "100%",
-        minHeight: "80px",
-        padding: "0.5rem 0.6rem",
-        borderRadius: "0.6rem",
-        border: "1px solid #E5E7EB",
-        fontSize: "0.9rem",
-        resize: "vertical",
-    },
-    primaryButton: {
-        backgroundColor: "#2563EB",
-        color: "#FFFFFF",
-        border: "none",
-        borderRadius: "999px",
-        padding: "0.6rem 1.5rem",
-        fontSize: "0.9rem",
-        fontWeight: 600,
-        cursor: "pointer",
-    },
+DashboardAgente.propTypes = {
+    user: PropTypes.shape({
+        roles: PropTypes.arrayOf(PropTypes.string),
+        bloqueado: PropTypes.bool,
+        is_active: PropTypes.bool,
+        name: PropTypes.string,
+        username: PropTypes.string,
+    }),
+    selectedCampaignId: PropTypes.string,
+    selectedCampaignTick: PropTypes.number,
+    requestedAgentStatus: PropTypes.string,
+    onAgentStatusSync: PropTypes.func,
 };

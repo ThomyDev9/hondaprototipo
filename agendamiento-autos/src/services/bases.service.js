@@ -150,19 +150,37 @@ export async function obtenerResumenBases() {
 /**
  * Obtener importaciones por campaña
  */
-export async function obtenerImportacionesPorCampania(campaignId) {
+export async function obtenerImportacionesPorCampania(
+    campaignId,
+    action = "desactivar",
+) {
     try {
+        const baseState = action === "activar" ? "0" : "1";
         console.log(
             "🔍 Buscando importaciones en BD para campaña:",
             campaignId,
         );
         const [rows] = await pool.query(basesQueries.getImportsByCampaign, [
             campaignId,
+            baseState,
         ]);
         console.log("📊 Query ejecutada. Filas encontradas:", rows.length);
         return rows;
     } catch (error) {
         console.error("Error al obtener importaciones:", error);
+        throw error;
+    }
+}
+
+export async function obtenerImportacionesConEstadoPorCampania(campaignId) {
+    try {
+        const [rows] = await pool.query(
+            basesQueries.getImportsByCampaignWithState,
+            [campaignId],
+        );
+        return rows;
+    } catch (error) {
+        console.error("Error al obtener importaciones con estado:", error);
         throw error;
     }
 }
@@ -194,6 +212,10 @@ export async function administrarBase(
                 importDate,
                 username,
             ]);
+            await pool.query(basesQueries.updateContactImportState, [
+                "1",
+                importDate,
+            ]);
             return { message: "Se ha asignado base exitosamente!" };
         } else if (action === "desactivar") {
             await pool.query(basesQueries.deactivateBase, [
@@ -203,7 +225,13 @@ export async function administrarBase(
                 campaignId,
             ]);
             await pool.query(basesQueries.clearCampaignActiveBase, [
+                username,
+                dateNow,
                 campaignId,
+                importDate,
+            ]);
+            await pool.query(basesQueries.updateContactImportState, [
+                "0",
                 importDate,
             ]);
             return { message: "Se ha cancelado base exitosamente!" };
@@ -505,6 +533,7 @@ export async function procesarCSV(
             "0",
             error,
             duplicado,
+            "1",
         ]);
 
         await connCCK.query(basesQueries.insertContactImport, [

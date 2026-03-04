@@ -1,57 +1,64 @@
 import { useState, useEffect } from "react";
-import { Select, Button, Alert } from "../../components/common";
-import { obtenerCampaniasActivas } from "../../services/campaign.service";
+import { Select, Alert, Table, Badge } from "../../components/common";
+import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
 import "./CargarBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
 export default function GestionarEstadoBases() {
-    const [campanias, setCampanias] = useState([]);
-    const [campaniaSeleccionada, setCampaniaSeleccionada] = useState("");
-    const [importaciones, setImportaciones] = useState([]);
-    const [importacionSeleccionada, setImportacionSeleccionada] = useState("");
-    const [accion, setAccion] = useState("");
+    const [menuCampanias, setMenuCampanias] = useState([]);
+    const [campaniaPadreSeleccionada, setCampaniaPadreSeleccionada] =
+        useState("");
+    const [subcampaniaSeleccionada, setSubcampaniaSeleccionada] = useState("");
+    const [importacionesConEstado, setImportacionesConEstado] = useState([]);
+    const [filtroEstado, setFiltroEstado] = useState("");
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState(null);
 
-    // Cargar campañas activas al montar
     useEffect(() => {
         cargarCampanias();
     }, []);
 
-    // Cargar importaciones cuando se selecciona una campaña
     useEffect(() => {
-        if (campaniaSeleccionada) {
-            cargarImportaciones(campaniaSeleccionada);
+        if (subcampaniaSeleccionada) {
+            cargarImportacionesConEstado(subcampaniaSeleccionada);
         } else {
-            setImportaciones([]);
-            setImportacionSeleccionada("");
+            setImportacionesConEstado([]);
         }
-    }, [campaniaSeleccionada]);
+    }, [subcampaniaSeleccionada]);
 
     const cargarCampanias = async () => {
         try {
-            const options = await obtenerCampaniasActivas();
-            setCampanias(options);
+            const tree = await obtenerCampaniasDesdeMenu();
+            setMenuCampanias(tree);
         } catch (err) {
             console.error("Error cargando campañas:", err);
             setAlert({
                 type: "error",
-                message: "Error al cargar campañas activas",
+                message: "Error al cargar campañas y subcampañas",
             });
         }
     };
 
-    const cargarImportaciones = async (campaignId) => {
+    const campaniaPadreOptions = menuCampanias
+        .map((item) => item.campania)
+        .filter(Boolean)
+        .map((nombre) => ({ id: nombre, label: nombre }));
+
+    const subcampaniaOptions = (
+        menuCampanias.find(
+            (item) => item.campania === campaniaPadreSeleccionada,
+        )?.subcampanias || []
+    ).map((nombre) => ({ id: nombre, label: nombre }));
+
+    const cargarImportacionesConEstado = async (campaignId) => {
         try {
             setLoading(true);
             setAlert(null);
             const token = localStorage.getItem("access_token");
 
-            console.log("Cargando importaciones para campaña:", campaignId);
-
             const response = await fetch(
-                `${API_BASE}/bases/importaciones/${campaignId}`,
+                `${API_BASE}/bases/importaciones-estado/${encodeURIComponent(campaignId)}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -64,21 +71,17 @@ export default function GestionarEstadoBases() {
             }
 
             const json = await response.json();
-            console.log("Importaciones recibidas:", json);
-
-            const options = (json.importaciones || []).map((imp) => ({
-                id: imp.LastUpdate,
-                label: imp.LastUpdate,
+            const rows = (json.importaciones || []).map((imp) => ({
+                LastUpdate: imp.LastUpdate,
+                BaseState: String(imp.BaseState ?? "1").trim() || "1",
             }));
 
-            console.log("Importaciones procesadas:", options);
-            setImportaciones(options);
+            setImportacionesConEstado(rows);
 
-            if (options.length === 0) {
+            if (rows.length === 0) {
                 setAlert({
                     type: "error",
-                    message:
-                        "No hay importaciones disponibles para esta campaña",
+                    message: "No hay importaciones para esta subcampaña",
                 });
             }
         } catch (err) {
@@ -92,33 +95,16 @@ export default function GestionarEstadoBases() {
         }
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setAlert(null);
+    const ejecutarAccionBase = async (row) => {
+        if (!subcampaniaSeleccionada || !row?.LastUpdate) return;
+        if (!filtroEstado) return;
 
-        if (!campaniaSeleccionada) {
-            setAlert({
-                type: "error",
-                message: "Debe seleccionar una campaña",
-            });
-            return;
-        }
-
-        if (!importacionSeleccionada) {
-            setAlert({
-                type: "error",
-                message: "Debe seleccionar una importación",
-            });
-            return;
-        }
-
-        if (!accion) {
-            setAlert({ type: "error", message: "Debe seleccionar una acción" });
-            return;
-        }
+        const action =
+            String(row.BaseState).trim() === "1" ? "desactivar" : "activar";
 
         try {
             setLoading(true);
+            setAlert(null);
             const token = localStorage.getItem("access_token");
 
             const response = await fetch(`${API_BASE}/bases/administrar`, {
@@ -128,14 +114,13 @@ export default function GestionarEstadoBases() {
                     Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
-                    campaignId: campaniaSeleccionada,
-                    importDate: importacionSeleccionada,
-                    action: accion,
+                    campaignId: subcampaniaSeleccionada,
+                    importDate: row.LastUpdate,
+                    action,
                 }),
             });
 
             const json = await response.json();
-
             if (!response.ok) {
                 throw new Error(json.error || "Error al administrar base");
             }
@@ -145,10 +130,16 @@ export default function GestionarEstadoBases() {
                 message: json.message || "Operación exitosa",
             });
 
-            // Limpiar formulario
-            setCampaniaSeleccionada("");
-            setImportacionSeleccionada("");
-            setAccion("");
+            const nextState = action === "desactivar" ? "0" : "1";
+            setImportacionesConEstado((prev) =>
+                prev.map((item) =>
+                    item.LastUpdate === row.LastUpdate
+                        ? { ...item, BaseState: nextState }
+                        : item,
+                ),
+            );
+
+            await cargarImportacionesConEstado(subcampaniaSeleccionada);
         } catch (err) {
             console.error("Error administrando base:", err);
             setAlert({
@@ -160,55 +151,115 @@ export default function GestionarEstadoBases() {
         }
     };
 
+    const tableColumns = [
+        {
+            key: "LastUpdate",
+            label: "Importación",
+        },
+        {
+            key: "BaseState",
+            label: "Estado",
+            render: (value) => {
+                const isActive = String(value).trim() === "1";
+                return (
+                    <Badge variant={isActive ? "success" : "secondary"}>
+                        {isActive ? "Activa" : "Inactiva"}
+                    </Badge>
+                );
+            },
+        },
+    ];
+
+    let targetState = null;
+    if (filtroEstado === "activas") {
+        targetState = "1";
+    } else if (filtroEstado === "inactivas") {
+        targetState = "0";
+    }
+    const importacionesFiltradas = importacionesConEstado.filter(
+        (item) =>
+            targetState !== null &&
+            String(item?.BaseState ?? "1").trim() === targetState,
+    );
+
+    const tableActions =
+        filtroEstado === "activas" || filtroEstado === "inactivas"
+            ? [
+                  {
+                      label:
+                          filtroEstado === "activas" ? "Desactivar" : "Activar",
+                      variant: "default",
+                      onClick: ejecutarAccionBase,
+                  },
+              ]
+            : [];
+
     return (
-        <div className="wrapper">
-            <form onSubmit={handleSubmit} className="form">
-                {/* Seleccionar Campaña */}
+        <div className="wrapper manage-bases-wrapper">
+            <div className="form manage-bases-compact-row">
                 <Select
                     label="Seleccionar Campaña"
-                    options={campanias}
-                    value={campaniaSeleccionada}
-                    onChange={setCampaniaSeleccionada}
-                    placeholder="Seleccione una campaña activa..."
+                    options={campaniaPadreOptions}
+                    value={campaniaPadreSeleccionada}
+                    onChange={(value) => {
+                        setCampaniaPadreSeleccionada(value);
+                        setSubcampaniaSeleccionada("");
+                    }}
+                    placeholder="Seleccione campaña"
+                    disabled={loading}
                     required
                 />
 
-                {/* Seleccionar Importación */}
                 <Select
-                    label="Seleccionar Importación"
-                    options={importaciones}
-                    value={importacionSeleccionada}
-                    onChange={setImportacionSeleccionada}
+                    label="Seleccionar Subcampaña"
+                    options={subcampaniaOptions}
+                    value={subcampaniaSeleccionada}
+                    onChange={setSubcampaniaSeleccionada}
                     placeholder={
-                        campaniaSeleccionada
-                            ? "Seleccione una importación"
-                            : "Primero seleccione una campaña"
+                        campaniaPadreSeleccionada
+                            ? "Seleccione subcampaña..."
+                            : "Primero campaña"
                     }
-                    disabled={!campaniaSeleccionada || loading}
+                    disabled={!campaniaPadreSeleccionada || loading}
                     required
                 />
 
-                {/* Seleccionar Acción */}
                 <Select
-                    label="Seleccionar Acción"
+                    label="Filtrar Estado"
                     options={[
-                        { id: "activar", label: "Activar Base" },
-                        { id: "desactivar", label: "Desactivar Base" },
+                        { id: "activas", label: "Bases Activas" },
+                        { id: "inactivas", label: "Bases Inactivas" },
                     ]}
-                    value={accion}
-                    onChange={setAccion}
-                    placeholder="Seleccione acción a realizar..."
+                    value={filtroEstado}
+                    onChange={setFiltroEstado}
+                    placeholder="Seleccione filtro"
                     required
                 />
 
-                {/* Alerta */}
-                {alert && <Alert type={alert.type} message={alert.message} />}
+                <div className="manage-bases-full-row manage-bases-content-panel">
+                    {subcampaniaSeleccionada && filtroEstado ? (
+                        <Table
+                            columns={tableColumns}
+                            data={importacionesFiltradas}
+                            actions={tableActions}
+                            keyField="LastUpdate"
+                            noDataMessage="No hay bases para mostrar"
+                        />
+                    ) : (
+                        <div className="manage-bases-empty">
+                            {subcampaniaSeleccionada
+                                ? "Selecciona un filtro de estado para ver las bases."
+                                : "Selecciona una subcampaña para ver las bases y su estado."}
+                        </div>
+                    )}
+                </div>
 
-                {/* Botón Submit */}
-                <Button type="submit" disabled={loading}>
-                    {loading ? "Procesando..." : "Ejecutar"}
-                </Button>
-            </form>
+                {alert && (
+                    <div className="manage-bases-full-row">
+                        <Alert type={alert.type} message={alert.message} />
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

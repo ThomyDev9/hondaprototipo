@@ -2,13 +2,14 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import AccordionMenu from "./AccordionMenu";
 
-function Sidebar({ role, adminPage, onChangeAdminPage }) {
+function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
     const [collapsed, setCollapsed] = useState(false);
     const [showOutbound, setShowOutbound] = useState(false);
     const effectiveRole = role || "ADMINISTRADOR";
 
     const menuAdmin = [
         { label: "Administrar bases", key: "administrar-bases" },
+        { label: "Campañas", key: "campanias" },
         { label: "Ver bases", key: "listado-bases" },
         { label: "Usuarios", key: "users" },
         { label: "Configuración", key: "settings" },
@@ -89,12 +90,11 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
                                 ...styles.menuItem,
                                 ...(isActive(item)
                                     ? styles.menuItemActive
-                                    : {}),
+                                    : styles.menuItemInactive),
                                 justifyContent: collapsed
                                     ? "center"
                                     : "flex-start",
                                 width: "100%",
-                                background: "none",
                                 border: "none",
                                 color: "inherit",
                                 textAlign: "left",
@@ -114,7 +114,16 @@ function Sidebar({ role, adminPage, onChangeAdminPage }) {
                                         width: "100%",
                                     }}
                                 >
-                                    <AccordionMenu />
+                                    <AccordionMenu
+                                        onLeafSelect={({ campaignId }) => {
+                                            if (
+                                                onSelectCampaign &&
+                                                campaignId
+                                            ) {
+                                                onSelectCampaign(campaignId);
+                                            }
+                                        }}
+                                    />
                                 </div>
                             )}
                     </li>
@@ -168,6 +177,9 @@ const styles = {
         display: "flex",
         alignItems: "center",
     },
+    menuItemInactive: {
+        backgroundColor: "transparent",
+    },
     menuItemActive: {
         backgroundColor: "#2563EB",
     },
@@ -177,6 +189,7 @@ Sidebar.propTypes = {
     role: PropTypes.string,
     adminPage: PropTypes.string,
     onChangeAdminPage: PropTypes.func,
+    onSelectCampaign: PropTypes.func,
 };
 
 export default Sidebar;

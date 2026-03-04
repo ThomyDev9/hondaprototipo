@@ -5,6 +5,7 @@ import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
 import DashboardAgente from "./pages/agente/DashboardAgente";
 import AdministrarBases from "./pages/admin/AdministrarBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
+import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -15,8 +16,14 @@ function App() {
     const [error, setError] = useState("");
     const [userInfo, setUserInfo] = useState(null);
 
-    // 'administrar-bases' | 'listado-bases' | 'users' | 'settings'
+    // 'administrar-bases' | 'campanias' | 'listado-bases' | 'users' | 'settings'
     const [adminPage, setAdminPage] = useState("administrar-bases");
+    const [selectedAgentCampaign, setSelectedAgentCampaign] = useState({
+        campaignId: "",
+        tick: 0,
+    });
+    const [selectedAgentStatus, setSelectedAgentStatus] =
+        useState("disponible");
 
     // ✅ Validar token al cargar la página
     useEffect(() => {
@@ -40,6 +47,7 @@ function App() {
                     console.warn("⚠️ Username no disponible en sesión actual");
                 }
 
+                setSelectedAgentCampaign({ campaignId: "", tick: 0 });
                 setUserInfo(meJson.user);
             } catch (err) {
                 console.error("Error validando token:", err);
@@ -90,6 +98,7 @@ function App() {
                 console.warn("⚠️ Username no disponible en el token");
             }
 
+            setSelectedAgentCampaign({ campaignId: "", tick: 0 });
             setUserInfo(meJson.user);
         } catch (err) {
             console.error("Error login:", err);
@@ -102,6 +111,8 @@ function App() {
     const handleLogout = async () => {
         localStorage.removeItem("access_token");
         localStorage.removeItem("import_user");
+        setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+        setSelectedAgentStatus("disponible");
         setUserInfo(null);
     };
 
@@ -112,12 +123,21 @@ function App() {
                 onLogout={handleLogout}
                 adminPage={adminPage}
                 onChangeAdminPage={setAdminPage}
+                selectedAgentStatus={selectedAgentStatus}
+                onChangeAgentStatus={setSelectedAgentStatus}
+                onSelectCampaign={(campaignId) =>
+                    setSelectedAgentCampaign({
+                        campaignId,
+                        tick: Date.now(),
+                    })
+                }
             >
                 {userInfo.roles?.includes("ADMINISTRADOR") && (
                     <>
                         {adminPage === "administrar-bases" && (
                             <AdministrarBases />
                         )}
+                        {adminPage === "campanias" && <CampaniasAdmin />}
                         {adminPage === "listado-bases" && <DashboardAdmin />}
                         {adminPage === "users" && <UsuariosAdmin />}
                     </>
@@ -128,7 +148,13 @@ function App() {
                 )}
 
                 {userInfo.roles?.includes("ASESOR") && (
-                    <DashboardAgente user={userInfo} />
+                    <DashboardAgente
+                        user={userInfo}
+                        selectedCampaignId={selectedAgentCampaign.campaignId}
+                        selectedCampaignTick={selectedAgentCampaign.tick}
+                        requestedAgentStatus={selectedAgentStatus}
+                        onAgentStatusSync={setSelectedAgentStatus}
+                    />
                 )}
             </DashboardLayout>
         );

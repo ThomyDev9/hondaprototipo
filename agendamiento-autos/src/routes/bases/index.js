@@ -103,10 +103,14 @@ router.post(
 router.get("/importaciones/:campaignId", requireAuth, async (req, res) => {
     try {
         const { campaignId } = req.params;
+        const { action = "desactivar" } = req.query;
         console.log("📥 Obteniendo importaciones para campaña:", campaignId);
 
         const importaciones =
-            await basesService.obtenerImportacionesPorCampania(campaignId);
+            await basesService.obtenerImportacionesPorCampania(
+                campaignId,
+                action,
+            );
 
         console.log("✅ Importaciones encontradas:", importaciones.length);
         console.log("Datos:", importaciones);
@@ -117,6 +121,26 @@ router.get("/importaciones/:campaignId", requireAuth, async (req, res) => {
         res.status(500).json({ error: "Error obteniendo importaciones" });
     }
 });
+
+router.get(
+    "/importaciones-estado/:campaignId",
+    requireAuth,
+    async (req, res) => {
+        try {
+            const { campaignId } = req.params;
+            const importaciones =
+                await basesService.obtenerImportacionesConEstadoPorCampania(
+                    campaignId,
+                );
+            res.json({ importaciones });
+        } catch (err) {
+            console.error("❌ Error obteniendo importaciones con estado:", err);
+            res.status(500).json({
+                error: "Error obteniendo importaciones con estado",
+            });
+        }
+    },
+);
 
 /**
  * POST /bases/administrar

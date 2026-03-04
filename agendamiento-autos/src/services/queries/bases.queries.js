@@ -244,8 +244,8 @@ const basesQueries = {
      */
     insertContactImportDetail: `
         INSERT INTO contactimportdetail
-        (VCC, ImportId, UpdateNum, Date, ImportUser, ValidContacts, NewContacts, UpdatedContacts, InvalidContacts, DuplicatesContacts)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (VCC, ImportId, UpdateNum, Date, ImportUser, ValidContacts, NewContacts, UpdatedContacts, InvalidContacts, DuplicatesContacts, BaseState)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
 
     /**
@@ -257,6 +257,12 @@ const basesQueries = {
         VALUES (?, ?, ?, ?, ?, ?)
     `,
 
+    updateContactImportState: `
+        UPDATE contactimportdetail
+        SET BaseState = ?
+        WHERE ImportId = ?
+    `,
+
     // ============= ADMINISTRACIÓN DE BASES =============
 
     /**
@@ -266,18 +272,39 @@ const basesQueries = {
      * - LastUpdate: excluye si contiene años 2019-2025 en el texto
      */
     getImportsByCampaign: `
-        SELECT DISTINCT LastUpdate
-        FROM contactimportcontact
-        WHERE Campaign = ?
-          AND (TmStmpShift IS NULL OR YEAR(TmStmpShift) >= 2026)
-          AND LastUpdate NOT LIKE '%2019%'
-          AND LastUpdate NOT LIKE '%2020%'
-          AND LastUpdate NOT LIKE '%2021%'
-          AND LastUpdate NOT LIKE '%2022%'
-          AND LastUpdate NOT LIKE '%2023%'
-          AND LastUpdate NOT LIKE '%2024%'
-          AND LastUpdate NOT LIKE '%2025%'
-        ORDER BY LastUpdate DESC
+                SELECT DISTINCT cic.LastUpdate
+                FROM contactimportcontact cic
+                INNER JOIN contactimportdetail cid ON cid.ImportId = cic.LastUpdate
+                WHERE cic.Campaign = ?
+                    AND COALESCE(NULLIF(TRIM(cid.BaseState), ''), '1') = ?
+                    AND (cic.TmStmpShift IS NULL OR YEAR(cic.TmStmpShift) >= 2026)
+                    AND cic.LastUpdate NOT LIKE '%2019%'
+                    AND cic.LastUpdate NOT LIKE '%2020%'
+                    AND cic.LastUpdate NOT LIKE '%2021%'
+                    AND cic.LastUpdate NOT LIKE '%2022%'
+                    AND cic.LastUpdate NOT LIKE '%2023%'
+                    AND cic.LastUpdate NOT LIKE '%2024%'
+                    AND cic.LastUpdate NOT LIKE '%2025%'
+                ORDER BY cic.LastUpdate DESC
+        `,
+
+    getImportsByCampaignWithState: `
+        SELECT
+            cic.LastUpdate,
+            COALESCE(NULLIF(TRIM(MAX(cid.BaseState)), ''), '1') AS BaseState
+        FROM contactimportcontact cic
+        LEFT JOIN contactimportdetail cid ON cid.ImportId = cic.LastUpdate
+        WHERE cic.Campaign = ?
+          AND (cic.TmStmpShift IS NULL OR YEAR(cic.TmStmpShift) >= 2026)
+          AND cic.LastUpdate NOT LIKE '%2019%'
+          AND cic.LastUpdate NOT LIKE '%2020%'
+          AND cic.LastUpdate NOT LIKE '%2021%'
+          AND cic.LastUpdate NOT LIKE '%2022%'
+          AND cic.LastUpdate NOT LIKE '%2023%'
+          AND cic.LastUpdate NOT LIKE '%2024%'
+          AND cic.LastUpdate NOT LIKE '%2025%'
+        GROUP BY cic.LastUpdate
+        ORDER BY cic.LastUpdate DESC
     `,
 
     /**
@@ -330,7 +357,10 @@ const basesQueries = {
     `,
 
     clearCampaignActiveBase: `
-        DELETE FROM campaign_active_base
+        UPDATE campaign_active_base
+        SET State = '0',
+            UserShift = ?,
+            UpdatedAt = ?
         WHERE CampaignId = ?
           AND ImportId = ?
     `,
