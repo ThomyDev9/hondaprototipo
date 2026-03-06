@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "./layouts/DashboardLayout";
-import DashboardAdmin from "./pages/admin/DashboardAdmin";
 import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
 import DashboardAgente from "./pages/agente/DashboardAgente";
 import AdministrarBases from "./pages/admin/AdministrarBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
+import ConfiguracionAdmin from "./pages/admin/ConfiguracionAdmin";
+import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -16,12 +17,13 @@ function App() {
     const [error, setError] = useState("");
     const [userInfo, setUserInfo] = useState(null);
 
-    // 'administrar-bases' | 'campanias' | 'listado-bases' | 'users' | 'settings'
+    // 'administrar-bases' | 'campanias' | 'management-levels' | 'users' | 'settings'
     const [adminPage, setAdminPage] = useState("administrar-bases");
     const [selectedAgentCampaign, setSelectedAgentCampaign] = useState({
         campaignId: "",
         tick: 0,
     });
+    const [agentPage, setAgentPage] = useState("inicio");
     const [selectedAgentStatus, setSelectedAgentStatus] =
         useState("disponible");
 
@@ -48,6 +50,7 @@ function App() {
                 }
 
                 setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+                setAgentPage("inicio");
                 setUserInfo(meJson.user);
             } catch (err) {
                 console.error("Error validando token:", err);
@@ -99,6 +102,7 @@ function App() {
             }
 
             setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+            setAgentPage("inicio");
             setUserInfo(meJson.user);
         } catch (err) {
             console.error("Error login:", err);
@@ -112,6 +116,7 @@ function App() {
         localStorage.removeItem("access_token");
         localStorage.removeItem("import_user");
         setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+        setAgentPage("inicio");
         setSelectedAgentStatus("disponible");
         setUserInfo(null);
     };
@@ -125,12 +130,20 @@ function App() {
                 onChangeAdminPage={setAdminPage}
                 selectedAgentStatus={selectedAgentStatus}
                 onChangeAgentStatus={setSelectedAgentStatus}
-                onSelectCampaign={(campaignId) =>
+                onSelectCampaign={(campaignId) => {
+                    setAgentPage("gestion");
                     setSelectedAgentCampaign({
                         campaignId,
                         tick: Date.now(),
-                    })
-                }
+                    });
+                }}
+                agentPage={agentPage}
+                onChangeAgentPage={(nextPage) => {
+                    setAgentPage(nextPage);
+                    if (nextPage === "inicio") {
+                        setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+                    }
+                }}
             >
                 {userInfo.roles?.includes("ADMINISTRADOR") && (
                     <>
@@ -138,8 +151,11 @@ function App() {
                             <AdministrarBases />
                         )}
                         {adminPage === "campanias" && <CampaniasAdmin />}
-                        {adminPage === "listado-bases" && <DashboardAdmin />}
+                        {adminPage === "management-levels" && (
+                            <NivelesGestionAdmin />
+                        )}
                         {adminPage === "users" && <UsuariosAdmin />}
+                        {adminPage === "settings" && <ConfiguracionAdmin />}
                     </>
                 )}
 
@@ -154,6 +170,14 @@ function App() {
                         selectedCampaignTick={selectedAgentCampaign.tick}
                         requestedAgentStatus={selectedAgentStatus}
                         onAgentStatusSync={setSelectedAgentStatus}
+                        agentPage={agentPage}
+                        onSelectCampaign={(campaignId) => {
+                            setAgentPage("gestion");
+                            setSelectedAgentCampaign({
+                                campaignId,
+                                tick: Date.now(),
+                            });
+                        }}
                     />
                 )}
             </DashboardLayout>

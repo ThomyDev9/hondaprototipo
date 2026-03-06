@@ -3,11 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { PageContainer } from "../../components/common";
 import AgentGestionForm from "./components/AgentGestionForm";
-import outboundCampaignResolvers from "./campanias-outbound/index.js";
+import { obtenerPlantillasDinamicas } from "../../services/formTemplate.service";
 import "./DashboardAgente.css";
-
-const { resolveDynamicFormConfig, resolveDynamicSurveyConfig } =
-    outboundCampaignResolvers;
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutos
@@ -28,6 +25,44 @@ function buildInitialSurveyAnswers(surveyConfig) {
     }, {});
 }
 
+function chunkFields(fields = [], perRow = 5) {
+    const rows = [];
+    for (let index = 0; index < fields.length; index += perRow) {
+        rows.push(fields.slice(index, index + perRow));
+    }
+    return rows;
+}
+
+function mapTemplateToForm2Config(form2Template) {
+    if (!form2Template?.fields?.length) return null;
+
+    return {
+        title: form2Template.templateName || "Formulario 2",
+        rows: chunkFields(
+            form2Template.fields.map((field) => ({
+                key: field.key,
+                label: field.label,
+            })),
+            5,
+        ),
+    };
+}
+
+function mapTemplateToSurveyConfig(form3Template) {
+    if (!form3Template?.fields?.length) return null;
+
+    return {
+        title: form3Template.templateName || "Formulario 3",
+        fields: form3Template.fields.map((field) => ({
+            key: field.key,
+            label: field.label,
+            type: field.type || "text",
+            options: Array.isArray(field.options) ? field.options : [],
+            maxLength: field.maxLength || undefined,
+        })),
+    };
+}
+
 function findOptionIgnoreCase(options, target) {
     const normalizedTarget = String(target || "")
         .trim()
@@ -44,19 +79,14 @@ function findOptionIgnoreCase(options, target) {
     );
 }
 
-const CREDIT_OPTION_FIELD = {
-    key: "respuesta10",
-    label: "Opción de crédito seleccionada",
-    type: "select",
-    options: ["Opción 1", "Opción 2", "Opción 3", "Opción 4"],
-};
-
 export default function DashboardAgente({
     user,
     selectedCampaignId,
     selectedCampaignTick,
     requestedAgentStatus,
     onAgentStatusSync,
+    agentPage,
+    onSelectCampaign,
 }) {
     const roles = user?.roles || [];
     const isAgente = roles.includes("ASESOR");
@@ -86,25 +116,10 @@ export default function DashboardAgente({
     const [dynamicFormDetail, setDynamicFormDetail] = useState(null);
     const [dynamicSurveyConfig, setDynamicSurveyConfig] = useState(null);
     const [surveyAnswers, setSurveyAnswers] = useState({});
+    const [activeBaseCards, setActiveBaseCards] = useState([]);
+    const [loadingActiveBaseCards, setLoadingActiveBaseCards] = useState(false);
 
-    const activeCampaignForSurvey =
-        campaignIdSeleccionada || registro?.campaign_id || "";
-    const isBvfPreAprobados = /BVF PRE APROBADOS/i.test(
-        String(activeCampaignForSurvey),
-    );
-    const hasCreditField = dynamicSurveyConfig?.fields?.some(
-        (field) => field.key === CREDIT_OPTION_FIELD.key,
-    );
-    let surveyFieldsToRender = [];
-    if (dynamicSurveyConfig) {
-        surveyFieldsToRender = dynamicSurveyConfig.fields;
-        if (isBvfPreAprobados && !hasCreditField) {
-            surveyFieldsToRender = [
-                ...dynamicSurveyConfig.fields,
-                CREDIT_OPTION_FIELD,
-            ];
-        }
-    }
+    const surveyFieldsToRender = dynamicSurveyConfig?.fields || [];
 
     // para inactividad
     const lastActivityRef = useRef(Date.now());
@@ -129,7 +144,43 @@ export default function DashboardAgente({
         setRegistro(null);
     };
 
+    const loadActiveBaseCards = async () => {
+        try {
+            setLoadingActiveBaseCards(true);
+            const token = localStorage.getItem("access_token") || "";
+            const resp = await fetch(
+                `${API_BASE}/agente/bases-activas-resumen`,
+                {
+                    headers: {
+                        Authorization: token ? `Bearer ${token}` : "",
+                    },
+                },
+            );
+
+            const json = await resp.json();
+
+            if (resp.status === 403) {
+                handle403(json);
+                setActiveBaseCards([]);
+                return;
+            }
+
+            if (!resp.ok) {
+                setActiveBaseCards([]);
+                return;
+            }
+
+            setActiveBaseCards(Array.isArray(json.data) ? json.data : []);
+        } catch (err) {
+            console.error("Error cargando bases activas resumen:", err);
+            setActiveBaseCards([]);
+        } finally {
+            setLoadingActiveBaseCards(false);
+        }
+    };
+
     useEffect(() => {
+        if (agentPage === "inicio") return;
         if (!selectedCampaignId || !selectedCampaignTick || bloqueado) return;
 
         if (selectedCampaignTick === initialCampaignTickRef.current) {
@@ -139,7 +190,20 @@ export default function DashboardAgente({
         setCampaignIdSeleccionada(selectedCampaignId);
         fetchSiguienteRegistro(selectedCampaignId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedCampaignId, selectedCampaignTick, bloqueado]);
+    }, [selectedCampaignId, selectedCampaignTick, bloqueado, agentPage]);
+
+    useEffect(() => {
+        if (agentPage !== "inicio") return;
+        setRegistro(null);
+        setError("");
+        setCampaignIdSeleccionada("");
+    }, [agentPage]);
+
+    useEffect(() => {
+        if (bloqueado) return;
+        loadActiveBaseCards();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bloqueado]);
 
     useEffect(() => {
         if (!requestedAgentStatus || bloqueado) return;
@@ -217,9 +281,25 @@ export default function DashboardAgente({
             setObservacion("");
 
             const record = json.registro || null;
-            const nextDynamicConfig = resolveDynamicFormConfig(campaignIdToUse);
-            const nextSurveyConfig =
-                resolveDynamicSurveyConfig(campaignIdToUse);
+            let nextDynamicConfig = null;
+            let nextSurveyConfig = null;
+
+            try {
+                const dynamicTemplates =
+                    await obtenerPlantillasDinamicas(campaignIdToUse);
+                nextDynamicConfig = mapTemplateToForm2Config(
+                    dynamicTemplates.form2,
+                );
+                nextSurveyConfig = mapTemplateToSurveyConfig(
+                    dynamicTemplates.form3,
+                );
+            } catch (templateError) {
+                console.error(
+                    "Error cargando plantillas dinámicas:",
+                    templateError,
+                );
+            }
+
             setDynamicFormConfig(nextDynamicConfig);
             setDynamicFormDetail(json.detalleCliente || null);
             setDynamicSurveyConfig(nextSurveyConfig);
@@ -409,8 +489,16 @@ export default function DashboardAgente({
 
             if (resp.ok) {
                 const json = await resp.json();
-                setEstadoTelefonoSeleccionado(json.ultimoEstado || "");
-                setInteractionIdActual(json.interactionId || "");
+                const ultimoEstado = String(json.ultimoEstado || "").trim();
+                const interactionId = String(json.interactionId || "").trim();
+
+                if (ultimoEstado) {
+                    setEstadoTelefonoSeleccionado(ultimoEstado);
+                }
+
+                if (interactionId) {
+                    setInteractionIdActual(interactionId);
+                }
             }
         } catch (err) {
             console.error(err);
@@ -424,16 +512,17 @@ export default function DashboardAgente({
         }));
     };
 
-    const handleNoContestaAutofill = () => {
-        const defaultLevel1 = "NU1 Regestionables";
-        const defaultLevel2Target = "no contesta";
-        const defaultEstadoTelefonoTarget = "no contesta";
-
+    const applyGestionQuickFill = ({
+        level1Target,
+        level2Target,
+        estadoTelefonoTarget,
+    }) => {
         const level1Options = [
             ...new Set(levels.map((item) => item.level1).filter(Boolean)),
         ];
+
         const matchedLevel1 =
-            findOptionIgnoreCase(level1Options, defaultLevel1) || defaultLevel1;
+            findOptionIgnoreCase(level1Options, level1Target) || level1Target;
 
         const level2Options = levels
             .filter((item) => item.level1 === matchedLevel1)
@@ -441,19 +530,40 @@ export default function DashboardAgente({
             .filter(Boolean);
 
         const matchedLevel2 =
-            findOptionIgnoreCase(level2Options, defaultLevel2Target) ||
-            defaultLevel2Target;
+            findOptionIgnoreCase(level2Options, level2Target) || level2Target;
 
         const matchedEstadoTelefono =
-            findOptionIgnoreCase(
-                estadoTelefonos,
-                defaultEstadoTelefonoTarget,
-            ) || defaultEstadoTelefonoTarget;
+            findOptionIgnoreCase(estadoTelefonos, estadoTelefonoTarget) ||
+            estadoTelefonoTarget;
 
         setLevel1Seleccionado(matchedLevel1);
         setLevel2Seleccionado(matchedLevel2);
         setEstadoTelefonoSeleccionado(matchedEstadoTelefono);
         setObservacion("");
+    };
+
+    const handleNoContestaAutofill = () => {
+        applyGestionQuickFill({
+            level1Target: "NU1 Regestionables",
+            level2Target: "no contesta",
+            estadoTelefonoTarget: "no contesta",
+        });
+    };
+
+    const handleGrabadoraAutofill = () => {
+        applyGestionQuickFill({
+            level1Target: "NU1 Regestionables",
+            level2Target: "grabadora",
+            estadoTelefonoTarget: "grabadora",
+        });
+    };
+
+    const handleContestaTerceroAutofill = () => {
+        applyGestionQuickFill({
+            level1Target: "NU1 Regestionables",
+            level2Target: "contesta tercero",
+            estadoTelefonoTarget: "contactado",
+        });
     };
 
     /* =====================  CAMBIO DE ESTADO DEL AGENTE  ===================== */
@@ -538,6 +648,8 @@ export default function DashboardAgente({
                 encuestaKeys: surveyFieldsToRender.map((field) =>
                     String(field.key || "").trim(),
                 ),
+                dynamicForm2Payload: dynamicFormDetail || {},
+                dynamicForm3Payload: surveyAnswers || {},
             };
 
             const resp = await fetch(`${API_BASE}/agente/guardar-gestion`, {
@@ -567,6 +679,8 @@ export default function DashboardAgente({
             } else {
                 setRegistro(null);
             }
+
+            await loadActiveBaseCards();
         } catch (err) {
             console.error(err);
             setError("Error de conexión con el servidor");
@@ -665,7 +779,59 @@ export default function DashboardAgente({
 
     const hasCampaignSelection = Boolean(campaignIdSeleccionada);
     const shouldShowQueueMessage =
-        !loadingRegistro && !registro && hasCampaignSelection;
+        !loadingRegistro && !registro && hasCampaignSelection && !error;
+    const isHomeView = agentPage === "inicio";
+
+    let activeBaseCardsContent = null;
+    if (loadingActiveBaseCards) {
+        activeBaseCardsContent = (
+            <p className="agent-info-text">Cargando bases activas...</p>
+        );
+    } else if (activeBaseCards.length === 0) {
+        activeBaseCardsContent = (
+            <p className="agent-info-text">No hay bases activas disponibles.</p>
+        );
+    } else {
+        activeBaseCardsContent = (
+            <div style={{ gridTemplateColumns: "1fr" }}>
+                {activeBaseCards.map((card) => (
+                    <article
+                        key={`${card.campaignId}-${card.importId}`}
+                        className="agent-base-card agent-base-card--horizontal"
+                    >
+                        <div className="agent-base-card__info-horizontal">
+                            <div className="agent-base-card__campaign-horizontal">
+                                {card.campaignId}
+                            </div>
+                            <div className="agent-base-card__metrics-horizontal">
+                                <div className="agent-base-card__metric-horizontal">
+                                    {card.pendientes}
+                                    <span className="agent-base-card__metric-label-horizontal">
+                                        Por gestionar
+                                    </span>
+                                </div>
+                                <div className="agent-base-card__metric-horizontal">
+                                    {card.totalRegistros}
+                                    <span className="agent-base-card__metric-label-horizontal">
+                                        Total base
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            className="agent-base-card__button-horizontal"
+                            onClick={() => {
+                                onSelectCampaign?.(card.campaignId);
+                            }}
+                        >
+                            Ingresar
+                        </button>
+                    </article>
+                ))}
+            </div>
+        );
+    }
 
     /* =====================  UI NORMAL  ===================== */
     return (
@@ -673,14 +839,27 @@ export default function DashboardAgente({
             {/* Zona principal: gestión */}
             <section className="agent-main-row">
                 {/* Panel de gestión */}
-                <div className="agent-left-column">
+                <div>
+                    {!registro && isHomeView && (
+                        <section className="agent-base-cards agent-base-cards--home">
+                            <h2 className="agent-base-cards__title">
+                                Bases activas disponibles
+                            </h2>
+                            <p className="agent-base-cards__subtitle">
+                                Selecciona una base activa para comenzar tu
+                                gestión.
+                            </p>
+                            {activeBaseCardsContent}
+                        </section>
+                    )}
+
                     {error && <p className="agent-error">{error}</p>}
 
-                    {loadingRegistro && (
+                    {loadingRegistro && !isHomeView && (
                         <p className="agent-info-text">Asignando registro...</p>
                     )}
 
-                    {shouldShowQueueMessage && (
+                    {shouldShowQueueMessage && !isHomeView && (
                         <p className="agent-info-text">
                             {estadoAgente === "disponible"
                                 ? "No hay registros disponibles en tu cola en este momento."
@@ -688,7 +867,7 @@ export default function DashboardAgente({
                         </p>
                     )}
 
-                    {registro && (
+                    {registro && !isHomeView && (
                         <AgentGestionForm
                             registro={registro}
                             onSubmit={handleGuardarGestion}
@@ -708,6 +887,10 @@ export default function DashboardAgente({
                             observacion={observacion}
                             onObservacionChange={setObservacion}
                             onNoContestaClick={handleNoContestaAutofill}
+                            onGrabadoraClick={handleGrabadoraAutofill}
+                            onContestaTerceroClick={
+                                handleContestaTerceroAutofill
+                            }
                             dynamicFormConfig={dynamicFormConfig}
                             dynamicFormDetail={dynamicFormDetail}
                             dynamicSurveyConfig={dynamicSurveyConfig}
@@ -734,4 +917,6 @@ DashboardAgente.propTypes = {
     selectedCampaignTick: PropTypes.number,
     requestedAgentStatus: PropTypes.string,
     onAgentStatusSync: PropTypes.func,
+    agentPage: PropTypes.string,
+    onSelectCampaign: PropTypes.func,
 };

@@ -72,10 +72,10 @@ export default function GestionarEstadoBases() {
 
             const json = await response.json();
             const rows = (json.importaciones || []).map((imp) => ({
+                id: imp.id,
                 LastUpdate: imp.LastUpdate,
                 BaseState: String(imp.BaseState ?? "1").trim() || "1",
             }));
-
             setImportacionesConEstado(rows);
 
             if (rows.length === 0) {
@@ -117,6 +117,7 @@ export default function GestionarEstadoBases() {
                     campaignId: subcampaniaSeleccionada,
                     importDate: row.LastUpdate,
                     action,
+                    id: row.id,
                 }),
             });
 

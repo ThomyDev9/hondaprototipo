@@ -1,62 +1,22 @@
 // frontend/src/pages/bases/CargarBases.jsx
 import { useState, useEffect } from "react";
 import { Select } from "../../components/common";
-import { obtenerMapeos } from "../../services/mapping.service";
 import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
 import "./CargarBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 // El token se obtiene justo antes de cada petición
 
-const MAPEO_TO_IMPORT_CASE = {
-    "banco pichincha encuestas": "bancoPichinchaEncuestasGenericas",
-    "banco pichincha multioferta": "bancoPichinchaMultioferta",
-};
-
-function resolveImportCaseByMapeo(mapeoId, mapeoOptions) {
-    const selected = mapeoOptions.find(
-        (opt) => String(opt.id) === String(mapeoId),
-    );
-    if (!selected?.label) return null;
-
-    const normalized = selected.label.trim().toLowerCase();
-    return MAPEO_TO_IMPORT_CASE[normalized] || null;
-}
-
 export default function CargarBases() {
     const [baseName, setBaseName] = useState("");
-    const [mapeo, setMapeo] = useState("");
     const [campania, setCampania] = useState("");
     const [campaniaPadre, setCampaniaPadre] = useState("");
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState("");
     const [preview, setPreview] = useState([]);
-    const [mapeoOptions, setMapeoOptions] = useState([]);
     const [menuCampanias, setMenuCampanias] = useState([]);
-    const [loadingMapeos, setLoadingMapeos] = useState(false);
     const [loadingCampanias, setLoadingCampanias] = useState(false);
     const [errors, setErrors] = useState({});
-
-    // ✅ Cargar mapeos
-    useEffect(() => {
-        const loadMapeos = async () => {
-            try {
-                setLoadingMapeos(true);
-                const data = await obtenerMapeos();
-                const options = data.map((m) => ({
-                    id: m.ID,
-                    label: m.descripcion,
-                }));
-                setMapeoOptions(options);
-            } catch (err) {
-                console.error("Error cargando mapeos:", err);
-                setStatus("Error al cargar los mapeos disponibles");
-            } finally {
-                setLoadingMapeos(false);
-            }
-        };
-        loadMapeos();
-    }, []);
 
     useEffect(() => {
         const loadCampanias = async () => {
@@ -90,7 +50,6 @@ export default function CargarBases() {
         const nuevosErrores = {};
         if (!baseName.trim())
             nuevosErrores.baseName = "El nombre de la base es obligatorio";
-        if (!mapeo) nuevosErrores.mapeo = "Debe seleccionar un mapeo";
         if (!campaniaPadre.trim())
             nuevosErrores.campaniaPadre = "La campaña es obligatoria";
         if (!campania.trim())
@@ -109,29 +68,11 @@ export default function CargarBases() {
         if (!validarFormulario()) return;
 
         try {
-            const importCase = resolveImportCaseByMapeo(mapeo, mapeoOptions);
-
-            if (!importCase) {
-                setStatus(
-                    "No se pudo determinar el tipo de importación para el mapeo seleccionado.",
-                );
-                return;
-            }
-
-            if (importCase === "bancoPichinchaMultioferta") {
-                setStatus(
-                    "El mapeo Banco Pichincha Multioferta aún no está implementado en backend.",
-                );
-                return;
-            }
-
             const formData = new FormData();
             const importUser = localStorage.getItem("import_user") || "";
             formData.append("file", file); // CSV
             formData.append("campaignId", campania); // ID campaña
             formData.append("importName", baseName); // Nombre base
-            formData.append("mapeoId", String(mapeo));
-            formData.append("importCase", importCase);
             formData.append("importUser", importUser);
 
             const token = localStorage.getItem("access_token") || "";
@@ -160,7 +101,6 @@ export default function CargarBases() {
 
             // limpiar formulario
             setBaseName("");
-            setMapeo("");
             setCampaniaPadre("");
             setCampania("");
             setFile(null);
@@ -171,8 +111,8 @@ export default function CargarBases() {
     };
 
     return (
-        <div className="wrapper">
-            <form onSubmit={handleSubmit} className="form">
+        <>
+            <form onSubmit={handleSubmit} className="carga-bases-form">
                 {/* Nombre base - Solo visible cuando hay archivo */}
                 {file && (
                     <label className="label" htmlFor="baseName">
@@ -192,17 +132,6 @@ export default function CargarBases() {
                 {file && errors.baseName && (
                     <span className="errorText">{errors.baseName}</span>
                 )}
-                {/* Mapeo */}
-                <Select
-                    label="Mapeo"
-                    options={mapeoOptions}
-                    value={mapeo}
-                    onChange={setMapeo}
-                    placeholder="Selecciona un mapeo"
-                    disabled={loadingMapeos}
-                    error={errors.mapeo}
-                    required
-                />
 
                 <Select
                     label="Campaña"
@@ -293,6 +222,6 @@ export default function CargarBases() {
                     </pre>
                 </div>
             )}
-        </div>
+        </>
     );
 }

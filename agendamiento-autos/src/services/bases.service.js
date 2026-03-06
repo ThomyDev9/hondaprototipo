@@ -4,6 +4,44 @@ import fs from "node:fs";
 import XLSX from "xlsx";
 import { v4 as uuidv4 } from "uuid";
 
+let campaignImportStatsInfraReady = false;
+
+async function ensureCampaignImportStatsInfrastructure(
+    connectionOrPool = pool,
+) {
+    if (campaignImportStatsInfraReady) {
+        return;
+    }
+
+    await connectionOrPool.query(basesQueries.ensureCampaignImportStatsTable);
+    campaignImportStatsInfraReady = true;
+}
+
+export async function ensureImportStatsTable(connectionOrPool = pool) {
+    await ensureCampaignImportStatsInfrastructure(connectionOrPool);
+}
+
+export async function recomputeImportStats(
+    campaignId,
+    importId,
+    actor = "system",
+    connectionOrPool = pool,
+) {
+    const campaign = String(campaignId || "").trim();
+    const importRef = String(importId || "").trim();
+
+    if (!campaign || !importRef) {
+        return;
+    }
+
+    await ensureCampaignImportStatsInfrastructure(connectionOrPool);
+
+    await connectionOrPool.query(
+        basesQueries.upsertCampaignImportStatsFromContact,
+        [campaign, importRef, String(actor || "system"), campaign, importRef],
+    );
+}
+
 /**
  * BASES SERVICE
  * Centraliza lógica de negocio para bases de datos
@@ -163,6 +201,7 @@ export async function obtenerImportacionesPorCampania(
         const [rows] = await pool.query(basesQueries.getImportsByCampaign, [
             campaignId,
             baseState,
+            baseState,
         ]);
         console.log("📊 Query ejecutada. Filas encontradas:", rows.length);
         return rows;
@@ -193,29 +232,42 @@ export async function administrarBase(
     importDate,
     action,
     username,
+    id,
 ) {
     try {
         const now = new Date();
         const dateNow = now.toISOString().slice(0, 19).replace("T", " ");
 
         await pool.query(basesQueries.ensureCampaignActiveBaseTable);
+        await pool.query(
+            basesQueries.ensureCampaignActiveBaseTotalRegistrosColumn,
+        );
 
         if (action === "activar") {
+            const [detailRows] = await pool.query(
+                basesQueries.getValidContactsByImport,
+                [importDate],
+            );
+            const totalRegistros = Number(detailRows?.[0]?.totalRegistros || 0);
+
             await pool.query(basesQueries.activateBase, [
                 username,
                 dateNow,
                 importDate,
                 campaignId,
             ]);
-            await pool.query(basesQueries.upsertCampaignActiveBase, [
+            await pool.query(basesQueries.insertCampaignActiveBase, [
                 campaignId,
                 importDate,
+                totalRegistros,
                 username,
             ]);
-            await pool.query(basesQueries.updateContactImportState, [
-                "1",
+            await recomputeImportStats(
+                campaignId,
                 importDate,
-            ]);
+                username || "system",
+                pool,
+            );
             return { message: "Se ha asignado base exitosamente!" };
         } else if (action === "desactivar") {
             await pool.query(basesQueries.deactivateBase, [
@@ -224,15 +276,12 @@ export async function administrarBase(
                 importDate,
                 campaignId,
             ]);
-            await pool.query(basesQueries.clearCampaignActiveBase, [
+            // Se espera que el frontend envíe el id de la base a desactivar
+            if (!id) throw new Error("Falta id de base a desactivar");
+            await pool.query(basesQueries.clearCampaignActiveBaseById, [
                 username,
                 dateNow,
-                campaignId,
-                importDate,
-            ]);
-            await pool.query(basesQueries.updateContactImportState, [
-                "0",
-                importDate,
+                id,
             ]);
             return { message: "Se ha cancelado base exitosamente!" };
         } else {
@@ -259,7 +308,7 @@ export async function administrarBase(
 async function validateImportMetadata(connCCK, campaignId, importName) {
     const [campaigns] = await connCCK.query(
         basesQueries.checkCampaignForImport,
-        [campaignId],
+        [campaignId, campaignId],
     );
 
     if (campaigns.length === 0) {
@@ -271,7 +320,21 @@ async function validateImportMetadata(connCCK, campaignId, importName) {
         [importName],
     );
 
-    return existingImport.length > 0;
+    const [existingImportControl] = await connCCK.query(
+        basesQueries.checkImportNameExistsInControl,
+        [importName],
+    );
+
+    const importExists =
+        existingImport.length > 0 || existingImportControl.length > 0;
+
+    if (importExists) {
+        throw new Error(
+            "El nombre de base/importación ya existe. Usa un nombre único para continuar.",
+        );
+    }
+
+    return false;
 }
 
 /**
@@ -323,7 +386,181 @@ function mapDataToLineaData(datos) {
         TELEFONO_08: datos[21] || "",
         TELEFONO_09: datos[22] || "",
         TELEFONO_10: datos[23] || "",
+        CAMPOS_ADICIONALES_JSON: "",
     };
+}
+
+function normalizeHeaderKey(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replaceAll(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .replaceAll(/[^A-Z0-9]+/g, "_")
+        .replaceAll(/^_+/g, "")
+        .replaceAll(/_+$/g, "");
+}
+
+function buildHeaderIndexMap(headers) {
+    const map = new Map();
+    for (let index = 0; index < headers.length; index++) {
+        const key = normalizeHeaderKey(headers[index]);
+        if (!key) continue;
+        if (!map.has(key)) {
+            map.set(key, index);
+        }
+    }
+    return map;
+}
+
+function hasStructuredHeaders(headers) {
+    const headerMap = buildHeaderIndexMap(headers);
+    const markers = [
+        "IDENTIFICACION",
+        "NOMBRE_CLIENTE",
+        "CAMPO1",
+        "TELEFONO_01",
+        "CODIGO_CAMPANIA",
+    ];
+    return markers.some((marker) => headerMap.has(marker));
+}
+
+function getHeaderValue(headerMap, rowData, key) {
+    const index = headerMap.get(key);
+    if (index === undefined) {
+        return "";
+    }
+    return String(rowData[index] || "").trim();
+}
+
+function getHeaderValueOrPositional(
+    headerMap,
+    rowData,
+    headerKey,
+    positionalIndex,
+) {
+    const byHeader = getHeaderValue(headerMap, rowData, headerKey);
+    if (byHeader) {
+        return byHeader;
+    }
+    return String(rowData[positionalIndex] || "").trim();
+}
+
+function getPhoneHeaderValue(headerMap, rowData, phoneIndex) {
+    const padded = String(phoneIndex).padStart(2, "0");
+    const candidates = [
+        `TELEFONO_${padded}`,
+        `TELEFONO_${phoneIndex}`,
+        `TELEFONO${padded}`,
+        `TELEFONO${phoneIndex}`,
+    ];
+
+    for (const key of candidates) {
+        const value = getHeaderValue(headerMap, rowData, key);
+        if (value) {
+            return value;
+        }
+    }
+
+    for (const [headerKey, headerIndex] of headerMap.entries()) {
+        const match = /^TELEFONO_?0?([1-9]|10)$/.exec(headerKey);
+        if (!match) {
+            continue;
+        }
+
+        if (Number(match[1]) !== phoneIndex) {
+            continue;
+        }
+
+        return String(rowData[headerIndex] || "").trim();
+    }
+
+    return "";
+}
+
+function normalizePhoneValue(rawValue) {
+    const raw = String(rawValue || "").trim();
+    if (!raw) {
+        return "";
+    }
+
+    const digitsOnly = raw.replaceAll(/\D+/g, "");
+
+    if (digitsOnly.length < 7) {
+        return "";
+    }
+
+    return digitsOnly;
+}
+
+function mapDataToLineaDataByHeaders(headers, rowData) {
+    const headerMap = buildHeaderIndexMap(headers);
+    const lineaData = {
+        CODIGO_CAMPANIA: getHeaderValueOrPositional(
+            headerMap,
+            rowData,
+            "CODIGO_CAMPANIA",
+            0,
+        ),
+        NOMBRE_CAMPANIA: getHeaderValueOrPositional(
+            headerMap,
+            rowData,
+            "NOMBRE_CAMPANIA",
+            1,
+        ),
+        IDENTIFICACION: getHeaderValueOrPositional(
+            headerMap,
+            rowData,
+            "IDENTIFICACION",
+            2,
+        ),
+        NOMBRE_CLIENTE: getHeaderValueOrPositional(
+            headerMap,
+            rowData,
+            "NOMBRE_CLIENTE",
+            3,
+        ),
+        CAMPOS_ADICIONALES_JSON: "",
+    };
+
+    for (let index = 1; index <= 10; index++) {
+        lineaData[`CAMPO${index}`] = getHeaderValueOrPositional(
+            headerMap,
+            rowData,
+            `CAMPO${index}`,
+            index + 3,
+        );
+    }
+
+    for (let index = 1; index <= 10; index++) {
+        const phoneKey = `TELEFONO_${String(index).padStart(2, "0")}`;
+        lineaData[phoneKey] = getPhoneHeaderValue(headerMap, rowData, index);
+    }
+
+    const extras = {};
+    for (const [headerKey, headerIndex] of headerMap.entries()) {
+        const match = /^CAMPO(\d+)$/.exec(headerKey);
+        if (!match) {
+            continue;
+        }
+
+        const fieldNumber = Number(match[1]);
+        if (!Number.isFinite(fieldNumber) || fieldNumber <= 10) {
+            continue;
+        }
+
+        const value = String(rowData[headerIndex] || "").trim();
+        if (!value) {
+            continue;
+        }
+
+        extras[`CAMPO${fieldNumber}`] = value;
+    }
+
+    if (Object.keys(extras).length > 0) {
+        lineaData.CAMPOS_ADICIONALES_JSON = JSON.stringify(extras);
+    }
+
+    return lineaData;
 }
 
 /**
@@ -331,6 +568,8 @@ function mapDataToLineaData(datos) {
  */
 function filterValidRows(rawRows) {
     const lineas = [];
+    const headers = Array.isArray(rawRows[0]) ? rawRows[0] : [];
+    const useHeaderParser = hasStructuredHeaders(headers);
 
     for (let rowIndex = 1; rowIndex < rawRows.length; rowIndex++) {
         const datos = rawRows[rowIndex];
@@ -339,7 +578,9 @@ function filterValidRows(rawRows) {
             continue;
         }
 
-        const lineaData = mapDataToLineaData(datos);
+        const lineaData = useHeaderParser
+            ? mapDataToLineaDataByHeaders(headers, datos)
+            : mapDataToLineaData(datos);
 
         if (
             !lineaData.IDENTIFICACION?.toString().trim() &&
@@ -423,16 +664,25 @@ async function insertContactWithPhones(context) {
         lineaData.CAMPO8, // CAMPO8
         lineaData.CAMPO9, // CAMPO9
         lineaData.CAMPO10, // CAMPO10
+        lineaData.CAMPOS_ADICIONALES_JSON || "", // CamposAdicionalesJson
         "", // UserShift (nueva)
         "", // Action (nueva)
     ]);
 
+    let rawPhoneCount = 0;
+    let insertedPhoneCount = 0;
+
     // Insert phone numbers
     for (let i = 1; i <= 10; i++) {
         const telefonoKey = `TELEFONO_${String(i).padStart(2, "0")}`;
-        const telefono = lineaData[telefonoKey];
+        const telefonoRaw = String(lineaData[telefonoKey] || "").trim();
+        if (telefonoRaw) {
+            rawPhoneCount += 1;
+        }
 
-        if (!telefono?.trim()) continue;
+        const telefono = normalizePhoneValue(telefonoRaw);
+
+        if (!telefono) continue;
 
         await connCCK.query(basesQueries.insertContactPhone, [
             contactId,
@@ -445,6 +695,14 @@ async function insertContactWithPhones(context) {
             telefonoKey,
             identification,
         ]);
+
+        insertedPhoneCount += 1;
+    }
+
+    if (rawPhoneCount > 0 && insertedPhoneCount === 0) {
+        throw new Error(
+            `Teléfonos inválidos para contacto ${identification || contactId}: se detectaron valores en columnas TELEFONO pero ninguno es numérico válido`,
+        );
     }
 }
 
@@ -499,27 +757,19 @@ export async function procesarCSV(
                 continue;
             }
 
-            try {
-                await insertContactWithPhones({
-                    connCCK,
-                    contactId: ID,
-                    contactName: Name,
-                    identification: Identification,
-                    campaignId,
-                    importName,
-                    vcc,
-                    lineaData: value,
-                    dateNow,
-                });
+            await insertContactWithPhones({
+                connCCK,
+                contactId: ID,
+                contactName: Name,
+                identification: Identification,
+                campaignId,
+                importName,
+                vcc,
+                lineaData: value,
+                dateNow,
+            });
 
-                ingresado++;
-            } catch (insertError) {
-                console.error("Error insertando contacto para ID:", ID);
-                console.error("Detalles del error:", insertError.message);
-                console.error("SQL Error Code:", insertError.code);
-                console.error("Stack:", insertError.stack);
-                error++;
-            }
+            ingresado++;
         }
 
         await connCCK.query(basesQueries.insertContactImportDetail, [
@@ -533,7 +783,6 @@ export async function procesarCSV(
             "0",
             error,
             duplicado,
-            "1",
         ]);
 
         await connCCK.query(basesQueries.insertContactImport, [
@@ -544,6 +793,13 @@ export async function procesarCSV(
             error === 0 ? "COMPLETE" : "INCOMPLETE",
             null,
         ]);
+
+        await recomputeImportStats(
+            campaignId,
+            importName,
+            importUser || "system",
+            connCCK,
+        );
 
         await connCCK.commit();
 

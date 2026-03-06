@@ -2,16 +2,49 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import AccordionMenu from "./AccordionMenu";
 
-function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
+const AGENT_STATUS_OPTIONS = [
+    { value: "disponible", label: "Disponible" },
+    { value: "baño", label: "Baño" },
+    { value: "consulta", label: "Consulta" },
+    { value: "lunch", label: "Lunch" },
+    { value: "reunion", label: "Reunión" },
+];
+
+const MENU_ICONS = {
+    "administrar-bases": "🗂️",
+    campanias: "📣",
+    "management-levels": "🧭",
+    users: "👥",
+    settings: "⚙️",
+    dashboard: "📊",
+    agents: "🧑‍💼",
+    reports: "📄",
+    inicio: "🏠",
+    gestion: "📝",
+    "campanias-outbound": "📞",
+};
+
+function Sidebar({
+    user,
+    role,
+    adminPage,
+    onChangeAdminPage,
+    onSelectCampaign,
+    agentPage,
+    onChangeAgentPage,
+    onLogout,
+    agentStatus,
+    onChangeAgentStatus,
+}) {
     const [collapsed, setCollapsed] = useState(false);
     const [showOutbound, setShowOutbound] = useState(false);
     const effectiveRole = role || "ADMINISTRADOR";
 
     const menuAdmin = [
         { label: "Administrar bases", key: "administrar-bases" },
-        { label: "Campañas", key: "campanias" },
-        { label: "Ver bases", key: "listado-bases" },
-        { label: "Usuarios", key: "users" },
+        { label: "Administrar Campañas", key: "campanias" },
+        { label: "Niveles de gestión", key: "management-levels" },
+        { label: "Administrar Usuarios", key: "users" },
         { label: "Configuración", key: "settings" },
     ];
     const menuSupervisor = [
@@ -20,7 +53,7 @@ function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
         { label: "Reportes", key: "reports" },
     ];
     const menuAgente = [
-        { label: "Mi Gestión", key: "gestion" },
+        { label: "Inicio", key: "inicio" },
         {
             label: "Campañas Outbound",
             key: "campanias-outbound",
@@ -33,7 +66,13 @@ function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
         if (effectiveRole === "SUPERVISOR") return menuSupervisor;
         return menuAgente;
     };
+
+    const fullName = String(user?.full_name || "").trim();
+    const fallbackName = String(user?.username || user?.email || "").trim();
+    const displayName = fullName || fallbackName || "Usuario";
     const menu = getMenu();
+
+    const getMenuIcon = (key) => MENU_ICONS[key] || "•";
 
     const handleClick = (item) => {
         if (
@@ -42,6 +81,21 @@ function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
         ) {
             onChangeAdminPage(item.key);
         }
+        if (effectiveRole.toUpperCase() === "ASESOR" && item.key === "inicio") {
+            setShowOutbound(false);
+            onChangeAgentPage?.("inicio");
+            return;
+        }
+
+        if (
+            effectiveRole.toUpperCase() === "ASESOR" &&
+            item.key === "gestion"
+        ) {
+            setShowOutbound(false);
+            onChangeAgentPage?.("gestion");
+            return;
+        }
+
         if (
             effectiveRole.toUpperCase() === "ASESOR" &&
             item.key === "campanias-outbound"
@@ -56,6 +110,12 @@ function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
     };
     const isActive = (item) => {
         if (effectiveRole === "ADMINISTRADOR") return item.key === adminPage;
+        if (effectiveRole === "ASESOR") {
+            if (item.key === "campanias-outbound") {
+                return showOutbound;
+            }
+            return item.key === agentPage;
+        }
         return false;
     };
 
@@ -73,6 +133,29 @@ function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
             >
                 {collapsed ? "→" : "←"}
             </button>
+
+            {!collapsed && (
+                <div style={styles.userPanel}>
+                    <span style={styles.roleBadge}>{effectiveRole}</span>
+                    <span style={styles.userName}>{displayName}</span>
+
+                    {effectiveRole.toUpperCase() === "ASESOR" && (
+                        <select
+                            value={agentStatus || "disponible"}
+                            onChange={(e) =>
+                                onChangeAgentStatus?.(e.target.value)
+                            }
+                            style={styles.statusSelect}
+                        >
+                            {AGENT_STATUS_OPTIONS.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+            )}
 
             <ul style={styles.menu}>
                 {menu.map((item) => (
@@ -101,7 +184,14 @@ function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
                             }}
                             onClick={() => handleClick(item)}
                         >
-                            {collapsed ? item.label[0] : item.label}
+                            <span style={styles.menuIcon}>
+                                {getMenuIcon(item.key)}
+                            </span>
+                            {!collapsed && (
+                                <span style={styles.menuLabel}>
+                                    {item.label}
+                                </span>
+                            )}
                         </button>
                         {/* Solo para ASESOR, mostrar el AccordionMenu al hacer clic en Campañas Outbound */}
                         {effectiveRole.toUpperCase() === "ASESOR" &&
@@ -120,6 +210,7 @@ function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
                                                 onSelectCampaign &&
                                                 campaignId
                                             ) {
+                                                onChangeAgentPage?.("gestion");
                                                 onSelectCampaign(campaignId);
                                             }
                                         }}
@@ -129,13 +220,32 @@ function Sidebar({ role, adminPage, onChangeAdminPage, onSelectCampaign }) {
                     </li>
                 ))}
             </ul>
+
+            <div style={styles.footer}>
+                <button
+                    type="button"
+                    style={{
+                        ...styles.logoutButton,
+                        justifyContent: collapsed ? "center" : "flex-start",
+                    }}
+                    onClick={onLogout}
+                >
+                    <span style={styles.logoutIcon} aria-hidden="true">
+                        ⎋
+                    </span>
+                    {!collapsed && (
+                        <span style={styles.logoutLabel}>Cerrar sesión</span>
+                    )}
+                </button>
+            </div>
         </div>
     );
 }
 
 const styles = {
     sidebar: {
-        backgroundColor: "#1D4ED8",
+        background:
+            "linear-gradient(180deg, #0f3b82 0%, #0b2f68 45%, #082449 100%)",
         color: "white",
         display: "flex",
         flexDirection: "column",
@@ -147,10 +257,13 @@ const styles = {
     },
     collapseBtn: {
         alignSelf: "flex-end",
-        background: "transparent",
-        border: "none",
-        color: "white",
-        fontSize: "1.2rem",
+        background: "rgba(255, 255, 255, 0.12)",
+        border: "1px solid rgba(226, 232, 240, 0.28)",
+        borderRadius: "999px",
+        color: "#f8fafc",
+        fontSize: "1rem",
+        width: "30px",
+        height: "30px",
         cursor: "pointer",
         marginBottom: "1rem",
     },
@@ -163,7 +276,7 @@ const styles = {
     menu: {
         listStyle: "none",
         padding: 0,
-        margin: 0,
+        margin: "0.75rem 0 0",
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
@@ -171,25 +284,109 @@ const styles = {
     },
     menuItem: {
         padding: "0.75rem 1rem",
-        borderRadius: "0.5rem",
+        borderRadius: "0.6rem",
         cursor: "pointer",
         transition: "0.2s",
         display: "flex",
         alignItems: "center",
+        gap: "0.55rem",
     },
     menuItemInactive: {
-        backgroundColor: "transparent",
+        backgroundColor: "rgba(15, 23, 42, 0.22)",
+        border: "1px solid rgba(226, 232, 240, 0.18)",
     },
     menuItemActive: {
-        backgroundColor: "#2563EB",
+        backgroundColor: "#0f172a",
+        border: "1px solid rgba(191, 219, 254, 0.9)",
+    },
+    menuIcon: {
+        width: "1.15rem",
+        textAlign: "center",
+        fontSize: "0.95rem",
+        lineHeight: 1,
+    },
+    menuLabel: {
+        fontSize: "0.88rem",
+        fontWeight: 600,
+    },
+    userPanel: {
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.5rem",
+        marginBottom: "0.5rem",
+        paddingBottom: "0.5rem",
+        borderBottom: "1px solid rgba(226, 232, 240, 0.2)",
+    },
+    roleBadge: {
+        backgroundColor: "#0F172A",
+        border: "1px solid rgba(191, 219, 254, 0.9)",
+        borderRadius: "999px",
+        fontSize: "0.75rem",
+        fontWeight: 700,
+        padding: "0.2rem 0.6rem",
+        alignSelf: "flex-start",
+    },
+    userName: {
+        fontSize: "0.9rem",
+        fontWeight: 600,
+        color: "#E2E8F0",
+        lineHeight: 1.2,
+        wordBreak: "break-word",
+    },
+    statusSelect: {
+        width: "100%",
+        padding: "0.42rem 0.55rem",
+        borderRadius: "8px",
+        border: "1px solid rgba(226, 232, 240, 0.5)",
+        backgroundColor: "#ffffff",
+        color: "#0F172A",
+        fontSize: "0.8rem",
+    },
+    logoutButton: {
+        width: "100%",
+        padding: "0.45rem 0.7rem",
+        borderRadius: "999px",
+        border: "1px solid rgba(191, 219, 254, 0.9)",
+        backgroundColor: "#0F172A",
+        color: "#ffffff",
+        cursor: "pointer",
+        fontSize: "0.82rem",
+        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        gap: "0.45rem",
+    },
+    footer: {
+        width: "100%",
+        marginTop: "auto",
+        paddingTop: "0.8rem",
+        borderTop: "1px solid rgba(226, 232, 240, 0.2)",
+    },
+    logoutIcon: {
+        fontSize: "0.95rem",
+        lineHeight: 1,
+    },
+    logoutLabel: {
+        fontSize: "0.82rem",
     },
 };
 
 Sidebar.propTypes = {
+    user: PropTypes.shape({
+        full_name: PropTypes.string,
+        username: PropTypes.string,
+        email: PropTypes.string,
+    }),
     role: PropTypes.string,
     adminPage: PropTypes.string,
     onChangeAdminPage: PropTypes.func,
     onSelectCampaign: PropTypes.func,
+    agentPage: PropTypes.string,
+    onChangeAgentPage: PropTypes.func,
+    onLogout: PropTypes.func,
+    agentStatus: PropTypes.string,
+    onChangeAgentStatus: PropTypes.func,
 };
 
 export default Sidebar;

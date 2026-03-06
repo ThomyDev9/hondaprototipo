@@ -43,9 +43,9 @@ router.post(
             const {
                 campaignId,
                 importName,
-                importCase = "bancoPichinchaEncuestasGenericas",
                 importUser: importUserFromBody,
             } = req.body;
+            const importCase = "bancoPichinchaEncuestasGenericas";
             const file = req.file;
             const importUser =
                 importUserFromBody ||
@@ -162,11 +162,14 @@ router.post(
                 });
             }
 
+            // Permitir pasar id para desactivar base
+            const { id } = req.body;
             const resultado = await basesService.administrarBase(
                 campaignId,
                 importDate,
                 action,
                 username,
+                id,
             );
 
             res.json({

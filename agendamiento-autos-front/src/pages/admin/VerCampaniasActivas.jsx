@@ -66,11 +66,10 @@ export default function VerCampaniasActivas() {
     ];
 
     return (
-        <div className="wrapper manage-bases-wrapper">
+        <div className="manage-bases-wrapper ver-campanias-wrapper">
             {alert && <Alert type={alert.type} message={alert.message} />}
 
-            <div className="previewBox" style={{ marginTop: 0 }}>
-                <h3 className="previewTitle">Panorama de campañas activas</h3>
+            <div className="ver-campanias-table-full">
                 <Table
                     columns={columns}
                     data={rows}

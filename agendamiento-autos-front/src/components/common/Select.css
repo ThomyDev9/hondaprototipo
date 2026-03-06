@@ -6,9 +6,9 @@
 }
 
 .select-label {
-    font-size: 0.9rem;
-    color: #0f172a;
-    font-weight: 500;
+    font-size: 0.86rem;
+    color: #334155;
+    font-weight: 600;
 }
 
 .required {
@@ -22,13 +22,13 @@
 
 .select-button {
     width: 100%;
-    padding: 0.7rem;
+    padding: 0.68rem;
     padding-right: 2.5rem;
-    border-radius: 0.5rem;
-    border: 1px solid #cbd5e1;
-    font-size: 0.95rem;
+    border-radius: 0.6rem;
+    border: 1px solid #bfd1f2;
+    font-size: 0.9rem;
     background-color: #ffffff;
-    color: #0f172a;
+    color: #1e293b;
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: left;
@@ -39,23 +39,23 @@
 }
 
 .select-button:hover:not(:disabled) {
-    border-color: #94a3b8;
+    border-color: #93b4ea;
 }
 
 .select-button:focus {
     outline: none;
-    border-color: #1d4ed8;
-    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+    border-color: #1e40af;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
 
 .select-button.open {
-    border-color: #1d4ed8;
+    border-color: #1e40af;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
 }
 
 .select-button:disabled {
-    background-color: #f1f5f9;
+    background-color: #f8fafc;
     color: #475569;
     cursor: not-allowed;
     opacity: 0.6;
@@ -66,14 +66,14 @@
 }
 
 .select-button .placeholder {
-    color: #94a3b8;
+    color: #64748b;
 }
 
 .select-arrow {
     position: absolute;
     right: 0.7rem;
     transition: transform 0.2s ease;
-    color: #475569;
+    color: #3b82f6;
 }
 
 .select-button.open .select-arrow {
@@ -86,46 +86,46 @@
     left: 0;
     right: 0;
     background-color: #ffffff;
-    border: 1px solid #1d4ed8;
+    border: 1px solid #1e40af;
     border-top: none;
-    border-radius: 0 0 0.5rem 0.5rem;
+    border-radius: 0 0 0.6rem 0.6rem;
     max-height: 250px;
     overflow-y: auto;
     z-index: 1000;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.16);
 }
 
 .select-option {
     width: 100%;
-    padding: 0.7rem;
+    padding: 0.62rem 0.7rem;
     background: none;
     border: none;
     text-align: left;
     cursor: pointer;
     color: #0f172a;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     transition: background-color 0.15s ease;
     display: block;
 }
 
 .select-option:hover {
-    background-color: #f1f5f9;
+    background-color: #eff6ff;
 }
 
 .select-option:active {
-    background-color: #e2e8f0;
+    background-color: #dbeafe;
 }
 
 .select-option.selected {
     background-color: #dbeafe;
-    color: #1d4ed8;
-    font-weight: 500;
+    color: #1e3a8a;
+    font-weight: 600;
 }
 
 .select-empty {
     padding: 1rem;
     text-align: center;
-    color: #64748b;
+    color: #475569;
     font-size: 0.9rem;
 }
 
@@ -145,10 +145,10 @@
 }
 
 .select-dropdown::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: #93b4ea;
     border-radius: 3px;
 }
 
 .select-dropdown::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: #6388c7;
 }

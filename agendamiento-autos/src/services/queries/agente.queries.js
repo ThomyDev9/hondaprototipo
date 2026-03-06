@@ -23,6 +23,22 @@ const agenteQueries = {
         LIMIT 1
     `,
 
+    getActiveBasesSummary: `
+      SELECT
+        cab.CampaignId AS campaign_id,
+        cab.ImportId AS import_id,
+        COALESCE(cis.TotalRegistros, cab.TotalRegistros, 0) AS total_registros,
+        COALESCE(cis.PendientesReales, 0) AS pendientes,
+        COALESCE(cis.PendientesLibres, 0) AS pendientes_libres,
+        COALESCE(cis.PendientesAsignadosSinGestion, 0) AS pendientes_asignados_sin_gestion
+      FROM campaign_active_base cab
+      LEFT JOIN campaign_import_stats cis
+        ON cis.CampaignId = cab.CampaignId
+       AND cis.ImportId = cab.ImportId
+      WHERE cab.State = '1'
+      ORDER BY pendientes DESC, cab.CampaignId ASC
+    `,
+
     getAssignedClientByAgentAndCampaignLike: `
         SELECT
             c.ID,
@@ -49,11 +65,25 @@ const agenteQueries = {
         INNER JOIN contactimportcontact cc ON c.ID = cc.Id
         WHERE cc.LastAgent = ?
           AND c.CampaignId LIKE ?
-          AND (cc.Action = 'Reciclar Base' OR cc.Action = 'Asignar Base')
-          AND cc.Action <> 'Cancelar base'
+          AND (cc.Action IS NULL OR cc.Action <> 'Cancelar base')
+          AND COALESCE(cc.Action, '') <> 'Gestionado'
         ORDER BY cc.TmStmpShift DESC, c.ID DESC
         LIMIT 1
     `,
+
+    releaseStaleAutoAssignmentsByCampaign: `
+        UPDATE contactimportcontact
+        SET LastAgent = 'Pendiente',
+          UserShift = 'system',
+          TmStmpShift = NOW()
+        WHERE Campaign LIKE ?
+          AND LastAgent IS NOT NULL
+          AND LastAgent <> ''
+          AND LastAgent <> 'Pendiente'
+          AND COALESCE(Action, '') IN ('Asignar Base', 'Reciclar Base')
+          AND TmStmpShift IS NOT NULL
+          AND TmStmpShift < DATE_SUB(NOW(), INTERVAL ? MINUTE)
+      `,
 
     getClienteById: `
         SELECT *
@@ -217,24 +247,13 @@ const agenteQueries = {
       LIMIT 1
     `,
 
-    upsertCampaignActiveBase: `
-      INSERT INTO campaign_active_base
-        (CampaignId, ImportId, State, UserShift, UpdatedAt)
-      VALUES
-        (?, ?, '1', ?, NOW())
-      ON DUPLICATE KEY UPDATE
-        ImportId = VALUES(ImportId),
-        State = '1',
-        UserShift = VALUES(UserShift),
-        UpdatedAt = NOW()
-    `,
-
     getNextCandidateByCampaignAndImport: `
         SELECT c.Id,
                c.Name,
                c.Identification,
                c.LastUpdate,
                c.LastManagementResult,
+               c.Action,
                c.Campaign,
                COALESCE(c.Number, 0) AS intentos_totales
         FROM contactimportcontact c
@@ -242,6 +261,28 @@ const agenteQueries = {
           AND c.LastUpdate = ?
           AND c.Action <> 'Cancelar base'
           AND (c.LastAgent = '' OR c.LastAgent = 'Pendiente')
+          AND (
+            (
+              COALESCE(TRIM(c.LastManagementResult), '') = ''
+              AND COALESCE(TRIM(c.Action), '') <> 're_llamada'
+            )
+            OR (
+              COALESCE(TRIM(c.Action), '') = 're_llamada'
+              AND
+              (
+                CAST(COALESCE(NULLIF(TRIM(c.LastManagementResult), ''), '0') AS UNSIGNED) BETWEEN 60 AND 64
+                OR CAST(COALESCE(NULLIF(TRIM(c.LastManagementResult), ''), '0') AS UNSIGNED) = 34
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM contactimportcontact c_pending
+                WHERE c_pending.Campaign = c.Campaign
+                  AND c_pending.LastUpdate = c.LastUpdate
+                  AND c_pending.Action <> 'Cancelar base'
+                  AND COALESCE(TRIM(c_pending.LastManagementResult), '') = ''
+              )
+            )
+          )
         ORDER BY COALESCE(c.Number, 0) ASC, c.Id ASC
         LIMIT 1
     `,
@@ -305,6 +346,7 @@ const agenteQueries = {
         SELECT DISTINCT level1, level2, level3, code
         FROM campaignresultmanagement
         WHERE campaignid = ?
+        AND COALESCE(State, '1') = '1'
         ORDER BY level1 ASC, level2 ASC, level3 ASC
     `,
 
@@ -312,6 +354,7 @@ const agenteQueries = {
         SELECT code
         FROM campaignresultmanagement
         WHERE campaignid = ?
+          AND COALESCE(State, '1') = '1'
           AND level1 = ?
           AND level2 = ?
           AND level3 = ?
@@ -322,6 +365,7 @@ const agenteQueries = {
         SELECT code
         FROM campaignresultmanagement
         WHERE campaignid = ?
+          AND COALESCE(State, '1') = '1'
           AND level1 = ?
           AND level2 = ?
           AND (level3 IS NULL OR level3 = '')
@@ -349,6 +393,65 @@ const agenteQueries = {
           AND numeromarcado = ?
         ORDER BY FechaHora DESC
         LIMIT 1
+    `,
+
+    getActiveTemplateByCampaignAndType: `
+      SELECT
+        t.id AS template_id,
+        t.name AS template_name,
+        t.form_type,
+        t.version
+      FROM menu_items m
+      INNER JOIN form_template_assignments a
+        ON a.menu_item_id = m.id
+         AND a.is_active = 1
+         AND a.form_type = ?
+      INNER JOIN form_templates t
+        ON t.id = a.template_id
+         AND t.status = 'published'
+      WHERE m.nombre_item = ?
+        AND m.estado = 'activo'
+      ORDER BY a.assigned_at DESC, t.version DESC, t.id DESC
+      LIMIT 1
+    `,
+
+    getTemplateFieldsWithOptions: `
+      SELECT
+        f.id AS field_id,
+        f.field_key,
+        f.label,
+        f.field_type,
+        f.is_required,
+        f.display_order,
+        f.placeholder,
+        f.max_length,
+        f.min_value,
+        f.max_value,
+        f.default_value,
+        f.help_text,
+        o.option_value,
+        o.option_label,
+        o.display_order AS option_order
+      FROM form_template_fields f
+      LEFT JOIN form_template_field_options o
+        ON o.field_id = f.id
+         AND o.is_active = 1
+      WHERE f.template_id = ?
+        AND f.is_active = 1
+      ORDER BY f.display_order ASC, f.id ASC, o.display_order ASC, o.id ASC
+    `,
+
+    insertDynamicFormResponse: `
+      INSERT INTO form_responses (
+        menu_item_id,
+        form_type,
+        template_id,
+        contact_id,
+        agent_user,
+        payload_json,
+        submitted_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, NOW())
     `,
 };
 

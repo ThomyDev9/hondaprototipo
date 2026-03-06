@@ -171,9 +171,21 @@ const basesQueries = {
      * Validar campaña existente para importación (flujo PHP original)
      */
     checkCampaignForImport: `
-        SELECT DISTINCT CampaignId AS Id
-        FROM campaignresultmanagement
-        WHERE CampaignId = ?
+        SELECT Id
+        FROM (
+            SELECT DISTINCT TRIM(CampaignId) AS Id
+            FROM campaignresultmanagement
+            WHERE TRIM(CampaignId) = TRIM(?)
+
+            UNION
+
+            SELECT DISTINCT TRIM(nombre_item) AS Id
+            FROM menu_items
+            WHERE id_categoria = '544fb0a6-1345-11f1-b790-000c2904c92f'
+              AND id_padre IS NOT NULL
+              AND estado = 'activo'
+              AND TRIM(nombre_item) = TRIM(?)
+        ) campaigns
         LIMIT 1
     `,
 
@@ -184,6 +196,14 @@ const basesQueries = {
         SELECT DISTINCT LastUpdate
         FROM contactimportcontact
         WHERE LastUpdate = ?
+        LIMIT 1
+    `,
+
+    checkImportNameExistsInControl: `
+        SELECT ID
+        FROM contactimport
+        WHERE ID = ?
+          AND Updates = '1'
         LIMIT 1
     `,
 
@@ -226,8 +246,9 @@ const basesQueries = {
          ManagementResultDescription, TmStmp, Intentos,
          ID, CODIGO_CAMPANIA, NOMBRE_CAMPANIA, IDENTIFICACION, NOMBRE_CLIENTE,
          CAMPO1, CAMPO2, CAMPO3, CAMPO4, CAMPO5, CAMPO6, CAMPO7, CAMPO8, CAMPO9, CAMPO10,
+         CamposAdicionalesJson,
          UserShift, Action)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
 
     /**
@@ -244,8 +265,8 @@ const basesQueries = {
      */
     insertContactImportDetail: `
         INSERT INTO contactimportdetail
-        (VCC, ImportId, UpdateNum, Date, ImportUser, ValidContacts, NewContacts, UpdatedContacts, InvalidContacts, DuplicatesContacts, BaseState)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (VCC, ImportId, UpdateNum, Date, ImportUser, ValidContacts, NewContacts, UpdatedContacts, InvalidContacts, DuplicatesContacts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
 
     /**
@@ -257,9 +278,9 @@ const basesQueries = {
         VALUES (?, ?, ?, ?, ?, ?)
     `,
 
-    updateContactImportState: `
-        UPDATE contactimportdetail
-        SET BaseState = ?
+    getValidContactsByImport: `
+        SELECT COALESCE(MAX(ValidContacts), 0) AS totalRegistros
+        FROM contactimportdetail
         WHERE ImportId = ?
     `,
 
@@ -274,9 +295,15 @@ const basesQueries = {
     getImportsByCampaign: `
                 SELECT DISTINCT cic.LastUpdate
                 FROM contactimportcontact cic
-                INNER JOIN contactimportdetail cid ON cid.ImportId = cic.LastUpdate
+                LEFT JOIN campaign_active_base cab
+                    ON cab.CampaignId = cic.Campaign
+                   AND cab.ImportId = cic.LastUpdate
+                   AND cab.State = '1'
                 WHERE cic.Campaign = ?
-                    AND COALESCE(NULLIF(TRIM(cid.BaseState), ''), '1') = ?
+                    AND (
+                        (? = '1' AND cab.CampaignId IS NOT NULL)
+                        OR (? = '0' AND cab.CampaignId IS NULL)
+                    )
                     AND (cic.TmStmpShift IS NULL OR YEAR(cic.TmStmpShift) >= 2026)
                     AND cic.LastUpdate NOT LIKE '%2019%'
                     AND cic.LastUpdate NOT LIKE '%2020%'
@@ -290,10 +317,25 @@ const basesQueries = {
 
     getImportsByCampaignWithState: `
         SELECT
+            MAX(cab.id) AS id,
             cic.LastUpdate,
-            COALESCE(NULLIF(TRIM(MAX(cid.BaseState)), ''), '1') AS BaseState
+            CASE
+                WHEN MAX(CASE WHEN cab.CampaignId IS NOT NULL THEN 1 ELSE 0 END) = 1
+                    THEN '1'
+                ELSE '0'
+            END AS BaseState,
+            SUM(
+                CASE
+                    WHEN COALESCE(cic.Number, 0) < 6
+                     AND cic.Action IN ('re_llamada', 'sin_contacto', 'numero_incorrecto', 'inubicable')
+                    THEN 1
+                    ELSE 0
+                END
+            ) AS RegistrosReciclables
         FROM contactimportcontact cic
-        LEFT JOIN contactimportdetail cid ON cid.ImportId = cic.LastUpdate
+        LEFT JOIN campaign_active_base cab
+          ON cab.CampaignId = cic.Campaign
+         AND cab.ImportId = cic.LastUpdate
         WHERE cic.Campaign = ?
           AND (cic.TmStmpShift IS NULL OR YEAR(cic.TmStmpShift) >= 2026)
           AND cic.LastUpdate NOT LIKE '%2019%'
@@ -333,36 +375,110 @@ const basesQueries = {
 
     ensureCampaignActiveBaseTable: `
         CREATE TABLE IF NOT EXISTS campaign_active_base (
+            id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
             CampaignId VARCHAR(100) NOT NULL,
             ImportId VARCHAR(100) NOT NULL,
             State VARCHAR(10) NOT NULL DEFAULT '1',
+            TotalRegistros INT NOT NULL DEFAULT 0,
             UserShift VARCHAR(50) NOT NULL,
             UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (CampaignId),
+            KEY idx_cab_campaign (CampaignId),
             KEY idx_cab_import (ImportId),
             KEY idx_cab_state (State)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `,
 
-    upsertCampaignActiveBase: `
-        INSERT INTO campaign_active_base
-            (CampaignId, ImportId, State, UserShift, UpdatedAt)
-        VALUES
-            (?, ?, '1', ?, NOW())
-        ON DUPLICATE KEY UPDATE
-            ImportId = VALUES(ImportId),
-            State = '1',
-            UserShift = VALUES(UserShift),
-            UpdatedAt = NOW()
+    ensureCampaignActiveBaseTotalRegistrosColumn: `
+        ALTER TABLE campaign_active_base
+        ADD COLUMN IF NOT EXISTS TotalRegistros INT NOT NULL DEFAULT 0
     `,
 
-    clearCampaignActiveBase: `
+    insertCampaignActiveBase: `
+        INSERT INTO campaign_active_base
+            (CampaignId, ImportId, State, TotalRegistros, UserShift, UpdatedAt)
+        VALUES
+            (?, ?, '1', ?, ?, NOW())
+    `,
+
+    clearCampaignActiveBaseById: `
         UPDATE campaign_active_base
         SET State = '0',
             UserShift = ?,
             UpdatedAt = ?
-        WHERE CampaignId = ?
-          AND ImportId = ?
+        WHERE id = ?
+    `,
+
+    ensureCampaignImportStatsTable: `
+        CREATE TABLE IF NOT EXISTS campaign_import_stats (
+            CampaignId VARCHAR(100) NOT NULL,
+            ImportId VARCHAR(100) NOT NULL,
+            TotalRegistros INT NOT NULL DEFAULT 0,
+            PendientesReales INT NOT NULL DEFAULT 0,
+            PendientesLibres INT NOT NULL DEFAULT 0,
+            PendientesAsignadosSinGestion INT NOT NULL DEFAULT 0,
+            UserShift VARCHAR(100) NOT NULL DEFAULT 'system',
+            UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (CampaignId, ImportId),
+            KEY idx_cis_campaign (CampaignId),
+            KEY idx_cis_updated (UpdatedAt)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `,
+
+    upsertCampaignImportStatsFromContact: `
+        INSERT INTO campaign_import_stats (
+            CampaignId,
+            ImportId,
+            TotalRegistros,
+            PendientesReales,
+            PendientesLibres,
+            PendientesAsignadosSinGestion,
+            UserShift,
+            UpdatedAt
+        )
+        SELECT
+            ?,
+            ?,
+            COUNT(*) AS TotalRegistros,
+            SUM(
+                CASE
+                    WHEN COALESCE(NULLIF(TRIM(c.LastManagementResult), ''), '') = ''
+                     AND (c.Action IS NULL OR c.Action <> 'Cancelar base')
+                    THEN 1
+                    ELSE 0
+                END
+            ) AS PendientesReales,
+            SUM(
+                CASE
+                    WHEN COALESCE(NULLIF(TRIM(c.LastManagementResult), ''), '') = ''
+                     AND (c.Action IS NULL OR c.Action <> 'Cancelar base')
+                     AND (c.LastAgent IS NULL OR c.LastAgent = '' OR c.LastAgent = 'Pendiente')
+                    THEN 1
+                    ELSE 0
+                END
+            ) AS PendientesLibres,
+            SUM(
+                CASE
+                    WHEN COALESCE(NULLIF(TRIM(c.LastManagementResult), ''), '') = ''
+                     AND (c.Action IS NULL OR c.Action <> 'Cancelar base')
+                     AND c.LastAgent IS NOT NULL
+                     AND c.LastAgent <> ''
+                     AND c.LastAgent <> 'Pendiente'
+                    THEN 1
+                    ELSE 0
+                END
+            ) AS PendientesAsignadosSinGestion,
+            ?,
+            NOW()
+        FROM contactimportcontact c
+        WHERE c.Campaign = ?
+          AND c.LastUpdate = ?
+        ON DUPLICATE KEY UPDATE
+            TotalRegistros = VALUES(TotalRegistros),
+            PendientesReales = VALUES(PendientesReales),
+            PendientesLibres = VALUES(PendientesLibres),
+            PendientesAsignadosSinGestion = VALUES(PendientesAsignadosSinGestion),
+            UserShift = VALUES(UserShift),
+            UpdatedAt = NOW()
     `,
 };
 

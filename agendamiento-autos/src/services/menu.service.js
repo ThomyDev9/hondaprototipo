@@ -12,7 +12,23 @@ import {
     UPDATE_OUTBOUND_CHILDREN_STATUS_BY_PARENT,
 } from "./queries/menu.queries.js";
 
+const OUTBOUND_MENU_CACHE_TTL_MS = 60_000;
+let outboundMenuTreeCache = null;
+let outboundMenuTreeCacheAt = 0;
+
+function invalidateOutboundMenuTreeCache() {
+    outboundMenuTreeCache = null;
+    outboundMenuTreeCacheAt = 0;
+}
+
 export async function getOutboundMenuTree() {
+    if (
+        outboundMenuTreeCache &&
+        Date.now() - outboundMenuTreeCacheAt < OUTBOUND_MENU_CACHE_TTL_MS
+    ) {
+        return outboundMenuTreeCache;
+    }
+
     // Usa la consulta del sistema de queries
     const [rows] = await pool.query(GET_OUTBOUND_MENU_TREE);
 
@@ -28,6 +44,10 @@ export async function getOutboundMenuTree() {
             map[row.campania_id].subcampanias.push(row.subcampania);
         }
     }
+
+    outboundMenuTreeCache = tree;
+    outboundMenuTreeCacheAt = Date.now();
+
     return tree;
 }
 
@@ -50,6 +70,7 @@ export async function createOutboundCampaign(nombre) {
     }
 
     await pool.query(INSERT_OUTBOUND_CAMPAIGN, [nombreLimpio]);
+    invalidateOutboundMenuTreeCache();
     return { nombre: nombreLimpio };
 }
 
@@ -76,6 +97,7 @@ export async function createOutboundSubcampaign(parentId, nombre) {
         nombreLimpio,
         parentIdLimpio,
     ]);
+    invalidateOutboundMenuTreeCache();
     return { parentId: parentIdLimpio, nombre: nombreLimpio };
 }
 
@@ -158,6 +180,8 @@ export async function updateOutboundMenuItemStatus(id, estado) {
     } finally {
         connection.release();
     }
+
+    invalidateOutboundMenuTreeCache();
 
     return { id: idLimpio, estado: estadoLimpio };
 }

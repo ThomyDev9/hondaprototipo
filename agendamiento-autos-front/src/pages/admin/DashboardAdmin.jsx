@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-    Title,
-    Button,
-    Alert,
-    Table,
-    Select,
-    PageContainer,
-} from "../../components/common";
-import { obtenerCampaniasActivas } from "../../services/campaign.service";
+import { Button, Alert, Table, Select } from "../../components/common";
+import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
 import "./DashboardAdmin.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -16,36 +9,39 @@ export default function DashboardAdmin() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
+    const [campaniaPadre, setCampaniaPadre] = useState("");
     const [campaignId, setCampaignId] = useState("");
-    const [baseName, setBaseName] = useState("");
 
     const [rows, setRows] = useState([]);
-    const [campaigns, setCampaigns] = useState([]);
-    const [basesByCampaign, setBasesByCampaign] = useState([]);
+    const [menuCampanias, setMenuCampanias] = useState([]);
 
     const token = localStorage.getItem("access_token") || "";
 
-    const campaignOptions = useMemo(
-        () => campaigns.map((id) => ({ id, label: id })),
-        [campaigns],
+    const campaniaPadreOptions = useMemo(
+        () =>
+            menuCampanias
+                .map((item) => item.campania)
+                .filter(Boolean)
+                .map((nombre) => ({ id: nombre, label: nombre })),
+        [menuCampanias],
     );
 
-    const baseOptions = useMemo(
-        () => basesByCampaign.map((id) => ({ id, label: id })),
-        [basesByCampaign],
+    const subcampaniaOptions = useMemo(
+        () =>
+            (
+                menuCampanias.find((item) => item.campania === campaniaPadre)
+                    ?.subcampanias || []
+            ).map((nombre) => ({ id: nombre, label: nombre })),
+        [menuCampanias, campaniaPadre],
     );
 
-    const loadResumen = async (
-        nextCampaignId = campaignId,
-        nextBaseName = baseName,
-    ) => {
+    const loadResumen = async (nextCampaignId = campaignId) => {
         try {
             setLoading(true);
             setError("");
 
             const params = new URLSearchParams();
             if (nextCampaignId) params.set("campaignId", nextCampaignId);
-            if (nextBaseName) params.set("baseName", nextBaseName);
 
             const response = await fetch(
                 `${API_BASE}/admin/bases-resumen${
@@ -67,7 +63,6 @@ export default function DashboardAdmin() {
             }
 
             setRows(json.bases || []);
-            setBasesByCampaign(json.filtros?.basesByCampaign || []);
         } catch (err) {
             console.error(err);
             setError(err.message || "Error cargando datos");
@@ -79,8 +74,8 @@ export default function DashboardAdmin() {
     useEffect(() => {
         const loadCampaignOptions = async () => {
             try {
-                const options = await obtenerCampaniasActivas();
-                setCampaigns(options.map((opt) => opt.id));
+                const tree = await obtenerCampaniasDesdeMenu();
+                setMenuCampanias(tree || []);
             } catch (err) {
                 console.error("Error cargando campañas activas:", err);
             }
@@ -91,26 +86,38 @@ export default function DashboardAdmin() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleCampaignChange = async (value) => {
-        setCampaignId(value);
-        setBaseName("");
-        await loadResumen(value, "");
+    const handleParentCampaignChange = async (value) => {
+        setCampaniaPadre(value);
+        setCampaignId("");
+        setRows([]);
     };
 
-    const handleBaseChange = async (value) => {
-        setBaseName(value);
-        await loadResumen(campaignId, value);
+    const handleSubcampaignChange = async (value) => {
+        setCampaignId(value);
+        await loadResumen(value);
     };
 
     const handleClearFilters = async () => {
+        setCampaniaPadre("");
         setCampaignId("");
-        setBaseName("");
-        await loadResumen("", "");
+        await loadResumen("");
     };
 
     const columns = [
         { key: "campaign_id", label: "Campaña" },
         { key: "base", label: "Base" },
+        {
+            key: "sin_gestionar",
+            label: "Por gestionar",
+        },
+        {
+            key: "registros",
+            label: "Total registros",
+        },
+        {
+            key: "estado_base",
+            label: "Estado",
+        },
         {
             key: "avance",
             label: "Avance",
@@ -119,64 +126,57 @@ export default function DashboardAdmin() {
     ];
 
     return (
-        <PageContainer fullWidth>
-            <div className="bases-admin-container">
-                <div className="bases-admin-header">
-                    <Title level="h4">Ver bases</Title>
-
-                    <div className="bases-admin-actions">
-                        <Button
-                            variant="secondary"
-                            onClick={handleClearFilters}
-                            disabled={loading}
-                        >
-                            Limpiar filtros
-                        </Button>
-                        <Button
-                            variant="primary"
-                            onClick={() => loadResumen()}
-                            disabled={loading}
-                        >
-                            {loading ? "Actualizando..." : "Actualizar"}
-                        </Button>
-                    </div>
-                </div>
-
-                <div className="bases-admin-filters">
-                    <Select
-                        label="Campaña"
-                        options={campaignOptions}
-                        value={campaignId}
-                        onChange={handleCampaignChange}
-                        placeholder="Selecciona una campaña"
-                    />
-
-                    <Select
-                        label="Base"
-                        options={baseOptions}
-                        value={baseName}
-                        onChange={handleBaseChange}
-                        placeholder={
-                            campaignId
-                                ? "Selecciona una base"
-                                : "Primero selecciona campaña"
-                        }
-                        disabled={!campaignId}
-                    />
-                </div>
-
-                {error && (
-                    <Alert type="error" message={error} closable={false} />
-                )}
-
-                <Table
-                    columns={columns}
-                    data={rows}
-                    keyField="base_id"
-                    loading={loading}
-                    noDataMessage="No hay datos para los filtros seleccionados."
+        <div className="bases-admin-container">
+            <div className="bases-admin-filters">
+                <Select
+                    label="Campaña"
+                    options={campaniaPadreOptions}
+                    value={campaniaPadre}
+                    onChange={handleParentCampaignChange}
+                    placeholder="Selecciona una campaña"
                 />
+
+                <Select
+                    label="Subcampaña"
+                    options={subcampaniaOptions}
+                    value={campaignId}
+                    onChange={handleSubcampaignChange}
+                    placeholder={
+                        campaniaPadre
+                            ? "Selecciona una subcampaña"
+                            : "Primero selecciona campaña"
+                    }
+                    disabled={!campaniaPadre}
+                />
+
+                <Button
+                    variant="secondary"
+                    onClick={handleClearFilters}
+                    disabled={loading}
+                    className="bases-admin-filter-button"
+                >
+                    Limpiar filtros
+                </Button>
+
+                <Button
+                    variant="primary"
+                    onClick={() => loadResumen()}
+                    disabled={loading}
+                    className="bases-admin-filter-button"
+                >
+                    {loading ? "Actualizando..." : "Actualizar"}
+                </Button>
             </div>
-        </PageContainer>
+
+            {error && <Alert type="error" message={error} closable={false} />}
+
+            <Table
+                columns={columns}
+                data={rows}
+                keyField="base_id"
+                loading={loading}
+                noDataMessage="No hay datos para los filtros seleccionados."
+            />
+        </div>
     );
 }

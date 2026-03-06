@@ -5,7 +5,9 @@ export const GET_OUTBOUND_MENU_TREE = `
     s.id AS subcampania_id,
     s.nombre_item AS subcampania
   FROM menu_items p
-  LEFT JOIN menu_items s ON s.id_padre = p.id AND s.estado = 'activo'
+  LEFT JOIN menu_items s ON s.id_padre = p.id
+    AND s.id_categoria = '544fb0a6-1345-11f1-b790-000c2904c92f'
+    AND s.estado = 'activo'
   WHERE p.id_categoria = '544fb0a6-1345-11f1-b790-000c2904c92f'
     AND p.id_padre IS NULL
     AND p.estado = 'activo'

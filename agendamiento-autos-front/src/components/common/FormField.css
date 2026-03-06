@@ -1,3 +1,29 @@
+.form-field input,
+.form-field select,
+.form-field textarea {
+    background: #fff !important;
+    color: #1e293b !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 0.5rem !important;
+    font-size: 0.95rem !important;
+    font-family: inherit;
+    box-shadow: none !important;
+    transition: all 0.2s ease;
+    outline: none !important;
+}
+
+.form-field label {
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+}
 .form-field {
     display: flex;
     flex-direction: column;

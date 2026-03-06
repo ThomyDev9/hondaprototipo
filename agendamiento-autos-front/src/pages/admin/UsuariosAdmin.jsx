@@ -232,7 +232,7 @@ function UsuariosAdmin() {
 
     // Contenido de la pestaña activos
     const tabActivosContent = (
-        <>
+        <div className="usuarios-tab-content">
             {selectedUsers.length > 0 && (
                 <div className="action-bar-inline">
                     <span>
@@ -248,24 +248,26 @@ function UsuariosAdmin() {
                     </Button>
                 </div>
             )}
-            <Table
-                columns={columns}
-                data={usuarios}
-                keyField="IdUser"
-                showCheckbox={true}
-                selectedRows={selectedUsers}
-                onSelectRow={handleCheckboxChange}
-                onSelectAll={handleSelectAll}
-                actions={actions}
-                loading={loading}
-                noDataMessage="No hay usuarios activos."
-            />
-        </>
+            <div className="usuarios-table-full">
+                <Table
+                    columns={columns}
+                    data={usuarios}
+                    keyField="IdUser"
+                    showCheckbox={true}
+                    selectedRows={selectedUsers}
+                    onSelectRow={handleCheckboxChange}
+                    onSelectAll={handleSelectAll}
+                    actions={actions}
+                    loading={loading}
+                    noDataMessage="No hay usuarios activos."
+                />
+            </div>
+        </div>
     );
 
     // Contenido de la pestaña inactivos
     const tabInactivosContent = (
-        <>
+        <div className="usuarios-tab-content">
             {selectedUsers.length > 0 && (
                 <div className="action-bar-inline">
                     <span>
@@ -281,19 +283,21 @@ function UsuariosAdmin() {
                     </Button>
                 </div>
             )}
-            <Table
-                columns={columns}
-                data={usuarios}
-                keyField="IdUser"
-                showCheckbox={true}
-                selectedRows={selectedUsers}
-                onSelectRow={handleCheckboxChange}
-                onSelectAll={handleSelectAll}
-                actions={actions}
-                loading={loading}
-                noDataMessage="No hay usuarios inactivos."
-            />
-        </>
+            <div className="usuarios-table-full">
+                <Table
+                    columns={columns}
+                    data={usuarios}
+                    keyField="IdUser"
+                    showCheckbox={true}
+                    selectedRows={selectedUsers}
+                    onSelectRow={handleCheckboxChange}
+                    onSelectAll={handleSelectAll}
+                    actions={actions}
+                    loading={loading}
+                    noDataMessage="No hay usuarios inactivos."
+                />
+            </div>
+        </div>
     );
 
     const tabsList = [
@@ -315,7 +319,6 @@ function UsuariosAdmin() {
         <div className="usuarios-container">
             {/* HEADER */}
             <div className="header">
-                <Title level="h4">Usuarios del Sistema</Title>
                 <div className="header__search-action">
                     <SearchInput
                         placeholder="🔍 Buscar..."

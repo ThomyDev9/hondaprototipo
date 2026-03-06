@@ -560,7 +560,7 @@ export default function CampaniasAdmin() {
     ];
 
     return (
-        <PageContainer title="Campañas" fullWidth>
+        <PageContainer fullWidth>
             <Tabs
                 tabs={tabs}
                 activeTab={activeTab}

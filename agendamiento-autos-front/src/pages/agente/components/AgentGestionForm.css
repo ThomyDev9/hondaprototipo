@@ -1,0 +1,58 @@
+.agent-auto-input {
+    width: 100%;
+    min-width: 60px;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+.agent-auto-textarea {
+    width: 100%;
+    min-width: 120px;
+    max-width: 100%;
+    resize: vertical;
+    box-sizing: border-box;
+}
+/* F2: grid para filas dinámicas */
+.agent-dynamic-section {
+    display: block;
+}
+.agent-dynamic-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: flex-start;
+}
+.agent-form-field {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 120px;
+    max-width: 340px;
+    flex: 0 1 auto;
+}
+
+.agent-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #374151;
+}
+
+.agent-input {
+    width: 100%;
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.45rem;
+    border: 1px solid #e5e7eb;
+    font-size: 0.8rem;
+    box-sizing: border-box;
+}
+
+.agent-primary-button {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 999px;
+    padding: 0.45rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}

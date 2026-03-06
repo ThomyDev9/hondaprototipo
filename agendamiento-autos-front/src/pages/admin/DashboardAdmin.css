@@ -4,23 +4,15 @@
     gap: 1rem;
 }
 
-.bases-admin-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.bases-admin-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
 .bases-admin-filters {
     display: grid;
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto auto;
     gap: 0.75rem;
+    align-items: end;
+}
+
+.bases-admin-filter-button {
+    white-space: nowrap;
 }
 
 .bases-admin-summary {
@@ -31,20 +23,11 @@
 }
 
 @media (max-width: 768px) {
-    .bases-admin-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .bases-admin-actions {
-        width: 100%;
-    }
-
-    .bases-admin-actions button {
-        flex: 1;
-    }
-
     .bases-admin-filters {
         grid-template-columns: 1fr;
+    }
+
+    .bases-admin-filter-button {
+        width: 100%;
     }
 }

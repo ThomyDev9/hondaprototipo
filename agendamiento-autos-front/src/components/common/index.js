@@ -13,3 +13,4 @@ export { default as PageContainer } from "./PageContainer";
 export { default as Tabs } from "./Tabs";
 export { default as Select } from "./Select";
 export { default as AutoComplete } from "./AutoComplete";
+export { default as TwoSelectRow } from "./TwoSelectRow";

@@ -2,6 +2,10 @@
 import express from "express";
 import pool from "../../services/db.js"; // conexión a MySQL
 import { agenteQueries } from "../../services/queries/index.js";
+import {
+    ensureImportStatsTable,
+    recomputeImportStats,
+} from "../../services/bases.service.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -70,6 +74,92 @@ function getAgentActor(req) {
     return req.user?.username || req.user?.email || String(req.user?.id);
 }
 
+async function recomputeStatsByContactId(contactId, actor) {
+    const id = String(contactId || "").trim();
+    if (!id) return;
+
+    const [rows] = await pool.query(
+        `SELECT Campaign, LastUpdate
+         FROM contactimportcontact
+         WHERE Id = ?
+         LIMIT 1`,
+        [id],
+    );
+
+    const campaignId = String(rows[0]?.Campaign || "").trim();
+    const importId = String(rows[0]?.LastUpdate || "").trim();
+
+    if (!campaignId || !importId) {
+        return;
+    }
+
+    await recomputeImportStats(campaignId, importId, actor || "system", pool);
+}
+
+function normalizeTemplateRows(rows) {
+    const byFieldId = new Map();
+
+    for (const row of rows) {
+        if (!byFieldId.has(row.field_id)) {
+            byFieldId.set(row.field_id, {
+                key: String(row.field_key || "").trim(),
+                label: String(row.label || "").trim(),
+                type: String(row.field_type || "text").trim() || "text",
+                required: Number(row.is_required || 0) === 1,
+                order: Number(row.display_order || 0),
+                placeholder: row.placeholder || "",
+                maxLength: row.max_length || null,
+                minValue: row.min_value || null,
+                maxValue: row.max_value || null,
+                defaultValue: row.default_value || "",
+                helpText: row.help_text || "",
+                options: [],
+            });
+        }
+
+        if (row.option_value !== null && row.option_value !== undefined) {
+            const field = byFieldId.get(row.field_id);
+            field.options.push(
+                String(row.option_label || row.option_value || "").trim(),
+            );
+        }
+    }
+
+    return Array.from(byFieldId.values()).sort((a, b) => a.order - b.order);
+}
+
+async function saveDynamicResponseIfTemplateActive({
+    campaignId,
+    formType,
+    contactId,
+    agentUser,
+    payload,
+}) {
+    const campaignIdToUse = String(campaignId || "").trim();
+    if (!campaignIdToUse) return;
+
+    const [templateRows] = await pool.query(
+        agenteQueries.getActiveTemplateByCampaignAndType,
+        [formType, campaignIdToUse],
+    );
+
+    if (templateRows.length === 0) {
+        return;
+    }
+
+    const template = templateRows[0];
+    const payloadJson = JSON.stringify(payload || {});
+
+    await pool.query(agenteQueries.insertDynamicFormResponse, [
+        campaignIdToUse,
+        formType,
+        template.template_id,
+        String(contactId || "").trim(),
+        String(agentUser || "").trim(),
+        payloadJson,
+    ]);
+}
+
 /* ============================================================================
    1. TOMAR SIGUIENTE REGISTRO (auto-asignación)
 ============================================================================ */
@@ -77,6 +167,10 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
     try {
         const agenteActor = getAgentActor(req);
         const campaignFromBody = String(req.body?.campaignId || "").trim();
+        const staleAssignmentMinutes = Number.parseInt(
+            process.env.AGENT_ASSIGNMENT_TIMEOUT_MINUTES || "10",
+            10,
+        );
 
         console.log("[agente/siguiente] payload", {
             campaignId: campaignFromBody,
@@ -90,6 +184,13 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
         }
 
         const campaignToUse = campaignFromBody;
+
+        await pool.query(agenteQueries.releaseStaleAutoAssignmentsByCampaign, [
+            `${campaignToUse}%`,
+            Number.isFinite(staleAssignmentMinutes)
+                ? staleAssignmentMinutes
+                : 30,
+        ]);
 
         console.log("[agente/siguiente] campaignToUse", campaignToUse);
 
@@ -168,30 +269,9 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
         let latestImportId = latestImportRows[0]?.ImportId || null;
 
         if (!latestImportId) {
-            const [fallbackImportRows] = await pool.query(
-                agenteQueries.getLatestImportWithPendingByCampaign,
-                [campaignToUse],
-            );
-
-            console.log(
-                "[agente/siguiente] fallbackImportRows",
-                fallbackImportRows.length,
-                fallbackImportRows[0]?.ImportId || null,
-            );
-
-            latestImportId = fallbackImportRows[0]?.ImportId || null;
-
-            if (!latestImportId) {
-                return res.status(404).json({
-                    error: "No hay registros pendientes para esta campaña",
-                });
-            }
-
-            await pool.query(agenteQueries.upsertCampaignActiveBase, [
-                campaignToUse,
-                latestImportId,
-                agenteActor,
-            ]);
+            return res.status(404).json({
+                error: "No hay base activa para esta campaña",
+            });
         }
 
         for (let intento = 0; intento < 5; intento++) {
@@ -211,7 +291,12 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
             }
 
             const candidato = candidatos[0];
-            const assignAction = candidato.LastManagementResult
+            const isRecycleByAdmin =
+                String(candidato.Action || "")
+                    .trim()
+                    .toLowerCase() === "re_llamada";
+
+            const assignAction = isRecycleByAdmin
                 ? "Reciclar Base"
                 : "Asignar Base";
 
@@ -227,6 +312,13 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
             );
 
             if (updResult.affectedRows > 0) {
+                await recomputeImportStats(
+                    campaignToUse,
+                    latestImportId,
+                    agenteActor,
+                    pool,
+                );
+
                 registroTomado = {
                     id: candidato.Id,
                     nombre_completo: candidato.Name,
@@ -293,6 +385,34 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
     }
 });
 
+router.get("/bases-activas-resumen", ...agenteMiddlewares, async (req, res) => {
+    try {
+        await ensureImportStatsTable(pool);
+
+        const [rows] = await pool.query(agenteQueries.getActiveBasesSummary);
+
+        const data = (rows || [])
+            .map((row) => ({
+                campaignId: String(row.campaign_id || "").trim(),
+                importId: String(row.import_id || "").trim(),
+                totalRegistros: Number(row.total_registros || 0),
+                pendientes: Number(row.pendientes || 0),
+                pendientesLibres: Number(row.pendientes_libres || 0),
+                pendientesAsignadosSinGestion: Number(
+                    row.pendientes_asignados_sin_gestion || 0,
+                ),
+            }))
+            .filter((item) => item.campaignId && item.importId);
+
+        return res.json({ data });
+    } catch (err) {
+        console.error("Error en /agente/bases-activas-resumen:", err);
+        return res
+            .status(500)
+            .json({ error: "Error cargando resumen de bases activas" });
+    }
+});
+
 /* ============================================================================
     3. GUARDAR GESTIÓN (cck_dev)
 ============================================================================ */
@@ -313,6 +433,8 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
             telefono_ad,
             comentarios,
             fecha_agendamiento,
+            dynamicForm2Payload,
+            dynamicForm3Payload,
         } = req.body;
 
         if (!registro_id) {
@@ -332,7 +454,7 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         ).trim();
 
         const [contactRows] = await pool.query(
-            `SELECT Id, Campaign, Number, Identification
+            `SELECT Id, Campaign, LastUpdate, Number, Identification
              FROM contactimportcontact
              WHERE Id = ?
              LIMIT 1`,
@@ -346,6 +468,7 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         const campaignToUse = String(
             campaign_id || contactRows[0]?.Campaign || "",
         ).trim();
+        const importIdToUse = String(contactRows[0]?.LastUpdate || "").trim();
         const campaignLike = campaignToUse ? `${campaignToUse}%` : "%";
         const identificationToUse = String(
             contactRows[0]?.Identification || "",
@@ -534,6 +657,13 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
             ],
         );
 
+        await recomputeImportStats(
+            campaignToUse,
+            importIdToUse,
+            agenteActor,
+            pool,
+        );
+
         const [clienteUpdateResult] = await pool.query(
             agenteQueries.updateClienteSurveyAndManagement,
             [
@@ -655,6 +785,31 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
             (g) => g.Action === "re_llamada",
         ).length;
 
+        const form2Payload =
+            dynamicForm2Payload && typeof dynamicForm2Payload === "object"
+                ? dynamicForm2Payload
+                : {};
+        const form3Payload =
+            dynamicForm3Payload && typeof dynamicForm3Payload === "object"
+                ? dynamicForm3Payload
+                : encuestaData;
+
+        await saveDynamicResponseIfTemplateActive({
+            campaignId: campaignToUse,
+            formType: "F2",
+            contactId: resolvedContactId,
+            agentUser: agenteActor,
+            payload: form2Payload,
+        });
+
+        await saveDynamicResponseIfTemplateActive({
+            campaignId: campaignToUse,
+            formType: "F3",
+            contactId: resolvedContactId,
+            agentUser: agenteActor,
+            payload: form3Payload,
+        });
+
         return res.json({
             message: "Gestión guardada",
             managementResultCode,
@@ -690,7 +845,7 @@ router.post("/estado", ...agenteMiddlewares, async (req, res) => {
 
         // Si el agente estaba gestionando un registro y entra en pausa, liberamos el registro
         if (esPausa && registro_id) {
-            await pool.query(
+            const [releaseResult] = await pool.query(
                 `UPDATE contactimportcontact
                  SET LastAgent = 'Pendiente',
                      UserShift = ?,
@@ -699,6 +854,10 @@ router.post("/estado", ...agenteMiddlewares, async (req, res) => {
                    AND LastAgent = ?`,
                 [agenteActor, registro_id, agenteActor],
             );
+
+            if ((releaseResult?.affectedRows || 0) > 0) {
+                await recomputeStatsByContactId(registro_id, agenteActor);
+            }
         }
 
         return res.json({ estado });
@@ -762,6 +921,71 @@ router.get("/form-catalogos", ...agenteMiddlewares, async (req, res) => {
         return res
             .status(500)
             .json({ error: "Error cargando catálogos del formulario" });
+    }
+});
+
+router.get("/form-templates", ...agenteMiddlewares, async (req, res) => {
+    try {
+        const campaignId = String(req.query?.campaignId || "").trim();
+
+        if (!campaignId) {
+            return res.status(400).json({ error: "campaignId es requerido" });
+        }
+
+        const [f2TemplateRows] = await pool.query(
+            agenteQueries.getActiveTemplateByCampaignAndType,
+            ["F2", campaignId],
+        );
+        const [f3TemplateRows] = await pool.query(
+            agenteQueries.getActiveTemplateByCampaignAndType,
+            ["F3", campaignId],
+        );
+
+        let form2 = null;
+        let form3 = null;
+
+        if (f2TemplateRows.length > 0) {
+            const f2Template = f2TemplateRows[0];
+            const [f2FieldRows] = await pool.query(
+                agenteQueries.getTemplateFieldsWithOptions,
+                [f2Template.template_id],
+            );
+
+            form2 = {
+                templateId: f2Template.template_id,
+                templateName: f2Template.template_name,
+                formType: f2Template.form_type,
+                version: Number(f2Template.version || 1),
+                fields: normalizeTemplateRows(f2FieldRows),
+            };
+        }
+
+        if (f3TemplateRows.length > 0) {
+            const f3Template = f3TemplateRows[0];
+            const [f3FieldRows] = await pool.query(
+                agenteQueries.getTemplateFieldsWithOptions,
+                [f3Template.template_id],
+            );
+
+            form3 = {
+                templateId: f3Template.template_id,
+                templateName: f3Template.template_name,
+                formType: f3Template.form_type,
+                version: Number(f3Template.version || 1),
+                fields: normalizeTemplateRows(f3FieldRows),
+            };
+        }
+
+        return res.json({
+            campaignId,
+            form2,
+            form3,
+        });
+    } catch (err) {
+        console.error("Error en /agente/form-templates:", err);
+        return res
+            .status(500)
+            .json({ error: "Error cargando plantillas dinámicas" });
     }
 });
 
@@ -936,7 +1160,7 @@ router.post("/bloquearme", requireAuth, async (req, res) => {
 
         // Si hay un registro en gestión, lo liberamos
         if (registro_id) {
-            await pool.query(
+            const [releaseResult] = await pool.query(
                 `UPDATE contactimportcontact
                  SET LastAgent = 'Pendiente',
                      UserShift = ?,
@@ -945,6 +1169,10 @@ router.post("/bloquearme", requireAuth, async (req, res) => {
                    AND LastAgent = ?`,
                 [actor, registro_id, actor],
             );
+
+            if ((releaseResult?.affectedRows || 0) > 0) {
+                await recomputeStatsByContactId(registro_id, actor);
+            }
         }
 
         // Marcar al agente como bloqueado
@@ -1007,6 +1235,30 @@ router.post(
                    AND TmStmpShift < DATE_SUB(NOW(), INTERVAL ? MINUTE)`,
                 [LIMITE_MINUTOS],
             );
+
+            if ((result?.affectedRows || 0) > 0) {
+                const [activeImports] = await pool.query(
+                    `SELECT CampaignId, ImportId
+                     FROM campaign_active_base
+                     WHERE State = '1'`,
+                );
+
+                for (const row of activeImports) {
+                    const campaignId = String(row?.CampaignId || "").trim();
+                    const importId = String(row?.ImportId || "").trim();
+
+                    if (!campaignId || !importId) {
+                        continue;
+                    }
+
+                    await recomputeImportStats(
+                        campaignId,
+                        importId,
+                        "system",
+                        pool,
+                    );
+                }
+            }
 
             return res.json({
                 message: "Registros colgados limpiados correctamente",

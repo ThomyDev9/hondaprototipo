@@ -1,10 +1,14 @@
 /* Base de botones */
 .btn {
-    border: none;
-    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.15s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -12,8 +16,12 @@
     white-space: nowrap;
 }
 
+.btn:not(:disabled):active {
+    transform: translateY(1px);
+}
+
 .btn:disabled {
-    opacity: 0.6;
+    opacity: 0.55;
     cursor: not-allowed;
 }
 
@@ -37,30 +45,33 @@
 
 /* Primary (Azul) */
 .btn-primary {
-    background-color: #2563eb;
-    color: white;
-    box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
+    background: linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%);
+    color: #ffffff;
+    border-color: #1e3a8a;
+    box-shadow: 0 8px 16px rgba(30, 64, 175, 0.28);
 }
 
 .btn-primary:hover:not(:disabled) {
-    background-color: #1e40af;
+    background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
 }
 
 /* Secondary (Gris) */
 .btn-secondary {
-    background-color: #6b7280;
-    color: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background-color: #475569;
+    color: #ffffff;
+    border-color: #334155;
+    box-shadow: 0 5px 12px rgba(15, 23, 42, 0.2);
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background-color: #4b5563;
+    background-color: #334155;
 }
 
 /* Danger (Rojo) */
 .btn-danger {
     background-color: #dc2626;
-    color: white;
+    color: #ffffff;
+    border-color: #991b1b;
     box-shadow: 0 5px 15px rgba(220, 38, 38, 0.3);
 }
 
@@ -70,19 +81,21 @@
 
 /* Success (Verde) */
 .btn-success {
-    background-color: #16a34a;
-    color: white;
+    background-color: #166534;
+    color: #ffffff;
+    border-color: #14532d;
     box-shadow: 0 5px 15px rgba(22, 163, 74, 0.3);
 }
 
 .btn-success:hover:not(:disabled) {
-    background-color: #15803d;
+    background-color: #14532d;
 }
 
 /* Edit (Azul claro) */
 .btn-edit {
-    background-color: #2563eb;
-    color: white;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff;
+    border-color: #1e3a8a;
 }
 
 .btn-edit:hover:not(:disabled) {
@@ -91,10 +104,11 @@
 
 /* Create (Verde) */
 .btn-create {
-    background-color: #2563eb;
-    color: white;
+    background: linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%);
+    color: #ffffff;
+    border-color: #1e3a8a;
     border-radius: 999px;
-    box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
+    box-shadow: 0 8px 16px rgba(30, 64, 175, 0.26);
 }
 
 .btn-create:hover:not(:disabled) {
@@ -103,12 +117,12 @@
 
 /* Outline variant */
 .btn-outline {
-    background-color: transparent;
-    border: 2px solid #e5e7eb;
-    color: #0f172a;
+    background-color: #ffffff;
+    border-color: #cbd5e1;
+    color: #1e293b;
 }
 
 .btn-outline:hover:not(:disabled) {
-    background-color: #f9fafb;
-    border-color: #d1d5db;
+    background-color: #eff6ff;
+    border-color: #93c5fd;
 }

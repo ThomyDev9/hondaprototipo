@@ -3,22 +3,23 @@
     overflow-y: auto;
     overflow-x: auto;
     width: 100%;
-    border-radius: 0.75rem;
-    border: 1px solid #e5e7eb;
+    border-radius: 0.9rem;
+    border: 1px solid #dbe7ff;
     background-color: white;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
 .data-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     table-layout: auto;
 }
 
 .data-table th,
 .data-table td {
-    border-bottom: 1px solid #e5e7eb;
-    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #eaf1ff;
+    padding: 0.7rem 0.9rem;
     text-align: left;
     word-break: break-word;
 }
@@ -28,8 +29,8 @@
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    background-color: #f9fafb;
-    color: #6b7280;
+    background: linear-gradient(180deg, #f6f9ff 0%, #edf3ff 100%);
+    color: #3b4f74;
     position: sticky;
     top: 0;
     z-index: 1;
@@ -41,11 +42,11 @@
 }
 
 .data-table tbody tr:nth-child(even) {
-    background-color: #f9f9f9;
+    background-color: #f8fbff;
 }
 
 .data-table tbody tr:hover {
-    background-color: #e0f2fe;
+    background-color: #e8f1ff;
 }
 
 /* Checkboxes en tabla */
@@ -63,26 +64,28 @@
 }
 
 .table-action-btn {
-    border: none;
-    background: none;
+    border: 1px solid transparent;
+    background: #f8fbff;
     font-size: 0.8rem;
     cursor: pointer;
-    padding: 0.2rem 0.4rem;
-    border-radius: 4px;
+    padding: 0.28rem 0.5rem;
+    border-radius: 6px;
     transition: all 0.2s ease;
     font-weight: 600;
 }
 
 .table-action-default {
-    color: #2563eb;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
 }
 
 .table-action-default:hover {
-    background-color: #e0f2fe;
+    background-color: #dbeafe;
 }
 
 .table-action-danger {
     color: #dc2626;
+    border-color: #fecaca;
 }
 
 .table-action-danger:hover {
@@ -91,6 +94,7 @@
 
 .table-action-success {
     color: #16a34a;
+    border-color: #bbf7d0;
 }
 
 .table-action-success:hover {
@@ -103,8 +107,8 @@
     padding: 2rem;
     text-align: center;
     font-size: 0.9rem;
-    color: #6b7280;
-    background-color: #f9fafb;
-    border-radius: 0.75rem;
-    border: 1px solid #e5e7eb;
+    color: #475569;
+    background-color: #f8fbff;
+    border-radius: 0.9rem;
+    border: 1px solid #dbe7ff;
 }

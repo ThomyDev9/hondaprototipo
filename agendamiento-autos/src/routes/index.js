@@ -50,6 +50,12 @@ export const routeRegistry = [
         description: "Reportes del sistema",
     },
 
+    {
+        path: "/admin/forms",
+        module: () => import("./admin/forms.js"),
+        description: "Configuración de formularios dinámicos F2/F3",
+    },
+
     // Agente Module
     {
         path: "/agente",
