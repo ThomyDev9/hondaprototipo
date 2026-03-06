@@ -11,8 +11,10 @@ import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
 const API_BASE = import.meta.env.VITE_API_BASE;
 
 function App() {
-    const [username, setUsername] = useState("Akimobill1");
-    const [password, setPassword] = useState("lGpQEm194");
+    //const [username, setUsername] = useState("Akimobill1");
+    //const [password, setPassword] = useState("lGpQEm194");
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [userInfo, setUserInfo] = useState(null);
@@ -209,6 +211,7 @@ function App() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    placeholder="Contraseña"
                 />
                 {error && <p style={{ color: "red" }}>{error}</p>}
                 <button type="submit" disabled={loading}>

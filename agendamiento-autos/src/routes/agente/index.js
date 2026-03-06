@@ -326,8 +326,7 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
                     telefono1: null,
                     telefono2: null,
                     modelo: null,
-                    intentos_totales:
-                        Number(candidato.intentos_totales || 0) + 1,
+                    intentos_totales: Number(candidato.intentos_totales || 0),
                     base_nombre: candidato.LastUpdate || "Base activa",
                     campaign_id: candidato.Campaign,
                     identification: candidato.Identification || null,
