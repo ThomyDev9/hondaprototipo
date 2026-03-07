@@ -125,10 +125,8 @@ function AccordionMenu({ onLeafSelect }) {
             return;
         }
 
-        const apiUrl =
-            globalThis.location.hostname === "localhost"
-                ? "http://localhost:4004/api/menu/outbound"
-                : "/api/menu/outbound";
+        const API_BASE = import.meta.env.VITE_API_BASE;
+        const apiUrl = `${API_BASE}/api/menu/outbound`;
 
         fetch(apiUrl)
             .then((res) => res.json())
