@@ -264,10 +264,10 @@ const agenteQueries = {
           AND (
             (
               COALESCE(TRIM(c.LastManagementResult), '') = ''
-              AND COALESCE(TRIM(c.Action), '') <> 're_llamada'
+              AND COALESCE(TRIM(c.Action), '') <> 're_llamada' AND COALESCE(TRIM(c.Action), '') <> 'reciclable'
             )
             OR (
-              COALESCE(TRIM(c.Action), '') = 're_llamada'
+              (COALESCE(TRIM(c.Action), '') = 're_llamada' OR COALESCE(TRIM(c.Action), '') = 'reciclable')
               AND
               (
                 CAST(COALESCE(NULLIF(TRIM(c.LastManagementResult), ''), '0') AS UNSIGNED) BETWEEN 60 AND 64
@@ -452,6 +452,70 @@ const agenteQueries = {
         submitted_at
       )
       VALUES (?, ?, ?, ?, ?, ?, NOW())
+    `,
+
+    // Nueva versión: asignación por agente y sesión de pestaña
+    getAssignedClientByAgentAndSessionAndCampaignLike: `
+    SELECT
+      c.ID,
+      c.CampaignId,
+      c.ImportId,
+      c.IDENTIFICACION,
+      c.NOMBRE_CLIENTE,
+      c.CAMPO1,
+      c.CAMPO2,
+      c.CAMPO3,
+      c.CAMPO4,
+      c.CAMPO5,
+      c.CAMPO6,
+      c.CAMPO7,
+      c.CAMPO8,
+      c.CAMPO9,
+      c.CAMPO10,
+      c.ResultLevel1,
+      c.ResultLevel2,
+      cc.LastAgent AS Agent,
+      cc.LastUpdate,
+      cc.Number AS intentos_totales
+    FROM ${encuestaSchema}.clientes c
+    INNER JOIN contactimportcontact cc ON c.ID = cc.Id
+    WHERE cc.LastAgent = ?
+      AND cc.TabSessionId = ?
+      AND c.CampaignId LIKE ?
+      AND (cc.Action IS NULL OR cc.Action <> 'Cancelar base')
+      AND COALESCE(cc.Action, '') <> 'Gestionado'
+    ORDER BY cc.TmStmpShift DESC, c.ID DESC
+    LIMIT 1
+  `,
+    // Nueva versión: tomar candidato y asignar por agente y sesión de pestaña
+    takeCandidateForAgentWithSession: `
+    UPDATE contactimportcontact
+    SET LastAgent = ?,
+      TabSessionId = ?,
+      Action = ?,
+      Number = COALESCE(Number, 0) + 1,
+      UserShift = ?,
+      TmStmpShift = NOW()
+    WHERE Id = ?
+      AND Campaign = ?
+      AND (LastAgent = '' OR LastAgent = 'Pendiente')
+  `,
+
+    // Traer todas las bases activas e inactivas para filtros
+    getAllBasesSummary: `
+      SELECT
+        cab.CampaignId AS campaign_id,
+        cab.ImportId AS import_id,
+        cab.State AS base_state,
+        COALESCE(cis.TotalRegistros, cab.TotalRegistros, 0) AS total_registros,
+        COALESCE(cis.PendientesReales, 0) AS pendientes,
+        COALESCE(cis.PendientesLibres, 0) AS pendientes_libres,
+        COALESCE(cis.PendientesAsignadosSinGestion, 0) AS pendientes_asignados_sin_gestion
+      FROM campaign_active_base cab
+      LEFT JOIN campaign_import_stats cis
+        ON cis.CampaignId = cab.CampaignId
+       AND cis.ImportId = cab.ImportId
+      ORDER BY cab.CampaignId ASC, cab.ImportId DESC
     `,
 };
 

@@ -39,18 +39,19 @@ router.post(
                 });
             }
 
+            // Cambia Action a 'reciclable' para identificar registros reciclados
             const [result] = await pool.query(
                 `
                     UPDATE contactimportcontact
                     SET LastAgent = 'Pendiente',
-                        Action = 're_llamada',
+                        Action = 'reciclable',
                         UserShift = ?,
                         TmStmpShift = NOW()
                     WHERE Campaign = ?
                       AND LastUpdate = ?
                       AND COALESCE(Number, 0) < ?
-                      AND Action IN ('re_llamada', 'sin_contacto', 'numero_incorrecto', 'inubicable')
-                    `,
+                      AND LastManagementResult IN (60, 61, 62, 63, 64, 34)
+                `,
                 [
                     req.user?.username || String(req.user?.id),
                     campaignId,

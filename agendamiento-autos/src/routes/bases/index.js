@@ -122,17 +122,51 @@ router.get("/importaciones/:campaignId", requireAuth, async (req, res) => {
     }
 });
 
+import agenteQueries from "../../services/queries/agente.queries.js";
+import pool from "../../services/db.js";
+
 router.get(
     "/importaciones-estado/:campaignId",
     requireAuth,
     async (req, res) => {
         try {
             const { campaignId } = req.params;
-            const importaciones =
-                await basesService.obtenerImportacionesConEstadoPorCampania(
-                    campaignId,
-                );
-            res.json({ importaciones });
+            // Replica la consulta de /admin/bases-resumen pero solo para la campaña seleccionada
+            const [basesRaw] = await pool.query(
+                `
+                SELECT
+                    c.Campaign AS campaign_id,
+                    c.LastUpdate AS base,
+                    COUNT(*) AS registros,
+                    CASE
+                        WHEN MAX(CASE WHEN cab.CampaignId IS NOT NULL THEN 1 ELSE 0 END) = 1
+                            THEN '1'
+                        ELSE '0'
+                    END AS BaseState
+                FROM contactimportcontact c
+                LEFT JOIN campaign_active_base cab
+                  ON cab.CampaignId = c.Campaign
+                 AND cab.ImportId = c.LastUpdate
+                 AND cab.State = '1'
+                WHERE c.Campaign IS NOT NULL
+                  AND c.Campaign <> ''
+                  AND c.LastUpdate IS NOT NULL
+                  AND c.LastUpdate <> ''
+                  AND c.Campaign = ?
+                GROUP BY c.Campaign, c.LastUpdate
+                ORDER BY c.Campaign ASC, c.LastUpdate DESC
+            `,
+                [campaignId],
+            );
+
+            // Adaptar formato esperado por el frontend
+            const mapped = basesRaw.map((row) => ({
+                id: row.base,
+                LastUpdate: row.base,
+                BaseState: String(row.BaseState ?? "0").trim() || "0",
+                totalRegistros: Number(row.registros || 0),
+            }));
+            res.json({ importaciones: mapped });
         } catch (err) {
             console.error("❌ Error obteniendo importaciones con estado:", err);
             res.status(500).json({

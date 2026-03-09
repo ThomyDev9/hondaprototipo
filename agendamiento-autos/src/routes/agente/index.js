@@ -167,6 +167,7 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
     try {
         const agenteActor = getAgentActor(req);
         const campaignFromBody = String(req.body?.campaignId || "").trim();
+        const tabSessionId = String(req.body?.tabSessionId || "").trim();
         const staleAssignmentMinutes = Number.parseInt(
             process.env.AGENT_ASSIGNMENT_TIMEOUT_MINUTES || "10",
             10,
@@ -175,11 +176,17 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
         console.log("[agente/siguiente] payload", {
             campaignId: campaignFromBody,
             agente: agenteActor,
+            tabSessionId,
         });
 
         if (!campaignFromBody) {
             return res.status(400).json({
                 error: "Debes seleccionar una campaña para tomar registros",
+            });
+        }
+        if (!tabSessionId) {
+            return res.status(400).json({
+                error: "Falta el identificador de sesión de pestaña (tabSessionId)",
             });
         }
 
@@ -192,14 +199,11 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
                 : 30,
         ]);
 
-        console.log("[agente/siguiente] campaignToUse", campaignToUse);
-
+        // Buscar si ya hay un registro asignado a este agente y tabSessionId
         const [assignedRows] = await pool.query(
-            agenteQueries.getAssignedClientByAgentAndCampaignLike,
-            [agenteActor, `${campaignToUse}%`],
+            agenteQueries.getAssignedClientByAgentAndSessionAndCampaignLike,
+            [agenteActor, tabSessionId, `${campaignToUse}%`],
         );
-
-        console.log("[agente/siguiente] assignedRows", assignedRows.length);
 
         if (assignedRows.length > 0) {
             const assigned = assignedRows[0];
@@ -217,11 +221,6 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
                     [assigned.IDENTIFICACION, `${campaignToUse}%`],
                 );
             }
-
-            console.log("[agente/siguiente] detalle assigned", {
-                id: assigned.ID,
-                detalleEncontrado: clienteRows.length > 0,
-            });
 
             const numeros = phones
                 .map((row) => row.NumeroMarcado)
@@ -260,12 +259,6 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
             [campaignToUse],
         );
 
-        console.log(
-            "[agente/siguiente] latestImportRows",
-            latestImportRows.length,
-            latestImportRows[0]?.ImportId || null,
-        );
-
         let latestImportId = latestImportRows[0]?.ImportId || null;
 
         if (!latestImportId) {
@@ -278,12 +271,6 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
             const [candidatos] = await pool.query(
                 agenteQueries.getNextCandidateByCampaignAndImport,
                 [campaignToUse, latestImportId],
-            );
-
-            console.log(
-                "[agente/siguiente] candidatos intento",
-                intento + 1,
-                candidatos.length,
             );
 
             if (candidatos.length === 0) {
@@ -300,10 +287,12 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
                 ? "Reciclar Base"
                 : "Asignar Base";
 
+            // Asignar el registro a este agente y tabSessionId
             const [updResult] = await pool.query(
-                agenteQueries.takeCandidateForAgent,
+                agenteQueries.takeCandidateForAgentWithSession,
                 [
                     agenteActor,
+                    tabSessionId,
                     assignAction,
                     agenteActor,
                     candidato.Id,
@@ -363,11 +352,6 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
                 [registroTomado.identification, `${campaignToUse}%`],
             );
         }
-
-        console.log("[agente/siguiente] detalle tomado", {
-            id: registroTomado.id,
-            detalleEncontrado: clienteRows.length > 0,
-        });
 
         return res.json({
             registro: {
@@ -1272,4 +1256,150 @@ router.post(
     },
 );
 
+// Endpoint para tipos de campaña dinámico para Out Maquita Cushunchic
+router.get("/tipos-campania", requireAuth, async (req, res) => {
+    const cliente = req.query.cliente;
+    if (!cliente) return res.status(400).json({ error: "Falta cliente" });
+    try {
+        // Usar pool directamente, suponiendo que la base campaniasoutbound está accesible
+        const [rows] = await pool.query(
+            "SELECT TipoCampania FROM campaniasoutbound.campañas WHERE cliente = ? AND estado = '1'",
+            [cliente],
+        );
+        res.json({ data: rows });
+    } catch (err) {
+        console.error("Error en /agente/tipos-campania:", err);
+        res.status(500).json({ error: "Error consultando tipos de campaña" });
+    }
+});
+
+// Buscar registro en trxout por cédula
+router.get("/trxout", requireAuth, async (req, res) => {
+    const identificacion = req.query.identificacion;
+    console.log(
+        "[DEBUG] /agente/trxout llamado. identificacion:",
+        identificacion,
+    );
+    if (!identificacion) {
+        console.log("[DEBUG] Falta identificacion en query param");
+        return res.status(400).json({ error: "Falta identificacion" });
+    }
+    try {
+        const [rows] = await pool.query(
+            "SELECT * FROM campaniasoutbound.trxout WHERE Identificacion = ? ORDER BY Id DESC LIMIT 1",
+            [identificacion],
+        );
+        console.log("[DEBUG] Resultado SQL trxout:", rows);
+        res.json({ data: rows[0] || null });
+    } catch (err) {
+        console.error("[ERROR] Error en /agente/trxout:", err);
+        res.status(500).json({ error: "Error consultando trxout" });
+    }
+});
+
+// Insertar registro en trxout
+router.post("/trxout", requireAuth, async (req, res) => {
+    const {
+        Agent = "",
+        StartedManagement = null,
+        TmStmp = null,
+        Cooperativa = "",
+        TipoCampania = null,
+        Identificacion = null,
+        NombreCliente = null,
+        Celular = null,
+        MotivoLlamada = null,
+        SubmotivoLlamada = null,
+        Observaciones = null,
+        AgentShift = "",
+        TmStmpShift = "",
+    } = req.body;
+    try {
+        const [result] = await pool.query(
+            `INSERT INTO campaniasoutbound.trxout
+            (ID, Agent, StartedManagement, TmStmp, Cooperativa, TipoCampania, Identificacion, NombreCliente, Celular, MotivoLlamada, SubmotivoLlamada, Observaciones, AgentShift, TmStmpShift)
+            VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                Agent,
+                StartedManagement,
+                TmStmp,
+                Cooperativa,
+                TipoCampania,
+                Identificacion,
+                NombreCliente,
+                Celular,
+                MotivoLlamada,
+                SubmotivoLlamada,
+                Observaciones,
+                AgentShift,
+                TmStmpShift,
+            ],
+        );
+        res.json({ success: true, insertId: result.insertId });
+    } catch (err) {
+        console.error("[ERROR] Error en POST /agente/trxout:", err);
+        res.status(500).json({ error: "Error insertando trxout" });
+    }
+});
+
+// Actualizar registro en trxout por Identificacion
+router.put("/trxout", requireAuth, async (req, res) => {
+    const {
+        Agent = "",
+        StartedManagement = null,
+        TmStmp = null,
+        Cooperativa = "",
+        TipoCampania = null,
+        Identificacion = null,
+        NombreCliente = null,
+        Celular = null,
+        MotivoLlamada = null,
+        SubmotivoLlamada = null,
+        Observaciones = null,
+        AgentShift = "",
+        TmStmpShift = "",
+    } = req.body;
+    if (!Identificacion) {
+        return res
+            .status(400)
+            .json({ error: "Falta Identificacion para update" });
+    }
+    try {
+        const [result] = await pool.query(
+            `UPDATE campaniasoutbound.trxout SET
+                Agent=?,
+                StartedManagement=?,
+                TmStmp=?,
+                Cooperativa=?,
+                TipoCampania=?,
+                NombreCliente=?,
+                Celular=?,
+                MotivoLlamada=?,
+                SubmotivoLlamada=?,
+                Observaciones=?,
+                AgentShift=?,
+                TmStmpShift=?
+            WHERE Identificacion=?`,
+            [
+                Agent,
+                StartedManagement,
+                TmStmp,
+                Cooperativa,
+                TipoCampania,
+                NombreCliente,
+                Celular,
+                MotivoLlamada,
+                SubmotivoLlamada,
+                Observaciones,
+                AgentShift,
+                TmStmpShift,
+                Identificacion,
+            ],
+        );
+        res.json({ success: true, affectedRows: result.affectedRows });
+    } catch (err) {
+        console.error("[ERROR] Error en PUT /agente/trxout:", err);
+        res.status(500).json({ error: "Error actualizando trxout" });
+    }
+});
 export default router;

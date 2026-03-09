@@ -165,9 +165,12 @@ export async function contarBases() {
     }
 }
 
+import agenteQueries from "./queries/agente.queries.js";
+
 export async function obtenerBasesActivas() {
     try {
-        const [rows] = await pool.query(basesQueries.getActive);
+        // Usar la misma consulta que 'ver bases' para obtener el resumen real de bases activas
+        const [rows] = await pool.query(agenteQueries.getActiveBasesSummary);
         return rows;
     } catch (error) {
         console.error("Error al obtener bases activas:", error);
@@ -244,23 +247,37 @@ export async function administrarBase(
         );
 
         if (action === "activar") {
-            const [detailRows] = await pool.query(
-                basesQueries.getValidContactsByImport,
-                [importDate],
+            // Buscar si ya existe un registro en campaign_active_base para esta campaña/importación
+            const [existing] = await pool.query(
+                `SELECT id FROM campaign_active_base WHERE CampaignId = ? AND ImportId = ? LIMIT 1`,
+                [campaignId, importDate],
             );
-            const totalRegistros = Number(detailRows?.[0]?.totalRegistros || 0);
-
+            if (existing.length > 0) {
+                // Si existe, actualizar el estado
+                await pool.query(
+                    `UPDATE campaign_active_base SET State = '1', UserShift = ?, UpdatedAt = ? WHERE id = ?`,
+                    [username, dateNow, existing[0].id],
+                );
+            } else {
+                // Si no existe, insertar nuevo registro
+                // Obtener total de registros para la base
+                const [countRows] = await pool.query(
+                    `SELECT COUNT(*) as total FROM contactimportcontact WHERE Campaign = ? AND LastUpdate = ?`,
+                    [campaignId, importDate],
+                );
+                const totalRegistros = countRows[0]?.total || 0;
+                await pool.query(basesQueries.insertCampaignActiveBase, [
+                    campaignId,
+                    importDate,
+                    totalRegistros,
+                    username,
+                ]);
+            }
             await pool.query(basesQueries.activateBase, [
                 username,
                 dateNow,
                 importDate,
                 campaignId,
-            ]);
-            await pool.query(basesQueries.insertCampaignActiveBase, [
-                campaignId,
-                importDate,
-                totalRegistros,
-                username,
             ]);
             await recomputeImportStats(
                 campaignId,
@@ -268,7 +285,7 @@ export async function administrarBase(
                 username || "system",
                 pool,
             );
-            return { message: "Se ha asignado base exitosamente!" };
+            return { message: "Se ha activado base exitosamente!" };
         } else if (action === "desactivar") {
             await pool.query(basesQueries.deactivateBase, [
                 username,

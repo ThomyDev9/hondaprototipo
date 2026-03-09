@@ -69,17 +69,21 @@ export default function ReciclarBases() {
 
                 const options = [];
 
+                // Solo mostrar bases que tengan registros reciclables con LastManagementResult válido
+                // Los valores válidos son: 60, 61, 62, 63, 64, 34
                 for (const item of json.importaciones || []) {
                     const importId = String(item?.LastUpdate || "").trim();
-                    if (!importId) {
-                        continue;
-                    }
+                    if (!importId) continue;
 
+                    // Si el backend no trae el detalle, se debe filtrar en el backend, pero aquí asumimos que RegistrosReciclables ya considera esos estados
                     const reciclables = Number(item?.RegistrosReciclables || 0);
-                    options.push({
-                        id: importId,
-                        label: `${importId} (${reciclables} reciclables)`,
-                    });
+                    // Si hay reciclables, mostrar la base
+                    if (reciclables > 0) {
+                        options.push({
+                            id: importId,
+                            label: `${importId} (${reciclables} reciclables)`,
+                        });
+                    }
                 }
 
                 setBasesOptions(options);

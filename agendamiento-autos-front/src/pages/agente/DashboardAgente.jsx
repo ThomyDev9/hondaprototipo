@@ -1,10 +1,39 @@
 // src/pages/DashboardAgente.jsx
 import { useEffect, useRef, useState } from "react";
+import { uuidv4 } from "../../utils/uuid";
+// Per-tab session ID for multi-assignment
+const AGENTE_TAB_SESSION_KEY = "agente_tab_session_id";
+function getOrCreateTabSessionId() {
+    // Si la URL tiene ?newtab=1, forzar nuevo id
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("newtab") === "1") {
+        const newId = uuidv4();
+        sessionStorage.setItem(AGENTE_TAB_SESSION_KEY, newId);
+        return newId;
+    }
+    // Si la pestaña fue restaurada/duplicada (pageshow persisted), forzar nuevo id
+    let id = sessionStorage.getItem(AGENTE_TAB_SESSION_KEY);
+    if (!id) {
+        id = uuidv4();
+        sessionStorage.setItem(AGENTE_TAB_SESSION_KEY, id);
+    }
+    // Detectar duplicado/restaurado
+    window.addEventListener("pageshow", (event) => {
+        if (event.persisted) {
+            const newId = uuidv4();
+            sessionStorage.setItem(AGENTE_TAB_SESSION_KEY, newId);
+        }
+    });
+    return sessionStorage.getItem(AGENTE_TAB_SESSION_KEY);
+}
 import PropTypes from "prop-types";
 import { PageContainer } from "../../components/common";
 import AgentGestionForm from "./components/AgentGestionForm";
+import GestionOutboundDemo from "./GestionOutboundDemo";
 import { obtenerPlantillasDinamicas } from "../../services/formTemplate.service";
 import "./DashboardAgente.css";
+import OutMaquitaPage from "./OutMaquitaPage";
+import { esGestionOutbound } from "../../utils/gestionOutbound";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutos
@@ -94,6 +123,10 @@ export default function DashboardAgente({
     const [registro, setRegistro] = useState(null);
     const [loadingRegistro, setLoadingRegistro] = useState(false);
     const [error, setError] = useState("");
+
+    // DEMO: Mostrar formulario F2 de Gestión Outbound para revisión
+    const [showGestionOutboundDemo, setShowGestionOutboundDemo] =
+        useState(false);
 
     // bloqueado real viene del backend (/auth/me) o por inactividad
     const [bloqueado, setBloqueado] = useState(
@@ -216,6 +249,7 @@ export default function DashboardAgente({
     /* =====================  SIGUIENTE REGISTRO  ===================== */
     const fetchSiguienteRegistro = async (campaignIdOverride = null) => {
         try {
+            const tabSessionId = getOrCreateTabSessionId();
             setLoadingRegistro(true);
             setError("");
             setRegistro(null);
@@ -242,7 +276,10 @@ export default function DashboardAgente({
                     "Content-Type": "application/json",
                     Authorization: token ? `Bearer ${token}` : "",
                 },
-                body: JSON.stringify({ campaignId: campaignIdToUse }),
+                body: JSON.stringify({
+                    campaignId: campaignIdToUse,
+                    tabSessionId,
+                }),
             });
 
             const json = await resp.json();
@@ -262,9 +299,17 @@ export default function DashboardAgente({
                 setDynamicFormDetail(null);
                 setDynamicSurveyConfig(null);
                 setSurveyAnswers({});
-                setError(
-                    json.error || "No hay registros disponibles en tu cola",
-                );
+                // Omitir mensaje de base activa para campañas de Gestión Outbound
+                if (
+                    json.error === "No hay base activa para esta campaña" &&
+                    esGestionOutbound(campaignIdToUse)
+                ) {
+                    setError("");
+                } else {
+                    setError(
+                        json.error || "No hay registros disponibles en tu cola",
+                    );
+                }
                 return;
             }
 
@@ -855,17 +900,23 @@ export default function DashboardAgente({
 
                     {error && <p className="agent-error">{error}</p>}
 
-                    {loadingRegistro && !isHomeView && (
-                        <p className="agent-info-text">Asignando registro...</p>
-                    )}
+                    {loadingRegistro &&
+                        !isHomeView &&
+                        !esGestionOutbound(campaignIdSeleccionada) && (
+                            <p className="agent-info-text">
+                                Asignando registro...
+                            </p>
+                        )}
 
-                    {shouldShowQueueMessage && !isHomeView && (
-                        <p className="agent-info-text">
-                            {estadoAgente === "disponible"
-                                ? "No hay registros disponibles en tu cola en este momento."
-                                : 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'}
-                        </p>
-                    )}
+                    {shouldShowQueueMessage &&
+                        !isHomeView &&
+                        !esGestionOutbound(campaignIdSeleccionada) && (
+                            <p className="agent-info-text">
+                                {estadoAgente === "disponible"
+                                    ? "No hay registros disponibles en tu cola en este momento."
+                                    : 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'}
+                            </p>
+                        )}
 
                     {registro && !isHomeView && (
                         <AgentGestionForm
@@ -899,6 +950,32 @@ export default function DashboardAgente({
                             onSurveyFieldChange={handleSurveyFieldChange}
                         />
                     )}
+                    {/* Mostrar Formulario F2 solo en campañas Out específicas */}
+                    {isAgente &&
+                        (() => {
+                            const label = (
+                                registro?.campania ||
+                                registro?.campaign_name ||
+                                registro?.campaign ||
+                                registro?.nombre_campania ||
+                                registro?.label ||
+                                campaignIdSeleccionada ||
+                                ""
+                            ).toLowerCase();
+                            if (
+                                [
+                                    "out cacpeco",
+                                    "out kullki wasi",
+                                    "out mutualista imbabura",
+                                ].some((l) => label.includes(l))
+                            ) {
+                                return <GestionOutboundDemo />;
+                            }
+                            if (label.includes("out maquita cushunchic")) {
+                                return <OutMaquitaPage />;
+                            }
+                            return null;
+                        })()}
                 </div>
             </section>
         </PageContainer>

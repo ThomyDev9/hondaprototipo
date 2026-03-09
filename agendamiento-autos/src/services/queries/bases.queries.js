@@ -317,36 +317,16 @@ const basesQueries = {
 
     getImportsByCampaignWithState: `
         SELECT
-            MAX(cab.id) AS id,
-            cic.LastUpdate,
-            CASE
-                WHEN MAX(CASE WHEN cab.CampaignId IS NOT NULL THEN 1 ELSE 0 END) = 1
-                    THEN '1'
-                ELSE '0'
-            END AS BaseState,
-            SUM(
-                CASE
-                    WHEN COALESCE(cic.Number, 0) < 6
-                     AND cic.Action IN ('re_llamada', 'sin_contacto', 'numero_incorrecto', 'inubicable')
-                    THEN 1
-                    ELSE 0
-                END
-            ) AS RegistrosReciclables
-        FROM contactimportcontact cic
-        LEFT JOIN campaign_active_base cab
-          ON cab.CampaignId = cic.Campaign
-         AND cab.ImportId = cic.LastUpdate
-        WHERE cic.Campaign = ?
-          AND (cic.TmStmpShift IS NULL OR YEAR(cic.TmStmpShift) >= 2026)
-          AND cic.LastUpdate NOT LIKE '%2019%'
-          AND cic.LastUpdate NOT LIKE '%2020%'
-          AND cic.LastUpdate NOT LIKE '%2021%'
-          AND cic.LastUpdate NOT LIKE '%2022%'
-          AND cic.LastUpdate NOT LIKE '%2023%'
-          AND cic.LastUpdate NOT LIKE '%2024%'
-          AND cic.LastUpdate NOT LIKE '%2025%'
-        GROUP BY cic.LastUpdate
-        ORDER BY cic.LastUpdate DESC
+            id,
+            CampaignId,
+            ImportId AS LastUpdate,
+            State AS BaseState,
+            TotalRegistros,
+            UserShift,
+            UpdatedAt
+        FROM campaign_active_base
+        WHERE CampaignId = ?
+        ORDER BY ImportId DESC
     `,
 
     /**

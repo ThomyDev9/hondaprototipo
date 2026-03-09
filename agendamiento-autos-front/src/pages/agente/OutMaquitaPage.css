@@ -1,0 +1,148 @@
+.outmaquita-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.outmaquita-form-label {
+    font-weight: 600;
+    color: #1a2540;
+    margin-bottom: 2px;
+}
+.outmaquita-form-input,
+.outmaquita-form-select,
+.outmaquita-form-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #1a2540;
+    border-radius: 8px;
+    font-size: 1.08rem;
+    background: #f9fafb;
+    box-shadow: 0 2px 8px #0001;
+    outline: none;
+    transition: border 0.2s;
+}
+.outmaquita-form-input:focus,
+.outmaquita-form-select:focus,
+.outmaquita-form-textarea:focus {
+    border: 2px solid #2d3a5a;
+}
+.outmaquita-form-submit {
+    grid-column: span 2;
+    margin-top: 18px;
+    background: #1a2540;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.outmaquita-form-submit:hover {
+    background: #2d3a5a;
+}
+/* Estilos para OutMaquitaPage */
+.outmaquita-flex-row {
+    display: flex;
+    flex-direction: row;
+    gap: 40px;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 72vh;
+    height: 72vh;
+    box-sizing: border-box;
+}
+.outmaquita-form-panel {
+    height: 100vh;
+    width: 100%;
+    max-height: 90vh;
+    max-width: 900px;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px #0001;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow-y: auto;
+}
+.outmaquita-title {
+    font-size: 2.1rem;
+    font-weight: 200;
+    color: #1a2540;
+    text-align: center;
+}
+.outmaquita-form-wrapper {
+    padding: 0 8px;
+}
+.outmaquita-form {
+    width: auto;
+    background: #8e8d8d;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px 32px;
+}
+.outmaquita-form label {
+    font-weight: 600;
+    color: #1a2540;
+}
+.outmaquita-form input,
+.outmaquita-form select,
+.outmaquita-form textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #c3c7d1;
+    border-radius: 8px;
+    font-size: 1.08rem;
+    background: #f9fafb;
+}
+.outmaquita-form textarea {
+    min-height: 60px;
+}
+.outmaquita-form button[type="submit"] {
+    grid-column: span 2;
+    background: #1a2540;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.outmaquita-form button[type="submit"]:hover {
+    background: #2d3a5a;
+}
+.outmaquita-pdf-panel {
+    height: 72vh;
+    max-height: 72vh;
+    min-width: 600px;
+    max-width: 1100px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px #0001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.outmaquita-pdf-iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 700px;
+    border: 1px solid #222;
+    border-radius: 12px;
+    box-shadow: 0 4px 24px #0002;
+    background: #fff;
+    margin-top: 90px;
+}
+.outmaquita-pdf-empty {
+    color: #888;
+    font-size: 1.2rem;
+    text-align: center;
+}
+.outmaquita-loading,
+.outmaquita-error,
+.outmaquita-nodata {
+    font-size: 1.3rem;
+    color: #1a2540;
+    text-align: center;
+}
