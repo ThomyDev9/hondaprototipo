@@ -12,6 +12,8 @@ services:
       MYSQL_DB_ENCUESTA: bancopichinchaencuesta_dev
     ports:
       - "4004:4004"
+    volumes:
+      - ./agendamiento-autos/uploads:/app/uploads
 
   frontend:
     build:

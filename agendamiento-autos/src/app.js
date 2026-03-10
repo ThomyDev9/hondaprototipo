@@ -1,7 +1,9 @@
+import fs from "node:fs";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { registerRoutes } from "./routes/index.js";
+import path from "node:path";
 
 dotenv.config();
 
@@ -22,6 +24,9 @@ app.options("*", cors());
 
 // Para poder leer JSON en req.body
 app.use(express.json());
+
+// Servir archivos PDF desde /uploads
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Healthcheck
 app.get("/", (req, res) => {
@@ -46,7 +51,17 @@ async function start() {
         process.exit(1);
     }
 }
-
+// Endpoint para listar archivos PDF en uploads
+app.get("/uploads-list", (req, res) => {
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    fs.readdir(uploadsDir, (err, files) => {
+        if (err)
+            return res.status(500).json({ error: "No se pudo leer uploads" });
+        // Solo archivos PDF
+        const pdfs = files.filter((f) => f.toLowerCase().endsWith(".pdf"));
+        res.json(pdfs);
+    });
+});
 start();
 
 export default app;

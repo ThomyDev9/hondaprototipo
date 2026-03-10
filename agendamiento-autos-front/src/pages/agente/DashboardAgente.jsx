@@ -36,7 +36,7 @@ import OutMaquitaPage from "./OutMaquitaPage";
 import { esGestionOutbound } from "../../utils/gestionOutbound";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
-const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutos
+const INACTIVITY_MS = 100 * 600 * 10000; // 10 minutos
 
 const ESTADOS_OPERATIVOS = [
     { code: "disponible", label: "Disponible" },
@@ -247,6 +247,7 @@ export default function DashboardAgente({
     }, [requestedAgentStatus, bloqueado]);
 
     /* =====================  SIGUIENTE REGISTRO  ===================== */
+
     const fetchSiguienteRegistro = async (campaignIdOverride = null) => {
         try {
             const tabSessionId = getOrCreateTabSessionId();
@@ -261,6 +262,17 @@ export default function DashboardAgente({
                 setError(
                     "Selecciona una opción del menú de campañas para cargar registros",
                 );
+                setDynamicFormConfig(null);
+                setDynamicFormDetail(null);
+                setDynamicSurveyConfig(null);
+                setSurveyAnswers({});
+                return;
+            }
+
+            // Solo llamar a /agente/siguiente si NO es gestión outbound
+            if (esGestionOutbound(campaignIdToUse)) {
+                setLoadingRegistro(false);
+                setRegistro(null);
                 setDynamicFormConfig(null);
                 setDynamicFormDetail(null);
                 setDynamicSurveyConfig(null);

@@ -28,3 +28,18 @@ export async function actualizarTrxOut(data) {
     if (!res.ok) throw new Error("No se pudo actualizar el registro");
     return await res.json();
 }
+
+// Servicio para buscar registros por identificación en campaniasoutbound.trxout
+export async function buscarTrxOutPorIdentificacion(identificacion) {
+    const API_BASE = import.meta.env.VITE_API_BASE;
+    const token = localStorage.getItem("access_token") || "";
+    const res = await fetch(`${API_BASE}/agente/trxout/${identificacion}`, {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+        },
+    });
+    if (!res.ok) throw new Error("No se pudo obtener el registro");
+    return await res.json();
+}

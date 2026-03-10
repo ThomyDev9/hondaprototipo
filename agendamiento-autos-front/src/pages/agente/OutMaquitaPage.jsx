@@ -66,53 +66,18 @@ export default function OutMaquitaPage() {
         if (!identificacion) return;
         async function buscarPdf() {
             try {
-                const res = await fetch("http://localhost:8082/");
-                const html = await res.text();
-                // Buscar solo subcarpetas que empiezan con 'pdf'
-                const subcarpetas = Array.from(
-                    html.matchAll(/href="\.?\/?(pdf[^"/]*\/)"/gi),
-                ).map((m) => m[1]);
-                //console.log("Subcarpetas encontradas:", subcarpetas);
-                for (const carpeta of subcarpetas) {
-                    const res2 = await fetch(
-                        `http://localhost:8082/${carpeta}`,
-                    );
-                    const html2 = await res2.text();
-                    const archivos = Array.from(
-                        html2.matchAll(/href="\.?\/?([^"/]+\.pdf)"/gi),
-                    ).map((m) => m[1]);
-                    //console.log(`Archivos en ${carpeta}:`, archivos);
-                    const encontrado = archivos.find((nombre) =>
-                        nombre.includes(identificacion),
-                    );
-                    if (encontrado) {
-                        const url = `http://localhost:8082/${carpeta}${encontrado}`;
-                        //console.log("PDF encontrado en subcarpeta:", url);
-                        setPdfUrl(url);
-                        return;
-                    }
-                }
-                // Buscar también en la raíz
-                const archivosRaiz = Array.from(
-                    html.matchAll(/href="\.?\/?([^"/]+\.pdf)"/gi),
-                ).map((m) => m[1]);
-                console.log("Archivos en raíz:", archivosRaiz);
-                const encontradoRaiz = archivosRaiz.find((nombre) =>
-                    nombre.includes(identificacion),
+                // Obtener listado de archivos PDF desde el backend
+                const res = await fetch("http://localhost:4004/uploads-list");
+                const archivos = await res.json();
+                const encontrado = archivos.find((nombre) =>
+                    nombre.startsWith(identificacion),
                 );
-                if (encontradoRaiz) {
-                    const url = `http://localhost:8082/${encontradoRaiz}`;
-                    console.log("PDF encontrado en raíz:", url);
-                    setPdfUrl(url);
-                    return;
+                if (encontrado) {
+                    setPdfUrl(`http://localhost:4004/uploads/${encontrado}`);
+                } else {
+                    setPdfUrl(null);
                 }
-                console.log(
-                    "No se encontró PDF para la identificación:",
-                    identificacion,
-                );
-                setPdfUrl(null);
             } catch (e) {
-                console.error("Error buscando PDF:", e);
                 setPdfUrl(null);
             }
         }
@@ -165,12 +130,80 @@ export default function OutMaquitaPage() {
 
     if (loading) return null;
     if (error) return <div className="outmaquita-error">{error}</div>;
-    if (!registro)
+
+    // Mostrar solo el formulario de búsqueda si no hay registro
+    if (!registro) {
         return (
-            <div className="outmaquita-nodata">
-                No hay registros disponibles.
+            <div className="outmaquita-flex-row">
+                <div className="outmaquita-form-panel">
+                    <h1 className="outmaquita-title">Out Maquita Cushunchic</h1>
+                    <div>
+                        <input
+                            type="text"
+                            placeholder="Buscar por identificación"
+                            value={busquedaId}
+                            onChange={(e) => setBusquedaId(e.target.value)}
+                            maxLength={20}
+                            style={{ flex: 1, padding: 6 }}
+                        />
+                        <button
+                            type="button"
+                            disabled={buscando || !busquedaId}
+                            onClick={async () => {
+                                setBuscando(true);
+                                setError("");
+                                try {
+                                    let data =
+                                        await buscarTrxOutPorIdentificacion(
+                                            busquedaId,
+                                        );
+                                    if (!data) {
+                                        const all = await fetchOutMaquitaData();
+                                        data =
+                                            all.find(
+                                                (r) =>
+                                                    (r["Nº de cédula"] ||
+                                                        r.Identificacion) ===
+                                                    busquedaId,
+                                            ) || null;
+                                    }
+                                    if (data) {
+                                        setRegistro(data);
+                                        let id =
+                                            data.identificacion ||
+                                            data.Identificacion ||
+                                            data["Nº de cédula"] ||
+                                            "";
+                                        setTimeout(() => {
+                                            setPdfUrl(null);
+                                            setSelectedMotivo(
+                                                data.motivoInteraccion ||
+                                                    data.MotivoLlamada ||
+                                                    "",
+                                            );
+                                        }, 0);
+                                    } else {
+                                        setRegistro(null);
+                                        setPdfUrl(null);
+                                        setSelectedMotivo("");
+                                        setError(
+                                            "No se encontró registro para esa identificación.",
+                                        );
+                                    }
+                                } catch {
+                                    setError("Error buscando registro");
+                                } finally {
+                                    setBuscando(false);
+                                }
+                            }}
+                        >
+                            {buscando ? "Buscando..." : "Buscar"}
+                        </button>
+                    </div>
+                </div>
             </div>
         );
+    }
 
     // Soporta ambos casos: carga automática (Google Sheets) y búsqueda (trxout)
     const initialValues = {
@@ -227,9 +260,9 @@ export default function OutMaquitaPage() {
     return (
         <div className="outmaquita-flex-row">
             <div className="outmaquita-form-panel">
-                <h2 className="outmaquita-title">Out Maquita Cushunchic</h2>
+                <h1 className="outmaquita-title">Out Maquita Cushunchic</h1>
                 {/* Campo de búsqueda por identificación */}
-                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <div>
                     <input
                         type="text"
                         placeholder="Buscar por identificación"
