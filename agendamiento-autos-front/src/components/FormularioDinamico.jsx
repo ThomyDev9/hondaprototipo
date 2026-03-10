@@ -2,8 +2,10 @@ import React from "react";
 
 export default function FormularioDinamico({
     template,
-    onSubmit,
+    onGuardar,
+    onActualizar,
     initialValues,
+    esUpdate = false,
 }) {
     const [form, setForm] = React.useState(() => {
         const initial = {};
@@ -21,13 +23,17 @@ export default function FormularioDinamico({
         }
     };
 
-    const handleSubmit = (e) => {
+    const handleGuardar = (e) => {
         e.preventDefault();
-        onSubmit?.(form);
+        onGuardar?.(form);
+    };
+    const handleActualizar = (e) => {
+        e.preventDefault();
+        onActualizar?.(form);
     };
 
     return (
-        <form onSubmit={handleSubmit} className="outmaquita-form">
+        <form className="outmaquita-form">
             {template.map((field) => (
                 <div key={field.name} className="outmaquita-form-field">
                     <label className="outmaquita-form-label">
@@ -73,9 +79,23 @@ export default function FormularioDinamico({
                     )}
                 </div>
             ))}
-            <button type="submit" className="outmaquita-form-submit">
-                Guardar
-            </button>
+            {esUpdate ? (
+                <button
+                    type="button"
+                    className="outmaquita-form-submit"
+                    onClick={handleActualizar}
+                >
+                    Actualizar
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    className="outmaquita-form-submit"
+                    onClick={handleGuardar}
+                >
+                    Guardar
+                </button>
+            )}
         </form>
     );
 }

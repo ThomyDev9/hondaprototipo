@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
+import { AuthContext } from "./context/AuthContext";
 import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
 import DashboardAgente from "./pages/agente/DashboardAgente";
@@ -17,7 +18,7 @@ function App() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [userInfo, setUserInfo] = useState(null);
+    const { userInfo, setUserInfo } = useContext(AuthContext);
 
     // 'administrar-bases' | 'campanias' | 'management-levels' | 'users' | 'settings'
     const [adminPage, setAdminPage] = useState("administrar-bases");

@@ -1312,13 +1312,19 @@ router.post("/trxout", requireAuth, async (req, res) => {
         SubmotivoLlamada = null,
         Observaciones = null,
         AgentShift = "",
-        TmStmpShift = "",
+        TmStmpShift,
     } = req.body;
+    // Si TmStmpShift no viene o es inválido, poner fecha actual
+    const safeTmStmpShift =
+        TmStmpShift && TmStmpShift !== "0000-00-00 00:00:00"
+            ? TmStmpShift
+            : new Date();
     try {
+        // Insertar en trxout
         const [result] = await pool.query(
             `INSERT INTO campaniasoutbound.trxout
-            (ID, Agent, StartedManagement, TmStmp, Cooperativa, TipoCampania, Identificacion, NombreCliente, Celular, MotivoLlamada, SubmotivoLlamada, Observaciones, AgentShift, TmStmpShift)
-            VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (Agent, StartedManagement, TmStmp, Cooperativa, TipoCampania, Identificacion, NombreCliente, Celular, MotivoLlamada, SubmotivoLlamada, Observaciones, AgentShift, TmStmpShift)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 Agent,
                 StartedManagement,
@@ -1332,9 +1338,30 @@ router.post("/trxout", requireAuth, async (req, res) => {
                 SubmotivoLlamada,
                 Observaciones,
                 AgentShift,
-                TmStmpShift,
+                safeTmStmpShift,
             ],
         );
+        // Insertar en trxouthistorico usando el siguiente ID disponible
+        const [[{ maxId }]] = await pool.query(
+            "SELECT IFNULL(MAX(ID), 0) AS maxId FROM campaniasoutbound.trxouthistorico",
+        );
+        const nextId = maxId + 1;
+        console.log("[HISTORICO][POST] Insertando en trxouthistorico", {
+            nextId,
+            Agent,
+            StartedManagement,
+            TmStmp,
+            Cooperativa,
+            TipoCampania,
+            Identificacion,
+            NombreCliente,
+            Celular,
+            MotivoLlamada,
+            SubmotivoLlamada,
+            Observaciones,
+            AgentShift,
+            safeTmStmpShift,
+        });
         res.json({ success: true, insertId: result.insertId });
     } catch (err) {
         console.error("[ERROR] Error en POST /agente/trxout:", err);
@@ -1357,8 +1384,13 @@ router.put("/trxout", requireAuth, async (req, res) => {
         SubmotivoLlamada = null,
         Observaciones = null,
         AgentShift = "",
-        TmStmpShift = "",
+        TmStmpShift,
     } = req.body;
+    // Si TmStmpShift no viene o es inválido, poner fecha actual
+    const safeTmStmpShift =
+        TmStmpShift && TmStmpShift !== "0000-00-00 00:00:00"
+            ? TmStmpShift
+            : new Date();
     if (!Identificacion) {
         return res
             .status(400)
@@ -1392,7 +1424,7 @@ router.put("/trxout", requireAuth, async (req, res) => {
                 SubmotivoLlamada,
                 Observaciones,
                 AgentShift,
-                TmStmpShift,
+                safeTmStmpShift,
                 Identificacion,
             ],
         );

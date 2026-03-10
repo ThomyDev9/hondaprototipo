@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useContext, useRef } from "react";
+import { AuthContext } from "../../context/AuthContext";
 import { formF2Template } from "../../templates/formF2Template";
 import { fetchTiposCampaniaOutMaquita } from "../../services/tiposCampania.service";
 import FormularioDinamico from "../../components/FormularioDinamico";
@@ -12,6 +13,11 @@ import "./OutMaquitaPage.css";
 
 // import { listarNivelesGestion } from "../../services/managementLevels.service";
 export default function OutMaquitaPage() {
+    const { userInfo } = useContext(AuthContext);
+    const startedManagementRef = useRef(null);
+    React.useEffect(() => {
+        startedManagementRef.current = new Date();
+    }, []);
     const [busquedaId, setBusquedaId] = React.useState("");
     const [buscando, setBuscando] = React.useState(false);
     const [registro, setRegistro] = React.useState(null);
@@ -332,19 +338,21 @@ export default function OutMaquitaPage() {
                     <FormularioDinamico
                         key={JSON.stringify(initialValues)}
                         template={dynamicTemplate}
-                        onSubmit={async (formData) => {
+                        initialValues={initialValues}
+                        className="outmaquita-form"
+                        onGuardar={async (formData) => {
                             try {
-                                // Determinar si es insert o update
-                                const esUpdate = !!(
-                                    registro?.Identificacion ||
-                                    registro?.identificacion
-                                );
-                                // Mapear los campos del formulario a los de la tabla
+                                const agent = userInfo?.username || "";
+                                const startedManagement =
+                                    startedManagementRef.current
+                                        ? startedManagementRef.current.toISOString()
+                                        : null;
+                                const tmStmp = new Date().toISOString();
                                 const payload = {
-                                    Agent: "",
-                                    StartedManagement: null,
-                                    TmStmp: null,
-                                    Cooperativa: "",
+                                    Agent: agent,
+                                    StartedManagement: startedManagement,
+                                    TmStmp: tmStmp,
+                                    Cooperativa: "Out Maquita Cushunchic",
                                     TipoCampania: formData.tipoCampana || null,
                                     Identificacion:
                                         formData.identificacion || null,
@@ -360,23 +368,52 @@ export default function OutMaquitaPage() {
                                     AgentShift: "",
                                     TmStmpShift: "",
                                 };
-                                if (esUpdate) {
-                                    await actualizarTrxOut(payload);
-                                    setError(
-                                        "Registro actualizado correctamente",
-                                    );
-                                } else {
-                                    await insertarTrxOut(payload);
-                                    setError(
-                                        "Registro insertado correctamente",
-                                    );
-                                }
+                                await insertarTrxOut(payload);
+                                setError("Registro insertado correctamente");
                             } catch (e) {
                                 setError("Error guardando registro");
                             }
                         }}
-                        initialValues={initialValues}
-                        className="outmaquita-form"
+                        onActualizar={async (formData) => {
+                            try {
+                                const agent = userInfo?.username || "";
+                                const startedManagement =
+                                    startedManagementRef.current
+                                        ? startedManagementRef.current.toISOString()
+                                        : null;
+                                const tmStmp = new Date().toISOString();
+                                const payload = {
+                                    Agent: agent,
+                                    StartedManagement: startedManagement,
+                                    TmStmp: tmStmp,
+                                    Cooperativa: "Out Maquita Cushunchic",
+                                    TipoCampania: formData.tipoCampana || null,
+                                    Identificacion:
+                                        formData.identificacion || null,
+                                    NombreCliente:
+                                        formData.apellidosNombres || null,
+                                    Celular: formData.celular || null,
+                                    MotivoLlamada:
+                                        formData.motivoInteraccion || null,
+                                    SubmotivoLlamada:
+                                        formData.submotivoInteraccion || null,
+                                    Observaciones:
+                                        formData.observaciones || null,
+                                    AgentShift: "",
+                                    TmStmpShift: "",
+                                };
+                                await actualizarTrxOut(payload);
+                                setError("Registro actualizado correctamente");
+                            } catch (e) {
+                                setError("Error actualizando registro");
+                            }
+                        }}
+                        esUpdate={
+                            !!(
+                                registro?.Identificacion ||
+                                registro?.identificacion
+                            )
+                        }
                     />
                 </div>
             </div>
