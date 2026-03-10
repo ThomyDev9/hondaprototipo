@@ -72,14 +72,15 @@ export default function OutMaquitaPage() {
         if (!identificacion) return;
         async function buscarPdf() {
             try {
+                const API_BASE = import.meta.env.VITE_API_BASE;
                 // Obtener listado de archivos PDF desde el backend
-                const res = await fetch("http://localhost:4004/uploads-list");
+                const res = await fetch(`${API_BASE}/uploads-list`);
                 const archivos = await res.json();
                 const encontrado = archivos.find((nombre) =>
                     nombre.startsWith(identificacion),
                 );
                 if (encontrado) {
-                    setPdfUrl(`http://localhost:4004/uploads/${encontrado}`);
+                    setPdfUrl(`${API_BASE}/uploads/${encontrado}`);
                 } else {
                     setPdfUrl(null);
                 }
