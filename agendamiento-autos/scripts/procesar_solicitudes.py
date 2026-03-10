@@ -39,7 +39,7 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxVLT-9LoM2Gh8OduwZt_GFPft
 # ==============================
 
 fecha_hoy = date.today().strftime("%Y-%m-%d")
-network_base = r"\\172.19.10.8\Gestion_Outbound\MAQUITA"
+network_base = "/app/maquita"
 pdf_folder = os.path.join(network_base, f"pdf_{fecha_hoy}")
 os.makedirs(pdf_folder, exist_ok=True)
 
