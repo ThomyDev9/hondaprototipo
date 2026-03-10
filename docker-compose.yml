@@ -30,13 +30,15 @@ services:
       - backend
 
   procesador:
-    image: python:3.11-slim
+    build:
+      context: ./agendamiento-autos/scripts
+      dockerfile: Dockerfile
+    image: honda-procesador-custom
     container_name: honda-procesador
     restart: always
     volumes:
-      - ./agendamiento-autos/scripts:/app/scripts
       - ./agendamiento-autos/uploads:/app/uploads
     environment:
       UPLOADS_PATH: /app/uploads
     working_dir: /app/scripts
-    command: ["/app/scripts/run_loop.sh"]
+    command: ["/bin/sh", "run_loop.sh"]

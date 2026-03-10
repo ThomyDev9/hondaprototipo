@@ -1,3 +1,0 @@
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-*/5 * * * * /usr/local/bin/python3 /app/scripts/procesar_solicitudes.py >> /app/scripts/procesar_solicitudes.log 2>&1
