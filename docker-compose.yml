@@ -10,6 +10,7 @@ services:
     environment:
       MYSQL_DB: cck_dev
       MYSQL_DB_ENCUESTA: bancopichinchaencuesta_dev
+      UPLOADS_PATH: /app/uploads
     ports:
       - "4004:4004"
     volumes:
@@ -27,3 +28,16 @@ services:
       - "5173:80"
     depends_on:
       - backend
+
+  procesador:
+    image: python:3.11-slim
+    container_name: honda-procesador
+    restart: always
+    volumes:
+      - ./agendamiento-autos/scripts:/app/scripts
+      - ./agendamiento-autos/uploads:/app/uploads
+    environment:
+      UPLOADS_PATH: /app/uploads
+    working_dir: /app/scripts
+    command: >
+      sh -c "apt-get update && apt-get install -y cron && pip install requests && crontab /app/scripts/procesar_solicitudes_cron && cron -f"
