@@ -1,4 +1,7 @@
 import imaplib
+import datetime
+
+print("Ejecución:", datetime.datetime.now(), flush=True)
 import email
 import re
 import os
