@@ -39,5 +39,4 @@ services:
     environment:
       UPLOADS_PATH: /app/uploads
     working_dir: /app/scripts
-    command: >
-      sh -c "apt-get update && apt-get install -y cron && pip install requests && crontab /app/scripts/procesar_solicitudes_cron && cron -f"
+    command: ["/app/scripts/run_loop.sh"]
