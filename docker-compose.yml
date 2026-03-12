@@ -28,17 +28,3 @@ services:
       - "5173:80"
     depends_on:
       - backend
-
-  procesador:
-    build:
-      context: ./agendamiento-autos/scripts
-      dockerfile: Dockerfile
-    image: honda-procesador-custom
-    container_name: honda-procesador
-    restart: always
-    volumes:
-      - ./agendamiento-autos/uploads:/app/uploads
-    environment:
-      UPLOADS_PATH: /app/uploads
-    working_dir: /app/scripts
-    command: ["/bin/sh", "run_loop.sh"]
