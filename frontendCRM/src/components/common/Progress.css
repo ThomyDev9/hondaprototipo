@@ -1,0 +1,47 @@
+/* Progress Component */
+
+.progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.progress__outer {
+    flex: 1;
+    height: 0.5rem;
+    background-color: #e5e7eb;
+    border-radius: 0.25rem;
+    overflow: hidden;
+    position: relative;
+    min-width: 100px;
+}
+
+.progress__inner {
+    height: 100%;
+    background: linear-gradient(90deg, #16a34a, #4ade80);
+    border-radius: 0.25rem;
+    transition: width 0.3s ease;
+}
+
+.progress__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+    min-width: 2.5rem;
+    text-align: right;
+}
+
+@media (max-width: 768px) {
+    .progress {
+        gap: 0.25rem;
+    }
+
+    .progress__outer {
+        min-width: 60px;
+    }
+
+    .progress__label {
+        font-size: 0.7rem;
+        min-width: 2rem;
+    }
+}

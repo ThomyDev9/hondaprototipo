@@ -1,0 +1,43 @@
+/* Card Component */
+
+.card {
+    padding: 0.9rem 1rem;
+    border-radius: 0.75rem;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.card--highlight {
+    background-color: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.card__label {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.card__value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+@media (max-width: 768px) {
+    .card {
+        padding: 0.75rem 0.9rem;
+        border-radius: 0.5rem;
+    }
+
+    .card__label {
+        font-size: 0.75rem;
+    }
+
+    .card__value {
+        font-size: 1.1rem;
+    }
+}

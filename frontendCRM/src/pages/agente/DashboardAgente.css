@@ -1,0 +1,137 @@
+.agent-base-cards {
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid #1e6fd2;
+    border-radius: 0.65rem;
+    background: #f8fafc;
+}
+
+.agent-base-cards--home {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.agent-base-cards__title {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #1e293b;
+}
+
+.agent-base-cards__subtitle {
+    margin: 0.2rem 0 0.6rem;
+    font-size: 0.8rem;
+    color: #475569;
+}
+
+.agent-base-cards__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.55rem;
+    align-content: start;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 0.2rem;
+}
+
+.agent-base-card {
+    border: 1px solid #dbeafe;
+    border-radius: 0.6rem;
+    background: #f8fafc;
+    padding: 0.55rem 0.9rem 0.9rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    box-shadow: 0 2px 8px 0 rgba(30, 58, 138, 0.06);
+    min-width: 0;
+    max-width: 320px;
+    transition: box-shadow 0.18s;
+}
+
+.agent-base-card--compact {
+    padding: 0.45rem 0.7rem 0.7rem 0.7rem;
+    max-width: 270px;
+}
+
+.agent-base-card__header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.2rem;
+}
+
+.agent-base-card__icon {
+    font-size: 1.5rem;
+    color: #2563eb;
+    flex-shrink: 0;
+}
+
+.agent-base-card__campaign {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.agent-base-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin-bottom: 0.3rem;
+}
+
+.agent-base-card__metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #334155;
+    background: #e0e7ef;
+    border-radius: 0.35rem;
+    padding: 0.18rem 0.6rem;
+    margin-bottom: 0.1rem;
+}
+.agent-base-card__metric--main {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2563eb;
+    background: #e0e7ef;
+    margin-bottom: 0.18rem;
+}
+.agent-base-card__metric-label {
+    font-size: 0.82em;
+    color: #64748b;
+    font-weight: 500;
+}
+.agent-base-card__metric-value {
+    font-size: 1em;
+    font-weight: 700;
+    color: #1e293b;
+}
+.agent-base-card__button {
+    margin-top: 0.25rem;
+    align-self: flex-end;
+    padding: 0.32rem 1.1rem;
+    font-size: 0.92em;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2563eb 60%, #1e40af 100%);
+    box-shadow: 0 1px 4px 0 rgba(30, 64, 175, 0.08);
+}
+
+.agent-base-card__campaign {
+    margin: 0;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #1e3a8a;
+}
+
+.agent-base-card__import,
+.agent-base-card__metrics {
+    margin: 0;
+    font-size: 0.78rem;
+    color: #334155;
+}

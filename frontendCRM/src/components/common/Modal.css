@@ -1,0 +1,133 @@
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-card {
+    background-color: white;
+    border-radius: 1.25rem;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 20px 25px rgba(0, 0, 0, 0.15);
+    /* limit modal height on desktop and allow internal scrolling when content exceeds */
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Tamaños */
+.modal-sm {
+    width: 90%;
+    max-width: 400px;
+}
+
+.modal-md {
+    width: 92%;
+    max-width: 700px;
+}
+
+.modal-lg {
+    width: min(96%, 1000px);
+    max-width: 1000px;
+    padding: 0; /* content padding handled by .modal-content */
+}
+
+.modal-xl {
+    width: min(98%, 1200px);
+    max-width: 1200px;
+}
+
+/* Header */
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 1rem;
+}
+
+.modal-header h2 {
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: #0f172a;
+    margin: 0;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.modal-close-btn:hover {
+    background-color: #f3f4f6;
+    color: #0f172a;
+}
+
+/* Content */
+.modal-content {
+    padding: 1rem 1.25rem;
+    box-sizing: border-box;
+    width: 100%;
+    display: flex;
+    justify-content: center; /* center inner form */
+    align-items: flex-start;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .modal-lg,
+    .modal-xl {
+        width: 94%;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .modal-card {
+        /* enable internal scrolling on small screens */
+        max-height: 95vh;
+        overflow-y: auto;
+    }
+
+    .modal-sm,
+    .modal-md,
+    .modal-lg,
+    .modal-xl {
+        width: 96%;
+        max-width: 100%;
+    }
+    .modal-content {
+        padding: 1rem;
+    }
+}

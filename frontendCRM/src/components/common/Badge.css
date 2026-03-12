@@ -1,0 +1,47 @@
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Variantes */
+
+/** Primary (Azul) */
+.badge-primary {
+    background-color: #eff6ff;
+    color: #1d4ed8;
+}
+
+/* Success (Verde) */
+.badge-success {
+    background-color: #ecfdf3;
+    color: #15803d;
+}
+
+/* Danger (Rojo) */
+.badge-danger {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+/* Warning (Amarillo) */
+.badge-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+/* Info (Cian) */
+.badge-info {
+    background-color: #cffafe;
+    color: #0c4a6e;
+}
+
+/* Secondary (Gris) */
+.badge-secondary {
+    background-color: #f3f4f6;
+    color: #4b5563;
+}
