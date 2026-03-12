@@ -1,0 +1,57 @@
+.outhonda-form {
+    width: 100%;
+    max-width: 800px;
+    background: #a9a9a9;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+.outhonda-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.outhonda-form-label {
+    font-weight: 600;
+    color: #1a2540;
+}
+.outhonda-form-input,
+.outhonda-form-select,
+.outhonda-form-textarea {
+    width: 100%;
+
+    border: 1.5px solid #1a2540;
+    border-radius: 8px;
+    font-size: 1.08rem;
+    background: #f9fafb;
+    box-shadow: 0 2px 8px #0001;
+    outline: none;
+    transition: border 0.2s;
+}
+.outhonda-form-input:focus,
+.outhonda-form-select:focus,
+.outhonda-form-textarea:focus {
+    border: 2px solid #2d3a5a;
+}
+.outhonda-form-submit {
+    grid-column: span 2;
+    background: #1a2540;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.15rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.outhonda-form-submit:hover {
+    background: #2d3a5a;
+}
+.outhonda-form-3col {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 26px;
+}
+.outhonda-form-3col .outhonda-form-field {
+    grid-column: auto;
+}

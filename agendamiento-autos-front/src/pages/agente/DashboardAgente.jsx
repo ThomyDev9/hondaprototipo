@@ -33,6 +33,7 @@ import GestionOutboundDemo from "./GestionOutboundDemo";
 import { obtenerPlantillasDinamicas } from "../../services/formTemplate.service";
 import "./DashboardAgente.css";
 import OutMaquitaPage from "./OutMaquitaPage";
+import OutHondaPage from "./OutHondaPage";
 import { esGestionOutbound } from "../../utils/gestionOutbound";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -220,8 +221,19 @@ export default function DashboardAgente({
             return;
         }
 
+        // Excluir campañas Out que no usan autoasignación
+        const label = String(selectedCampaignId || "").toLowerCase();
+        const isOutManual = [
+            "out maquita cushunchic",
+            "out honda",
+            "out cacpeco",
+            "out kullki wasi",
+            "out mutualista imbabura",
+        ].some((l) => label.includes(l));
         setCampaignIdSeleccionada(selectedCampaignId);
-        fetchSiguienteRegistro(selectedCampaignId);
+        if (!isOutManual) {
+            fetchSiguienteRegistro(selectedCampaignId);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedCampaignId, selectedCampaignTick, bloqueado, agentPage]);
 
@@ -836,7 +848,21 @@ export default function DashboardAgente({
 
     const hasCampaignSelection = Boolean(campaignIdSeleccionada);
     const shouldShowQueueMessage =
-        !loadingRegistro && !registro && hasCampaignSelection && !error;
+        !loadingRegistro &&
+        !registro &&
+        hasCampaignSelection &&
+        !error &&
+        ![
+            "out maquita cushunchic",
+            "out honda",
+            "out cacpeco",
+            "out kullki wasi",
+            "out mutualista imbabura",
+        ].some((l) =>
+            String(campaignIdSeleccionada || "")
+                .toLowerCase()
+                .includes(l),
+        );
     const isHomeView = agentPage === "inicio";
 
     let activeBaseCardsContent = null;
@@ -985,6 +1011,9 @@ export default function DashboardAgente({
                             }
                             if (label.includes("out maquita cushunchic")) {
                                 return <OutMaquitaPage />;
+                            }
+                            if (label.includes("out honda")) {
+                                return <OutHondaPage />;
                             }
                             return null;
                         })()}

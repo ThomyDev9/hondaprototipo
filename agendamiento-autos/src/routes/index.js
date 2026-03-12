@@ -77,13 +77,6 @@ export const routeRegistry = [
         description: "Funcionalidades del supervisor",
     },
 
-    // Shared Module (Mapping & Campaign)
-    {
-        path: "/mapping",
-        module: () => import("./shared/mapping.js"),
-        description: "Gestión de mapeos",
-    },
-
     {
         path: "/campaigns",
         module: () => import("./shared/campaign.js"),

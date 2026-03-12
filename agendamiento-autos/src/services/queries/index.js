@@ -22,7 +22,6 @@
 // Importar queries por módulo
 import userQueries from "./user.queries.js";
 import basesQueries from "./bases.queries.js";
-import mappingQueries from "./mapping.queries.js";
 import campaignQueries from "./campaign.queries.js";
 import sharedQueries from "./shared.queries.js";
 import agenteQueries from "./agente.queries.js";
@@ -31,7 +30,6 @@ import agenteQueries from "./agente.queries.js";
 export {
     userQueries,
     basesQueries,
-    mappingQueries,
     campaignQueries,
     sharedQueries,
     agenteQueries,
@@ -41,7 +39,6 @@ export {
 export const allQueries = {
     user: userQueries,
     bases: basesQueries,
-    mapping: mappingQueries,
     campaign: campaignQueries,
     shared: sharedQueries,
     agente: agenteQueries,
