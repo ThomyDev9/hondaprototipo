@@ -19,6 +19,7 @@ export const formF2Template = [
         required: true,
         options: [
             { value: "out-cacpeco", label: "Out Cacpeco" },
+            { value: "out-honda", label: "Out Honda" },
             { value: "out-kullki-wasi", label: "Out Kullki Wasi" },
             {
                 value: "out-mutualista-imbabura",

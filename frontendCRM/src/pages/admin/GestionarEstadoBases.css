@@ -1,0 +1,32 @@
+.gestionar-bases-form {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    align-items: stretch;
+    margin: 0 auto;
+    min-width: 0;
+    background: #fff;
+    border-radius: 1rem;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+.gestionar-bases-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    width: 100%;
+}
+
+.gestionar-bases-form .manage-bases-full-row {
+    grid-column: 1 / -1;
+}
+
+.gestionar-bases-form .manage-bases-empty {
+    text-align: center;
+    color: #64748b;
+    padding: 2rem 0;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Select } from "../../components/common";
 import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
-import "./CargarBases.css";
+import "./ReciclarBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -67,26 +67,39 @@ export default function ReciclarBases() {
                     );
                 }
 
-                const options = [];
-
-                // Solo mostrar bases que tengan registros reciclables con LastManagementResult válido
-                // Los valores válidos son: 60, 61, 62, 63, 64, 34
-                for (const item of json.importaciones || []) {
-                    const importId = String(item?.LastUpdate || "").trim();
-                    if (!importId) continue;
-
-                    // Si el backend no trae el detalle, se debe filtrar en el backend, pero aquí asumimos que RegistrosReciclables ya considera esos estados
-                    const reciclables = Number(item?.RegistrosReciclables || 0);
-                    // Si hay reciclables, mostrar la base
-                    if (reciclables > 0) {
-                        options.push({
-                            id: importId,
-                            label: `${importId} (${reciclables} reciclables)`,
-                        });
-                    }
-                }
-
-                setBasesOptions(options);
+                // Nueva lógica: consultar el endpoint de reciclables-count para cada base
+                const options = await Promise.all(
+                    (json.importaciones || []).map(async (item) => {
+                        const importId = String(item?.LastUpdate || "").trim();
+                        if (!importId) return null;
+                        try {
+                            const token =
+                                localStorage.getItem("access_token") || "";
+                            const resp = await fetch(
+                                `${API_BASE}/bases/${encodeURIComponent(subcampaniaSeleccionada)}/${encodeURIComponent(importId)}/reciclables-count`,
+                                {
+                                    headers: {
+                                        Authorization: token
+                                            ? `Bearer ${token}`
+                                            : "",
+                                    },
+                                },
+                            );
+                            const data = await resp.json().catch(() => ({}));
+                            const reciclables = Number(data?.reciclables || 0);
+                            if (reciclables > 0) {
+                                return {
+                                    id: importId,
+                                    label: `${importId} (${reciclables} reciclables)`,
+                                };
+                            }
+                        } catch (e) {
+                            // Si falla, no mostrar la base
+                        }
+                        return null;
+                    }),
+                );
+                setBasesOptions(options.filter(Boolean));
 
                 let stillExists = false;
                 for (const option of options) {
@@ -209,7 +222,7 @@ export default function ReciclarBases() {
 
     return (
         <div className="wrapper manage-bases-wrapper">
-            <div className="form reciclar-bases-row">
+            <div className="reciclar-bases-form">
                 <Select
                     label="Campaña"
                     options={campaniaPadreOptions}

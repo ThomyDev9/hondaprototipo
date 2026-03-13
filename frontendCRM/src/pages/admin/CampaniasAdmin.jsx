@@ -10,7 +10,7 @@ import {
     Badge,
 } from "../../components/common";
 import VerCampaniasActivas from "./VerCampaniasActivas";
-import "./CargarBases.css";
+import "./CampaniasAdmin.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -465,65 +465,52 @@ function AdministrarEstadoCampanias({ reloadToken }) {
         adminTarget === "campanias"
             ? "No hay campañas"
             : "No hay subcampañas para esta campaña";
-    const subcampaignSuffix = selectedCampaign
-        ? ` de ${selectedCampaign.nombre}`
-        : "";
-    const tableTitle =
-        adminTarget === "campanias"
-            ? "Campañas"
-            : `Subcampañas${subcampaignSuffix}`;
-
     return (
-        <div className="wrapper">
+        <div className="form manage-bases-compact-row">
             {alert && <Alert type={alert.type} message={alert.message} />}
 
-            <div className="form manage-bases-compact-row">
+            <Select
+                label="Qué deseas administrar"
+                options={[
+                    { id: "campanias", label: "Campañas" },
+                    { id: "subcampanias", label: "Subcampañas" },
+                ]}
+                value={adminTarget}
+                onChange={(value) => {
+                    setAdminTarget(value);
+                    if (value === "campanias") {
+                        setSelectedCampaignId("");
+                    }
+                }}
+                placeholder="Selecciona opción"
+                required
+            />
+
+            {adminTarget === "subcampanias" && (
                 <Select
-                    label="Qué deseas administrar"
-                    options={[
-                        { id: "campanias", label: "Campañas" },
-                        { id: "subcampanias", label: "Subcampañas" },
-                    ]}
-                    value={adminTarget}
-                    onChange={(value) => {
-                        setAdminTarget(value);
-                        if (value === "campanias") {
-                            setSelectedCampaignId("");
-                        }
-                    }}
-                    placeholder="Selecciona opción"
+                    label="Campaña"
+                    options={campaignOptions}
+                    value={selectedCampaignId}
+                    onChange={setSelectedCampaignId}
+                    placeholder="Selecciona campaña"
                     required
                 />
+            )}
 
-                {adminTarget === "subcampanias" && (
-                    <Select
-                        label="Campaña"
-                        options={campaignOptions}
-                        value={selectedCampaignId}
-                        onChange={setSelectedCampaignId}
-                        placeholder="Selecciona campaña"
-                        required
-                    />
-                )}
-            </div>
-
-            <div className="previewBox">
-                <h3 className="previewTitle">{tableTitle}</h3>
-                {adminTarget === "subcampanias" && !selectedCampaignId ? (
-                    <div className="manage-bases-empty">
-                        Selecciona una campaña para ver sus subcampañas.
-                    </div>
-                ) : (
-                    <Table
-                        columns={tableColumns}
-                        data={tableData}
-                        keyField="id"
-                        actions={tableActions}
-                        loading={loading}
-                        noDataMessage={tableNoDataMessage}
-                    />
-                )}
-            </div>
+            {adminTarget === "subcampanias" && !selectedCampaignId ? (
+                <div className="manage-bases-empty">
+                    Selecciona una campaña para ver sus subcampañas.
+                </div>
+            ) : (
+                <Table
+                    columns={tableColumns}
+                    data={tableData}
+                    keyField="id"
+                    actions={tableActions}
+                    loading={loading}
+                    noDataMessage={tableNoDataMessage}
+                />
+            )}
         </div>
     );
 }

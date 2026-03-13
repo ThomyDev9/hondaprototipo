@@ -31,3 +31,9 @@
         width: 100%;
     }
 }
+
+.tabla-formulario-honda td,
+.tabla-formulario-honda th {
+    padding: 4px 6px;
+    font-size: 12px;
+}

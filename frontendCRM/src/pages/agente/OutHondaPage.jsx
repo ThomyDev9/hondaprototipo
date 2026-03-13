@@ -2,18 +2,12 @@ import React, { useContext, useRef, useEffect, useState } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import { formF2Template } from "../../templates/formF2Template";
 import { fetchTiposCampaniaOutHonda } from "../../services/tiposCampania.service";
-// import FormularioDinamico from "../../components/FormularioDinamico";
 import FormularioDinamicoReseteable from "../../components/FormularioDinamicoReseteable";
-import {
-    insertarTrxOut,
-    actualizarTrxOut,
-} from "../../services/trxout.service";
 import { buscarTrxOutPorIdentificacion } from "../../services/buscarTrxOut.service";
 import {
     fetchSheetAsJson,
     fetchDatosWebSheet,
 } from "../../services/webSheet.service";
-// No PDF panel aquí
 import "./OutHondaPage.css";
 
 export default function OutHondaPage() {
@@ -32,7 +26,39 @@ export default function OutHondaPage() {
     const [selectedMotivo, setSelectedMotivo] = React.useState("");
     const [levels, setLevels] = React.useState([]);
     const [tiposCampania, setTiposCampania] = React.useState([]);
-    // Obtener tipos de campaña dinámicamente
+    // Estado para mostrar resumen después de guardar
+    const [resumenExcel, setResumenExcel] = useState(null);
+    // Cargar motivos y submotivos de la base de datos al inicio (sin identificación)
+    React.useEffect(() => {
+        async function fetchMotivosGlobales() {
+            try {
+                const API_BASE = import.meta.env.VITE_API_BASE;
+                const token = localStorage.getItem("access_token") || "";
+                const res = await fetch(
+                    `${API_BASE}/agente/form-catalogos?campaignId=Out%20Honda&contactId=`,
+                    {
+                        headers: {
+                            Authorization: token ? `Bearer ${token}` : "",
+                        },
+                    },
+                );
+                const json = await res.json();
+                const levelsData = Array.isArray(json.levels)
+                    ? json.levels
+                    : [];
+                setLevels(levelsData);
+                const level1s = [
+                    ...new Set(levelsData.map((n) => n.level1).filter(Boolean)),
+                ];
+                setMotivos(level1s);
+            } catch {
+                setMotivos([]);
+            }
+        }
+        fetchMotivosGlobales();
+    }, []);
+
+    // Cargar tipos de campaña para Out Honda
     React.useEffect(() => {
         async function fetchTipos() {
             try {
@@ -46,7 +72,6 @@ export default function OutHondaPage() {
         }
         fetchTipos();
     }, []);
-    // No autoasignar registro ni cargar datos automáticamente
 
     const identificacion =
         registro?.identificacion ||
@@ -77,6 +102,16 @@ export default function OutHondaPage() {
                     ...new Set(levelsData.map((n) => n.level1).filter(Boolean)),
                 ];
                 setMotivos(level1s);
+                // Solo actualizar selectedMotivo si el motivo del registro es válido
+                const motivoRegistro =
+                    registro?.motivoInteraccion ||
+                    registro?.MotivoLlamada ||
+                    "";
+                if (motivoRegistro && level1s.includes(motivoRegistro)) {
+                    setSelectedMotivo(motivoRegistro);
+                } else if (!level1s.includes(selectedMotivo)) {
+                    setSelectedMotivo("");
+                }
             } catch {
                 setMotivos([]);
             }
@@ -84,7 +119,6 @@ export default function OutHondaPage() {
         fetchLevels();
     }, [identificacion]);
 
-    // Cargar submotivos (Level2) cuando cambia el motivo
     React.useEffect(() => {
         if (!selectedMotivo) {
             setSubmotivos([]);
@@ -106,11 +140,29 @@ export default function OutHondaPage() {
         setError("");
         fetchSheetAsJson()
             .then((data) => {
-                const noGest = data.filter(
+                // Filtrar por Origen === 'BaseLeadsHonda2026'
+                const filtrados = data.filter(
+                    (row) => row.Origen === "BaseLeadsHonda2026",
+                );
+                // Ordenar por Fecha (columna J) descendente
+                function parseFecha(fechaStr) {
+                    if (!fechaStr) return 0;
+                    const [d, m, y] = fechaStr.split("/");
+                    if (!d || !m || !y) return 0;
+                    return new Date(
+                        `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`,
+                    );
+                }
+                filtrados.sort((a, b) => {
+                    const fechaA = parseFecha(a.Fecha || a.J);
+                    const fechaB = parseFecha(b.Fecha || b.J);
+                    return fechaB - fechaA;
+                });
+                const noGest = filtrados.filter(
                     (row) => !row.Gestionado || row.Gestionado === "#N/A",
                 );
                 // Excluir gestionados con Agendado === 'SGC'
-                const gest = data.filter(
+                const gest = filtrados.filter(
                     (row) =>
                         row.Gestionado &&
                         row.Gestionado !== "#N/A" &&
@@ -149,6 +201,8 @@ export default function OutHondaPage() {
         "WR-V",
     ];
 
+    const gestionOptions = ["COTIZACION", "CITA", "VIDEOLLAMADA"];
+
     const dynamicTemplate = [
         ...formF2Template.map((field) => {
             if (field.name === "tipoCampana") {
@@ -166,7 +220,23 @@ export default function OutHondaPage() {
                     ...field,
                     type: "select",
                     options: motivos.map((m) => ({ value: m, label: m })),
-                    onChange: (e) => setSelectedMotivo(e.target.value),
+                };
+            }
+            if (field.name === "tipoCampana") {
+                return {
+                    ...field,
+                    type: "select",
+                    options: tiposCampania.map((tc) => ({
+                        value: tc,
+                        label: tc,
+                    })),
+                };
+            }
+            if (field.name === "submotivoInteraccion") {
+                return {
+                    ...field,
+                    type: "select",
+                    options: submotivos.map((s) => ({ value: s, label: s })),
                 };
             }
             if (field.name === "submotivoInteraccion") {
@@ -206,9 +276,31 @@ export default function OutHondaPage() {
             required: false,
             readOnly: true,
         },
+        {
+            name: "Provincia",
+            label: "Provincia",
+            type: "text",
+            required: false,
+            readOnly: true,
+        },
+        {
+            name: "Gestion",
+            label: "Gestion",
+            type: "select",
+            required: false,
+            options: gestionOptions.map((v) => ({ value: v, label: v })),
+        },
+        {
+            name: "FechaAgenda",
+            label: "Fecha de Cita / Videollamada",
+            type: "datetime-local",
+            required: false,
+            showIf: (values) =>
+                values.Gestion === "CITA" || values.Gestion === "VIDEOLLAMADA",
+        },
     ];
 
-    // Mapeo para transformar el registro del sheet a los campos esperados por el formulario
+    // Mover función fuera del render
     function mapRegistroToFormValues(row) {
         if (!row) return {};
         // Unir nombres y apellidos correctamente (Nombre y Apellido)
@@ -223,7 +315,6 @@ export default function OutHondaPage() {
                 row["Identificación"] || row["CI"] || row["M"] || "",
             apellidosNombres: nombreCompleto,
             Email: row.Email || "",
-            Provincia: row.Provincia || "",
             Concesionario: row.Concesionario || "",
             Modelo: "", // Modelo debe ir vacío
             celular: row["telefono_real"] || row["L"] || row.Telefono || "",
@@ -232,14 +323,56 @@ export default function OutHondaPage() {
             submotivoInteraccion:
                 row["Submotivo"] || row["SubmotivoInteraccion"] || "",
             observaciones: row["Observacion"] || row["Observaciones"] || "",
+            Provincia: row.Provincia || "",
             // Agrega aquí cualquier campo adicional que quieras mapear
         };
     }
 
+    function MensajeWhatsapp({ resumen }) {
+        const tipo =
+            resumen.tipoGestion || resumen.tipo_gestion || resumen.tipo || "";
+        const nombresCompletos = `${resumen.nombre} ${resumen.apellido}`.trim();
+        const fechaHora =
+            resumen.fechaCita ||
+            resumen.fechaVideollamada ||
+            resumen.fecha ||
+            "";
+        let mensaje = "";
+        if (typeof tipo === "string" && tipo.toLowerCase().includes("cita")) {
+            mensaje = `Buenos días, por favor, cliente está interesado en el modelo HR-V y desea agendar test drive.\nNOMBRES COMPLETOS: ${nombresCompletos}\nC.I: ${resumen.identificacion}\nTeléfono: ${resumen.telefono}\nFecha y hora de cita: ${fechaHora}\nCorreo: ${resumen.email}\nSu gentil ayuda comunicándose, por favor.`;
+        } else if (
+            typeof tipo === "string" &&
+            tipo.toLowerCase().includes("video")
+        ) {
+            mensaje = `Buenos días, por favor cliente está interesado el vehículo Honda HR-V, cliente vive en el Oriente, solicita se le realice una videollamada para conocer el auto hasta que pueda viajar al concesionario.\nNOMBRES COMPLETOS: ${nombresCompletos}\nCi: ${resumen.identificacion}\nTeléfono: ${resumen.telefono}\nCorreo: ${resumen.email}\nFecha y hora de videollamada: ${fechaHora}\nSu gentil ayuda por favor.`;
+        } else {
+            mensaje = `Datos del cliente:\nNOMBRES COMPLETOS: ${nombresCompletos}\nC.I: ${resumen.identificacion}\nTeléfono: ${resumen.telefono}\nCorreo: ${resumen.email}`;
+        }
+        return (
+            <div>
+                <textarea
+                    style={{
+                        width: "100%",
+                        minHeight: 120,
+                        fontFamily: "monospace",
+                        fontSize: 16,
+                        marginBottom: 8,
+                    }}
+                    readOnly
+                    value={mensaje}
+                    onFocus={(e) => e.target.select()}
+                />
+                <div style={{ fontSize: 13, color: "#888" }}>
+                    Selecciona y copia el mensaje para enviarlo por WhatsApp.
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="outmaquita-flex-row">
+        <div className="">
             <div className="outmaquita-form-panel">
-                <h1 className="outmaquita-title">Out Honda</h1>
+                <h1 className="">Out Honda</h1>
                 <div>
                     <input
                         type="text"
@@ -295,14 +428,7 @@ export default function OutHondaPage() {
                 </div>
                 {error && <div className="outmaquita-error">{error}</div>}
                 <div className="outmaquita-form-wrapper">
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 16,
-                            marginBottom: 12,
-                        }}
-                    >
+                    <div>
                         <label htmlFor="filtroTabla">Ver registros:</label>
                         <select
                             id="filtroTabla"
@@ -321,9 +447,8 @@ export default function OutHondaPage() {
                     {!registro && (
                         <table
                             border="1"
-                            cellPadding={8}
                             style={{
-                                marginBottom: 24,
+                                marginBottom: 10,
                                 width: "100%",
                                 fontSize: "1.1em",
                             }}
@@ -333,6 +458,7 @@ export default function OutHondaPage() {
                                     <th>Origen</th>
                                     <th>Identificación</th>
                                     <th>Teléfono</th>
+                                    <th>Fecha</th>
                                     <th>Seleccionar</th>
                                 </tr>
                             </thead>
@@ -351,6 +477,7 @@ export default function OutHondaPage() {
                                         row["L"] ||
                                         row.Telefono ||
                                         "";
+                                    const fecha = row.Fecha || row.J || "";
                                     const uniqueKey = identificacion
                                         ? `${identificacion}_${idx}`
                                         : idx;
@@ -359,6 +486,7 @@ export default function OutHondaPage() {
                                             <td>{row.Origen}</td>
                                             <td>{identificacion}</td>
                                             <td>{telefono}</td>
+                                            <td>{fecha}</td>
                                             <td>
                                                 <button
                                                     onClick={() =>
@@ -375,125 +503,78 @@ export default function OutHondaPage() {
                         </table>
                     )}
                     {/* Mostrar el formulario solo si hay registro seleccionado */}
-                    {registro && (
+                    {registro && !resumenExcel && (
                         <FormularioDinamicoReseteable
-                            key={registro ? JSON.stringify(registro) : "empty"}
+                            key={
+                                registro
+                                    ? registro.identificacion ||
+                                      registro.Identificacion ||
+                                      registro["Nº de cédula"] ||
+                                      "empty"
+                                    : "empty"
+                            }
                             initialValues={{
                                 ...mapRegistroToFormValues(registro),
                                 Plataforma:
                                     registro["Plataforma"] ||
                                     registro["Plataforma de origen"] ||
-                                    "web",
+                                    "WEB",
                             }}
                             template={dynamicTemplate}
                             className="outmaquita-form outhonda-form-3col"
                             onGuardar={async (formData) => {
                                 try {
-                                    const agent = userInfo?.username || "";
-                                    const startedManagement =
-                                        startedManagementRef.current
-                                            ? startedManagementRef.current.toISOString()
-                                            : null;
-                                    const tmStmp = new Date().toISOString();
-                                    const payload = {
-                                        Agent: agent,
-                                        StartedManagement: startedManagement,
-                                        TmStmp: tmStmp,
-                                        Cooperativa: "Out Honda",
-                                        TipoCampania:
-                                            formData.tipoCampana || null,
-                                        Identificacion:
-                                            formData.identificacion || null,
-                                        NombreCliente:
-                                            formData.apellidosNombres || null,
-                                        Celular: formData.celular || null,
-                                        Plataforma: formData.Plataforma || null,
-                                        MotivoLlamada:
-                                            formData.motivoInteraccion || null,
-                                        SubmotivoLlamada:
-                                            formData.submotivoInteraccion ||
-                                            null,
-                                        Observaciones:
-                                            formData.observaciones || null,
-                                        AgentShift: "",
-                                        TmStmpShift: "",
-                                    };
-                                    // Generar línea tabulada para copiar
-                                    // Separar nombres y apellidos si es posible
-                                    let firstName = "";
-                                    let lastName = "";
+                                    // Separar nombre y apellido
+                                    let nombre = "";
+                                    let apellido = "";
                                     if (formData.apellidosNombres) {
                                         const partes = formData.apellidosNombres
                                             .trim()
                                             .split(" ");
                                         if (partes.length > 1) {
-                                            lastName = partes.pop();
-                                            firstName = partes.join(" ");
+                                            nombre = partes
+                                                .slice(0, -1)
+                                                .join(" ");
+                                            apellido = partes
+                                                .slice(-1)
+                                                .join(" ");
                                         } else {
-                                            firstName =
-                                                formData.apellidosNombres;
+                                            nombre = formData.apellidosNombres;
+                                            apellido = "";
                                         }
                                     }
-                                    const campos = [
-                                        firstName || "", // First_Name
-                                        lastName || "", // Last_Name
-                                        formData.Provincia || "", // Ciudad
-                                        formData.exoneradoId || "", // Exonerado ID
-                                        formData.identificacion || "", // CI
-                                        formData.celular || "", // Phone_Number
-                                        formData.Email || "", // Email
-                                        formData.Concesionario || "", // Concesionario
-                                        formData.concesionarioSgcId || "", // Concesionario SGC ID
-                                        formData.Modelo || "", // Modelo
-                                        formData.modeloSgcId || "", // Modelo SGC ID
-                                        formData.fecha || "", // Fecha
-                                        formData.Plataforma || "", // Plataforma
-                                    ];
-                                    alert(campos.join("\t"));
-                                    setError(
-                                        "Registro insertado correctamente",
+                                    // Buscar identificación en varias variantes posibles
+                                    const identificacion =
+                                        formData.identificacion ||
+                                        formData.Identificacion ||
+                                        formData["Identificación"] ||
+                                        formData["identificación"] ||
+                                        "";
+                                    setResumenExcel({
+                                        nombre,
+                                        apellido,
+                                        provincia:
+                                            formData.Provincia ||
+                                            formData.provincia ||
+                                            "",
+                                        identificacion,
+                                        telefono: formData.celular || "",
+                                        email: formData.Email || "",
+                                        tipoGestion:
+                                            formData.Gestion ||
+                                            formData.tipoGestion ||
+                                            formData.tipo ||
+                                            "",
+                                        fechaCita:
+                                            formData.FechaAgenda ||
+                                            formData.fechaCita ||
+                                            "",
+                                    });
+                                } catch (e) {
+                                    console.error(
+                                        "Error en onGuardar OutHondaPage:",
+                                        e,
                                     );
-                                } catch {
-                                    setError("Error guardando registro");
-                                }
-                            }}
-                            onActualizar={async (formData) => {
-                                try {
-                                    const agent = userInfo?.username || "";
-                                    const startedManagement =
-                                        startedManagementRef.current
-                                            ? startedManagementRef.current.toISOString()
-                                            : null;
-                                    const tmStmp = new Date().toISOString();
-                                    const payload = {
-                                        Agent: agent,
-                                        StartedManagement: startedManagement,
-                                        TmStmp: tmStmp,
-                                        Cooperativa: "Out Honda",
-                                        TipoCampania:
-                                            formData.tipoCampana || null,
-                                        Identificacion:
-                                            formData.identificacion || null,
-                                        NombreCliente:
-                                            formData.apellidosNombres || null,
-                                        Celular: formData.celular || null,
-                                        Plataforma: formData.Plataforma || null,
-                                        MotivoLlamada:
-                                            formData.motivoInteraccion || null,
-                                        SubmotivoLlamada:
-                                            formData.submotivoInteraccion ||
-                                            null,
-                                        Observaciones:
-                                            formData.observaciones || null,
-                                        AgentShift: "",
-                                        TmStmpShift: "",
-                                    };
-                                    await actualizarTrxOut(payload);
-                                    setError(
-                                        "Registro actualizado correctamente",
-                                    );
-                                } catch {
-                                    setError("Error actualizando registro");
                                 }
                             }}
                             esUpdate={
@@ -502,7 +583,50 @@ export default function OutHondaPage() {
                                     registro?.identificacion
                                 )
                             }
+                            levels={levels}
                         />
+                    )}
+                    {resumenExcel && (
+                        <div
+                            style={{
+                                padding: 24,
+                                background: "#f8f8f8",
+                                borderRadius: 8,
+                                marginTop: 24,
+                            }}
+                        >
+                            <h2>Datos para copiar y pegar en Excel</h2>
+                            <div
+                                style={{ fontWeight: "bold", marginBottom: 8 }}
+                            >
+                                Nombre Apellido Provincia Identificación
+                                Teléfono Email
+                            </div>
+                            <textarea
+                                style={{
+                                    fontFamily: "monospace",
+                                    fontSize: 18,
+                                    background: "#fff",
+                                    padding: 12,
+                                    border: "1px solid #ccc",
+                                    borderRadius: 4,
+                                    width: "100%",
+                                    minHeight: 60,
+                                }}
+                                readOnly
+                                value={`${resumenExcel.nombre}\t${resumenExcel.apellido}\t${resumenExcel.provincia}\t${resumenExcel.identificacion}\t${resumenExcel.telefono}\t${resumenExcel.email}`}
+                                onFocus={(e) => e.target.select()}
+                            />
+
+                            <MensajeWhatsapp resumen={resumenExcel} />
+
+                            <button
+                                style={{ marginTop: 16 }}
+                                onClick={() => setResumenExcel(null)}
+                            >
+                                Volver
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>

@@ -1,8 +1,10 @@
-
 // backend/src/routes/bases.routes.js
 import express from "express";
 import * as basesService from "../../services/bases.service.js";
-import {uploadCSV,handleUploadError,} from "../../middleware/upload.middleware.js";
+import {
+    uploadCSV,
+    handleUploadError,
+} from "../../middleware/upload.middleware.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 import pool from "../../services/db.js";
@@ -32,117 +34,180 @@ router.get("/", async (req, res) => {
     }
 });
 
-
-// Resumen de todas las bases activas para DashboardAdmin (solo ADMINISTRADOR)
-router.get("/bases-activas-resumen", requireAuth, requireRole(["ADMINISTRADOR"]), async (req, res) => {
-    try {
-        const { default: basesQueries } = await import("../../services/queries/bases.queries.js");
-        const { campaignId, importId } = req.query;
-        let sql = basesQueries.getAllBasesSummary;
-        const params = [];
-        // Agregar filtros dinámicos
-        if (campaignId && importId) {
-            sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ? AND import_id = ?`;
-            params.push(campaignId, importId);
-        } else if (campaignId) {
-            sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ?`;
-            params.push(campaignId);
-        } else if (importId) {
-            sql = `SELECT * FROM (${sql}) AS resumen WHERE import_id = ?`;
-            params.push(importId);
+// Obtener cuántos registros son reciclables en una base específica
+router.get(
+    "/:campaignId/:importId/reciclables-count",
+    requireAuth,
+    requireRole(["ADMINISTRADOR", "SUPERVISOR"]),
+    async (req, res) => {
+        try {
+            const { campaignId, importId } = req.params;
+            if (!campaignId || !importId) {
+                return res
+                    .status(400)
+                    .json({ error: "Faltan parámetros campaignId o importId" });
+            }
+            const [rows] = await pool.query(
+                `SELECT COUNT(*) AS reciclables
+             FROM contactimportcontact
+             WHERE Campaign = ?
+               AND LastUpdate = ?
+               AND LastManagementResult IN (60, 61, 62, 63, 64, 34)`,
+                [campaignId, importId],
+            );
+            res.json({ reciclables: rows[0]?.reciclables || 0 });
+        } catch (err) {
+            console.error("Error obteniendo cantidad de reciclables:", err);
+            res.status(500).json({
+                error: "Error obteniendo cantidad de reciclables",
+            });
         }
-        const [rows] = await pool.query(sql, params);
-        const data = (rows || []).map(row => ({
-            campaign_id: row.campaign_id,
-            base: row.import_id,
-            estado_base: (String(row.base_state) === '1' ? 'ACTIVO' : 'INACTIVO'),
-            registros: row.total_registros,
-            sin_gestionar: row.pendientes,
-            pendientes_libres: row.pendientes_libres,
-            pendientes_asignados_sin_gestion: row.pendientes_asignados_sin_gestion,
-            avance: row.total_registros > 0 ? Math.round(100 * (1 - row.pendientes / row.total_registros)) : 0,
-        }));
-        res.json({ data });
-    } catch (err) {
-        console.error("Error en /bases/bases-activas-resumen:", err);
-        res.status(500).json({ error: "Error cargando resumen de bases activas" });
-    }
-});
+    },
+);
+// Resumen de todas las bases activas para DashboardAdmin (solo ADMINISTRADOR)
+router.get(
+    "/bases-activas-resumen",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const { default: basesQueries } =
+                await import("../../services/queries/bases.queries.js");
+            const { campaignId, importId } = req.query;
+            let sql = basesQueries.getAllBasesSummary;
+            const params = [];
+            // Agregar filtros dinámicos
+            if (campaignId && importId) {
+                sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ? AND import_id = ?`;
+                params.push(campaignId, importId);
+            } else if (campaignId) {
+                sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ?`;
+                params.push(campaignId);
+            } else if (importId) {
+                sql = `SELECT * FROM (${sql}) AS resumen WHERE import_id = ?`;
+                params.push(importId);
+            }
+            const [rows] = await pool.query(sql, params);
+            const data = (rows || []).map((row) => ({
+                campaign_id: row.campaign_id,
+                base: row.import_id,
+                estado_base:
+                    String(row.base_state) === "1" ? "ACTIVO" : "INACTIVO",
+                registros: row.total_registros,
+                sin_gestionar: row.pendientes,
+                pendientes_libres: row.pendientes_libres,
+                pendientes_asignados_sin_gestion:
+                    row.pendientes_asignados_sin_gestion,
+                avance:
+                    row.total_registros > 0
+                        ? Math.round(
+                              100 * (1 - row.pendientes / row.total_registros),
+                          )
+                        : 0,
+            }));
+            res.json({ data });
+        } catch (err) {
+            console.error("Error en /bases/bases-activas-resumen:", err);
+            res.status(500).json({
+                error: "Error cargando resumen de bases activas",
+            });
+        }
+    },
+);
 
 // Resumen de todas las bases inactivas para DashboardAdmin (solo ADMINISTRADOR)
-router.get("/bases-inactivas-resumen", requireAuth, requireRole(["ADMINISTRADOR"]), async (req, res) => {
-    try {
-        const { default: basesQueries } = await import("../../services/queries/bases.queries.js");
-        const { campaignId, importId } = req.query;
-        let sql = basesQueries.getAllBasesInactivasSummary;
-        const params = [];
-        // Agregar filtros dinámicos
-        if (campaignId && importId) {
-            sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ? AND import_id = ?`;
-            params.push(campaignId, importId);
-        } else if (campaignId) {
-            sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ?`;
-            params.push(campaignId);
-        } else if (importId) {
-            sql = `SELECT * FROM (${sql}) AS resumen WHERE import_id = ?`;
-            params.push(importId);
+router.get(
+    "/bases-inactivas-resumen",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const { default: basesQueries } =
+                await import("../../services/queries/bases.queries.js");
+            const { campaignId, importId } = req.query;
+            let sql = basesQueries.getAllBasesInactivasSummary;
+            const params = [];
+            // Agregar filtros dinámicos
+            if (campaignId && importId) {
+                sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ? AND import_id = ?`;
+                params.push(campaignId, importId);
+            } else if (campaignId) {
+                sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ?`;
+                params.push(campaignId);
+            } else if (importId) {
+                sql = `SELECT * FROM (${sql}) AS resumen WHERE import_id = ?`;
+                params.push(importId);
+            }
+            const [rows] = await pool.query(sql, params);
+            const data = (rows || []).map((row) => ({
+                campaign_id: row.campaign_id,
+                base: row.import_id,
+                estado_base:
+                    String(row.base_state) === "1" ? "ACTIVO" : "INACTIVO",
+                registros: row.total_registros,
+                sin_gestionar: row.pendientes,
+                pendientes_libres: row.pendientes_libres,
+                pendientes_asignados_sin_gestion:
+                    row.pendientes_asignados_sin_gestion,
+                avance:
+                    row.total_registros > 0
+                        ? Math.round(
+                              100 * (1 - row.pendientes / row.total_registros),
+                          )
+                        : 0,
+            }));
+            res.json({ data });
+        } catch (err) {
+            console.error("Error en /bases/bases-inactivas-resumen:", err);
+            res.status(500).json({
+                error: "Error cargando resumen de bases inactivas",
+            });
         }
-        const [rows] = await pool.query(sql, params);
-        const data = (rows || []).map(row => ({
-            campaign_id: row.campaign_id,
-            base: row.import_id,
-            estado_base: (String(row.base_state) === '1' ? 'ACTIVO' : 'INACTIVO'),
-            registros: row.total_registros,
-            sin_gestionar: row.pendientes,
-            pendientes_libres: row.pendientes_libres,
-            pendientes_asignados_sin_gestion: row.pendientes_asignados_sin_gestion,
-            avance: row.total_registros > 0 ? Math.round(100 * (1 - row.pendientes / row.total_registros)) : 0,
-        }));
-        res.json({ data });
-    } catch (err) {
-        console.error("Error en /bases/bases-inactivas-resumen:", err);
-        res.status(500).json({ error: "Error cargando resumen de bases inactivas" });
-    }
-});
+    },
+);
 
 // Resumen de bases para DashboardAdmin
-router.get("/bases-resumen", requireAuth, requireRole(["ADMINISTRADOR"]), async (req, res) => {
-    try {
-        const resumen = await basesService.obtenerResumenBases();
-        res.json({ resumen });
-    } catch (err) {
-        console.error("Error obteniendo resumen de bases:", err);
-        res.status(500).json({ error: "Error obteniendo resumen de bases" });
-    }
-});
+router.get(
+    "/bases-resumen",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const resumen = await basesService.obtenerResumenBases();
+            res.json({ resumen });
+        } catch (err) {
+            console.error("Error obteniendo resumen de bases:", err);
+            res.status(500).json({
+                error: "Error obteniendo resumen de bases",
+            });
+        }
+    },
+);
 
 /**
  * POST /bases/:baseId/reciclar
  * Recicla contactos de campaña en cck_dev.
  */
-router.post(
-    "/:baseId/reciclar",
-    ...adminMiddlewares,
-    async (req, res) => {
-        try {
-            const { baseId } = req.params;
-            const importId = String(req.body?.importId || "").trim();
-            const MAX_INTENTOS = 6; // regla de negocio: hasta 6 intentos
-            const campaignId = baseId;
+router.post("/:baseId/reciclar", ...adminMiddlewares, async (req, res) => {
+    try {
+        const { baseId } = req.params;
+        const importId = String(req.body?.importId || "").trim();
+        const MAX_INTENTOS = 6; // regla de negocio: hasta 6 intentos
+        const campaignId = baseId;
 
-            if (!campaignId) {
-                return res.status(400).json({ error: "Falta baseId" });
-            }
+        if (!campaignId) {
+            return res.status(400).json({ error: "Falta baseId" });
+        }
 
-            if (!importId) {
-                return res.status(400).json({
-                    error: "Debes seleccionar la base (importación) a reciclar",
-                });
-            }
+        if (!importId) {
+            return res.status(400).json({
+                error: "Debes seleccionar la base (importación) a reciclar",
+            });
+        }
 
-            // Cambia Action a 'reciclable' para identificar registros reciclados
-            const [result] = await pool.query(
-                `
+        // Cambia Action a 'reciclable' para identificar registros reciclados
+        const [result] = await pool.query(
+            `
                     UPDATE contactimportcontact
                     SET LastAgent = 'Pendiente',
                         Action = 'reciclable',
@@ -153,35 +218,34 @@ router.post(
                       AND COALESCE(Number, 0) < ?
                       AND LastManagementResult IN (60, 61, 62, 63, 64, 34)
                 `,
-                [
-                    req.user?.username || String(req.user?.id),
-                    campaignId,
-                    importId,
-                    MAX_INTENTOS,
-                ],
-            );
-
-            await recomputeImportStats(
+            [
+                req.user?.username || String(req.user?.id),
                 campaignId,
                 importId,
-                req.user?.username || String(req.user?.id),
-                pool,
-            );
+                MAX_INTENTOS,
+            ],
+        );
 
-            return res.json({
-                ok: true,
-                base_id: campaignId,
-                import_id: importId,
-                registros_reciclados: result.affectedRows,
-            });
-        } catch (err) {
-            console.error("Error en /bases/:baseId/reciclar:", err);
-            return res
-                .status(500)
-                .json({ error: "Error en /bases/:baseId/reciclar" });
-        }
-    },
-);
+        await recomputeImportStats(
+            campaignId,
+            importId,
+            req.user?.username || String(req.user?.id),
+            pool,
+        );
+
+        return res.json({
+            ok: true,
+            base_id: campaignId,
+            import_id: importId,
+            registros_reciclados: result.affectedRows,
+        });
+    } catch (err) {
+        console.error("Error en /bases/:baseId/reciclar:", err);
+        return res
+            .status(500)
+            .json({ error: "Error en /bases/:baseId/reciclar" });
+    }
+});
 
 /**
  * POST /bases/upload

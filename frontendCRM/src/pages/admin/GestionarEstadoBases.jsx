@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Select, Alert, Table, Badge } from "../../components/common";
 import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
-import "./CargarBases.css";
+import "./GestionarEstadoBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -110,7 +110,10 @@ export default function GestionarEstadoBases() {
 
     const ejecutarAccionBase = async (row) => {
         if (!subcampaniaSeleccionada || !row?.LastUpdate) {
-            console.warn("Faltan datos para ejecutar acción base", { subcampaniaSeleccionada, row });
+            console.warn("Faltan datos para ejecutar acción base", {
+                subcampaniaSeleccionada,
+                row,
+            });
             return;
         }
         if (!filtroEstado) {
@@ -118,7 +121,8 @@ export default function GestionarEstadoBases() {
             return;
         }
 
-        const action = String(row.BaseState).trim() === "1" ? "desactivar" : "activar";
+        const action =
+            String(row.BaseState).trim() === "1" ? "desactivar" : "activar";
         const payload = {
             campaignId: subcampaniaSeleccionada,
             importDate: row.LastUpdate,
@@ -221,45 +225,47 @@ export default function GestionarEstadoBases() {
 
     return (
         <div className="wrapper manage-bases-wrapper">
-            <div className="form manage-bases-compact-row">
-                <Select
-                    label="Seleccionar Campaña"
-                    options={campaniaPadreOptions}
-                    value={campaniaPadreSeleccionada}
-                    onChange={(value) => {
-                        setCampaniaPadreSeleccionada(value);
-                        setSubcampaniaSeleccionada("");
-                    }}
-                    placeholder="Seleccione campaña"
-                    disabled={loading}
-                    required
-                />
+            <div className="gestionar-bases-form">
+                <div className="gestionar-bases-row">
+                    <Select
+                        label="Seleccionar Campaña"
+                        options={campaniaPadreOptions}
+                        value={campaniaPadreSeleccionada}
+                        onChange={(value) => {
+                            setCampaniaPadreSeleccionada(value);
+                            setSubcampaniaSeleccionada("");
+                        }}
+                        placeholder="Seleccione campaña"
+                        disabled={loading}
+                        required
+                    />
 
-                <Select
-                    label="Seleccionar Subcampaña"
-                    options={subcampaniaOptions}
-                    value={subcampaniaSeleccionada}
-                    onChange={setSubcampaniaSeleccionada}
-                    placeholder={
-                        campaniaPadreSeleccionada
-                            ? "Seleccione subcampaña..."
-                            : "Primero campaña"
-                    }
-                    disabled={!campaniaPadreSeleccionada || loading}
-                    required
-                />
+                    <Select
+                        label="Seleccionar Subcampaña"
+                        options={subcampaniaOptions}
+                        value={subcampaniaSeleccionada}
+                        onChange={setSubcampaniaSeleccionada}
+                        placeholder={
+                            campaniaPadreSeleccionada
+                                ? "Seleccione subcampaña..."
+                                : "Primero campaña"
+                        }
+                        disabled={!campaniaPadreSeleccionada || loading}
+                        required
+                    />
 
-                <Select
-                    label="Filtrar Estado"
-                    options={[
-                        { id: "activas", label: "Bases Activas" },
-                        { id: "inactivas", label: "Bases Inactivas" },
-                    ]}
-                    value={filtroEstado}
-                    onChange={setFiltroEstado}
-                    placeholder="Seleccione filtro"
-                    required
-                />
+                    <Select
+                        label="Filtrar Estado"
+                        options={[
+                            { id: "activas", label: "Bases Activas" },
+                            { id: "inactivas", label: "Bases Inactivas" },
+                        ]}
+                        value={filtroEstado}
+                        onChange={setFiltroEstado}
+                        placeholder="Seleccione filtro"
+                        required
+                    />
+                </div>
 
                 <div className="manage-bases-full-row manage-bases-content-panel">
                     {subcampaniaSeleccionada && filtroEstado ? (

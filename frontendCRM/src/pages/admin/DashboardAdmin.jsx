@@ -169,13 +169,15 @@ export default function DashboardAdmin() {
 
             {error && <Alert type="error" message={error} closable={false} />}
 
-            <Table
-                columns={columns}
-                data={rows}
-                keyField="base_id"
-                loading={loading}
-                noDataMessage="No hay datos para los filtros seleccionados."
-            />
+            <div className="tabla-formulario-honda">
+                <Table
+                    columns={columns}
+                    data={rows}
+                    keyField="base_id"
+                    loading={loading}
+                    noDataMessage="No hay datos para los filtros seleccionados."
+                />
+            </div>
         </div>
     );
 }
