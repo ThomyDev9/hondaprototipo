@@ -22,7 +22,7 @@ const agenteQueries = {
           AND UPPER(State) IN ('1', 'ACTIVO', 'ACTIVE', 'A')
         LIMIT 1
     `,
-
+    // Card de bases activas para agente dashboard, con conteo de pendientes
     getActiveBasesSummary: `
       SELECT
         cab.CampaignId AS campaign_id,
@@ -36,7 +36,24 @@ const agenteQueries = {
         ON cis.CampaignId = cab.CampaignId
        AND cis.ImportId = cab.ImportId
       WHERE cab.State = '1'
-      ORDER BY pendientes DESC, cab.CampaignId ASC
+        AND NOT (COALESCE(cis.PendientesReales, 0) = 0 
+                AND COALESCE(cis.PendientesLibres, 0) = 0)
+      ORDER BY pendientes DESC, cab.CampaignId ASC;
+    `,
+    // Card de bases regestion (reciclables) para dashboard
+    getRegestionBasesSummary: `
+      SELECT 
+        ci.Campaign AS campaign_id,
+        ci.LastUpdate AS import_id,
+        COUNT(ci.Id) AS total_reciclables
+      FROM contactimportcontact ci
+      JOIN campaign_active_base cab 
+        ON ci.Campaign = cab.CampaignId
+      WHERE cab.state = 1
+        AND ci.action = 'reciclable'
+        AND ci.LastManagementResult IN (60, 61, 62, 63, 64, 34)
+      GROUP BY ci.Campaign, ci.LastUpdate
+      ORDER BY total_reciclables DESC, ci.Campaign ASC;
     `,
 
     getAssignedClientByAgentAndCampaignLike: `
@@ -246,7 +263,7 @@ const agenteQueries = {
         ORDER BY c.LastUpdate DESC
       LIMIT 1
     `,
-
+    //asigancion de registro automatico a asesor segun campaña e importación
     getNextCandidateByCampaignAndImport: `
         SELECT c.Id,
                c.Name,

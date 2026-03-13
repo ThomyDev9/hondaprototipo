@@ -390,11 +390,41 @@ router.get("/bases-activas-resumen", ...agenteMiddlewares, async (req, res) => {
         return res.json({ data });
     } catch (err) {
         console.error("Error en /agente/bases-activas-resumen:", err);
-        return res
-            .status(500)
-            .json({ error: "Error cargando resumen de bases activas" });
+        return res.status(500).json({ error: "Error interno" });
     }
 });
+
+// Endpoint para resumen de bases regestion (reciclables)
+router.get(
+    "/bases-regestion-resumen",
+    ...agenteMiddlewares,
+    async (req, res) => {
+        try {
+            console.log(
+                "[DEBUG] /bases-regestion-resumen: ejecutando query getRegestionBasesSummary",
+            );
+            const [rows] = await pool.query(
+                agenteQueries.getRegestionBasesSummary,
+            );
+            console.log(
+                "[DEBUG] /bases-regestion-resumen: resultado query",
+                rows,
+            );
+            const data = (rows || [])
+                .map((row) => ({
+                    campaignId: String(row.campaign_id || "").trim(),
+                    importId: String(row.import_id || "").trim(),
+                    totalReciclables: Number(row.total_reciclables || 0),
+                }))
+                .filter((item) => item.campaignId && item.importId);
+            console.log("[DEBUG] /bases-regestion-resumen: data final", data);
+            return res.json({ data });
+        } catch (err) {
+            console.error("Error en /agente/bases-regestion-resumen:", err);
+            return res.status(500).json({ error: "Error interno" });
+        }
+    },
+);
 
 /* ============================================================================
     3. GUARDAR GESTIÓN (cck_dev)

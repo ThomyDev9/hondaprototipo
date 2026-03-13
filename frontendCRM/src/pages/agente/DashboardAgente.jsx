@@ -152,6 +152,9 @@ export default function DashboardAgente({
     const [surveyAnswers, setSurveyAnswers] = useState({});
     const [activeBaseCards, setActiveBaseCards] = useState([]);
     const [loadingActiveBaseCards, setLoadingActiveBaseCards] = useState(false);
+    const [regestionBaseCards, setRegestionBaseCards] = useState([]);
+    const [loadingRegestionBaseCards, setLoadingRegestionBaseCards] =
+        useState(false);
 
     const surveyFieldsToRender = dynamicSurveyConfig?.fields || [];
 
@@ -212,6 +215,36 @@ export default function DashboardAgente({
             setLoadingActiveBaseCards(false);
         }
     };
+
+    const loadRegestionBaseCards = async () => {
+        try {
+            setLoadingRegestionBaseCards(true);
+            const token = localStorage.getItem("access_token") || "";
+            const resp = await fetch(
+                `${API_BASE}/agente/bases-regestion-resumen`,
+                {
+                    headers: {
+                        Authorization: token ? `Bearer ${token}` : "",
+                    },
+                },
+            );
+            const json = await resp.json();
+            console.log("[FRONT] Respuesta bases regestión", json);
+            setRegestionBaseCards(Array.isArray(json.data) ? json.data : []);
+        } catch (err) {
+            console.error("[FRONT] Error bases regestión", err);
+            setRegestionBaseCards([]);
+        } finally {
+            setLoadingRegestionBaseCards(false);
+        }
+    };
+
+    useEffect(() => {
+        console.log(
+            "[FRONT] useEffect bases regestión: ejecutando loadRegestionBaseCards",
+        );
+        loadRegestionBaseCards();
+    }, []);
 
     useEffect(() => {
         if (agentPage === "inicio") return;
@@ -876,7 +909,7 @@ export default function DashboardAgente({
         );
     } else {
         activeBaseCardsContent = (
-            <div style={{ gridTemplateColumns: "1fr" }}>
+            <div className="agent-base-cards-grid">
                 {activeBaseCards.map((card) => (
                     <article
                         key={`${card.campaignId}-${card.importId}`}
@@ -916,6 +949,53 @@ export default function DashboardAgente({
         );
     }
 
+    let regestionBaseCardsContent = null;
+    if (loadingRegestionBaseCards) {
+        regestionBaseCardsContent = (
+            <p className="agent-info-text">Cargando bases regestión...</p>
+        );
+    } else if (regestionBaseCards.length === 0) {
+        regestionBaseCardsContent = (
+            <p className="agent-info-text">
+                No hay bases regestión disponibles.
+            </p>
+        );
+    } else {
+        regestionBaseCardsContent = (
+            <div className="agent-base-cards-grid">
+                {regestionBaseCards.map((card) => (
+                    <article
+                        key={`${card.campaignId}-${card.importId}`}
+                        className="agent-base-card agent-base-card--horizontal"
+                    >
+                        <div className="agent-base-card__info-horizontal">
+                            <div className="agent-base-card__campaign-horizontal">
+                                {card.campaignId}
+                            </div>
+                            <div className="agent-base-card__metrics-horizontal">
+                                <div className="agent-base-card__metric-horizontal">
+                                    {card.totalReciclables}
+                                    <span className="agent-base-card__metric-label-horizontal">
+                                        Reciclables
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            className="agent-base-card__button-horizontal"
+                            onClick={() => {
+                                onSelectCampaign?.(card.campaignId);
+                            }}
+                        >
+                            Ingresar
+                        </button>
+                    </article>
+                ))}
+            </div>
+        );
+    }
+
     /* =====================  UI NORMAL  ===================== */
     return (
         <PageContainer fullWidth className="agent-page-container">
@@ -924,16 +1004,20 @@ export default function DashboardAgente({
                 {/* Panel de gestión */}
                 <div>
                     {!registro && isHomeView && (
-                        <section className="agent-base-cards agent-base-cards--home">
-                            <h2 className="agent-base-cards__title">
-                                Bases activas disponibles
-                            </h2>
-                            <p className="agent-base-cards__subtitle">
-                                Selecciona una base activa para comenzar tu
-                                gestión.
-                            </p>
-                            {activeBaseCardsContent}
-                        </section>
+                        <>
+                            <section className="agent-base-cards agent-base-cards--home">
+                                <h2 className="agent-base-cards__title">
+                                    Bases activas disponibles
+                                </h2>
+                                {activeBaseCardsContent}
+                            </section>
+                            <section className="agent-base-cards agent-base-cards--home">
+                                <h2 className="agent-base-cards__title">
+                                    Bases regestión disponibles
+                                </h2>
+                                {regestionBaseCardsContent}
+                            </section>
+                        </>
                     )}
 
                     {error && <p className="agent-error">{error}</p>}
