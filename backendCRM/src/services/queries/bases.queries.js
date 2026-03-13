@@ -1,4 +1,3 @@
-
 /**
  * BASES QUERIES
  *
@@ -284,11 +283,12 @@ const basesQueries = {
             UpdatedAt = NOW()
     `,
 
-        /**
-         * Resumen de todas las bases activas (para DashboardAdmin)
-         */
-        getAllBasesSummary: `
+    /**
+     * Resumen de todas las bases activas (para DashboardAdmin)
+     */
+    getAllBasesSummary: `
             SELECT
+                cab.id AS id,
                 cis.CampaignId AS campaign_id,
                 cis.ImportId AS import_id,
                 COALESCE(cab.State, '0') AS base_state,
@@ -303,11 +303,12 @@ const basesQueries = {
             ORDER BY cis.CampaignId ASC, cis.ImportId DESC
         `,
 
-            /**
+    /**
      * Resumen de todas las bases inactivas (para DashboardAdmin)
      */
     getAllBasesInactivasSummary: `
         SELECT
+            cab.id AS id,
             cis.CampaignId AS campaign_id,
             cis.ImportId AS import_id,
             COALESCE(cab.State, '0') AS base_state,

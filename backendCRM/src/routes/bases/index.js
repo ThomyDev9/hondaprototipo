@@ -42,20 +42,44 @@ router.get(
     async (req, res) => {
         try {
             const { campaignId, importId } = req.params;
+            console.log("[RECICLABLES-COUNT] Params:", {
+                campaignId,
+                importId,
+            });
             if (!campaignId || !importId) {
+                console.warn("[RECICLABLES-COUNT] Faltan parámetros", {
+                    campaignId,
+                    importId,
+                });
                 return res
                     .status(400)
                     .json({ error: "Faltan parámetros campaignId o importId" });
             }
-            const [rows] = await pool.query(
-                `SELECT COUNT(*) AS reciclables
-             FROM contactimportcontact
-             WHERE Campaign = ?
-               AND LastUpdate = ?
-               AND LastManagementResult IN (60, 61, 62, 63, 64, 34)`,
-                [campaignId, importId],
-            );
-            res.json({ reciclables: rows[0]?.reciclables || 0 });
+            const sql = `SELECT COUNT(*) AS reciclables
+                 FROM contactimportcontact ci
+                 INNER JOIN campaign_import_stats cis
+                     ON ci.Campaign = cis.CampaignId
+                    AND ci.LastUpdate = cis.ImportId
+                 LEFT JOIN campaign_active_base cab
+                     ON cab.CampaignId = cis.CampaignId
+                    AND cab.ImportId = cis.ImportId
+                 WHERE ci.Campaign = ?
+                   AND ci.LastUpdate = ?
+                   AND ci.LastManagementResult IN (60, 61, 62, 63, 64, 34)
+                   AND cis.PendientesReales = 0
+                   AND cis.PendientesLibres = 0
+                   AND cab.State = 1`;
+            console.log("[RECICLABLES-COUNT] SQL:", sql);
+            try {
+                const [rows] = await pool.query(sql, [campaignId, importId]);
+                console.log("[RECICLABLES-COUNT] Result rows:", rows);
+                res.json({ reciclables: rows[0]?.reciclables || 0 });
+            } catch (err) {
+                console.error("[RECICLABLES-COUNT] DB Error:", err);
+                res.status(500).json({
+                    error: "Error obteniendo cantidad de reciclables",
+                });
+            }
         } catch (err) {
             console.error("Error obteniendo cantidad de reciclables:", err);
             res.status(500).json({
@@ -89,6 +113,7 @@ router.get(
             }
             const [rows] = await pool.query(sql, params);
             const data = (rows || []).map((row) => ({
+                id: row.id || null, // id numérico de campaign_active_base si existe
                 campaign_id: row.campaign_id,
                 base: row.import_id,
                 estado_base:
@@ -140,6 +165,7 @@ router.get(
             }
             const [rows] = await pool.query(sql, params);
             const data = (rows || []).map((row) => ({
+                id: row.id || null, // id numérico de campaign_active_base si existe
                 campaign_id: row.campaign_id,
                 base: row.import_id,
                 estado_base:
@@ -328,72 +354,34 @@ router.get("/importaciones/:campaignId", requireAuth, async (req, res) => {
         console.log("📥 Obteniendo importaciones para campaña:", campaignId);
 
         const importaciones =
-            await basesService.obtenerImportacionesPorCampania(
+            await basesService.obtenerImportacionesConEstadoPorCampania(
                 campaignId,
-                action,
             );
 
-        console.log("✅ Importaciones encontradas:", importaciones.length);
-        console.log("Datos:", importaciones);
+        if (!importaciones) {
+            console.warn("[IMPORTACIONES] Resultado es null o undefined");
+        } else if (!Array.isArray(importaciones)) {
+            console.warn(
+                "[IMPORTACIONES] Resultado no es array:",
+                importaciones,
+            );
+        } else if (importaciones.length === 0) {
+            console.info(
+                "[IMPORTACIONES] No hay importaciones para la campaña",
+            );
+        } else {
+            console.log(
+                "[IMPORTACIONES] Importaciones encontradas:",
+                importaciones.length,
+            );
+            console.log("[IMPORTACIONES] Datos:", importaciones);
+        }
 
         res.json({ importaciones });
     } catch (err) {
-        console.error("❌ Error obteniendo importaciones:", err);
         res.status(500).json({ error: "Error obteniendo importaciones" });
     }
 });
-
-router.get(
-    "/importaciones-estado/:campaignId",
-    requireAuth,
-    async (req, res) => {
-        try {
-            const { campaignId } = req.params;
-            // Replica la consulta de /admin/bases-resumen pero solo para la campaña seleccionada
-            const [basesRaw] = await pool.query(
-                `
-                SELECT
-                    cab.id AS id,
-                    c.Campaign AS campaign_id,
-                    c.LastUpdate AS base,
-                    COUNT(*) AS registros,
-                    CASE
-                        WHEN MAX(CASE WHEN cab.CampaignId IS NOT NULL THEN 1 ELSE 0 END) = 1
-                            THEN '1'
-                        ELSE '0'
-                    END AS BaseState
-                FROM contactimportcontact c
-                LEFT JOIN campaign_active_base cab
-                  ON cab.CampaignId = c.Campaign
-                 AND cab.ImportId = c.LastUpdate
-                 AND cab.State = '1'
-                WHERE c.Campaign IS NOT NULL
-                  AND c.Campaign <> ''
-                  AND c.LastUpdate IS NOT NULL
-                  AND c.LastUpdate <> ''
-                  AND c.Campaign = ?
-                GROUP BY cab.id, c.Campaign, c.LastUpdate
-                ORDER BY c.Campaign ASC, c.LastUpdate DESC
-            `,
-                [campaignId],
-            );
-
-            // Adaptar formato esperado por el frontend
-            const mapped = basesRaw.map((row) => ({
-                id: row.id || row.base, // numérico si existe, fallback a base
-                LastUpdate: row.base,
-                BaseState: String(row.BaseState ?? "0").trim() || "0",
-                totalRegistros: Number(row.registros || 0),
-            }));
-            res.json({ importaciones: mapped });
-        } catch (err) {
-            console.error("❌ Error obteniendo importaciones con estado:", err);
-            res.status(500).json({
-                error: "Error obteniendo importaciones con estado",
-            });
-        }
-    },
-);
 
 /**
  * POST /bases/administrar

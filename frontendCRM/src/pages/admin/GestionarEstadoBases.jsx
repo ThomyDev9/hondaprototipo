@@ -58,11 +58,16 @@ export default function GestionarEstadoBases() {
             const token = localStorage.getItem("access_token");
 
             // Seleccionar endpoint según filtroEstado
-            let endpoint = `${API_BASE}/bases/importaciones-estado/${encodeURIComponent(campaignId)}`;
+            // let endpoint = `${API_BASE}/bases/importaciones-estado/${encodeURIComponent(campaignId)}`;
+            // if (filtroEstado === "inactivas") {
+            //     endpoint = `${API_BASE}/bases/bases-inactivas-resumen?campaignId=${encodeURIComponent(campaignId)}`;
+            // }
+            let endpoint = `${API_BASE}/bases//bases-activas-resumen?campaignId=${encodeURIComponent(campaignId)}`;
             if (filtroEstado === "inactivas") {
-                endpoint = `${API_BASE}/bases/bases-inactivas-resumen?campaignId=${encodeURIComponent(campaignId)}`;
+                endpoint = `${API_BASE}/bases//bases-inactivas-resumen?campaignId=${encodeURIComponent(campaignId)}`;
+            } else {
+                endpoint = `${API_BASE}/bases//bases-activas-resumen?campaignId=${encodeURIComponent(campaignId)}`;
             }
-
             const response = await fetch(endpoint, {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -74,20 +79,22 @@ export default function GestionarEstadoBases() {
             }
 
             const json = await response.json();
-            // id debe ser el id numérico de campaign_active_base
+            // Usar el id numérico de campaign_active_base si existe
             let rows = [];
-            if (filtroEstado === "inactivas" && json.data) {
-                rows = json.data.map((imp) => ({
-                    id: imp.base, // para inactivas, base es el import_id
-                    LastUpdate: imp.base,
-                    BaseState: imp.estado_base === "ACTIVO" ? "1" : "0",
-                }));
-            } else {
-                rows = (json.importaciones || []).map((imp) => ({
-                    id: imp.id, // numérico
-                    LastUpdate: imp.LastUpdate,
-                    BaseState: String(imp.BaseState ?? "1").trim() || "1",
-                }));
+            if (json.data) {
+                rows = json.data.map((imp) => {
+                    const idValue =
+                        imp.id ?? imp.base ?? imp.import_id ?? imp.LastUpdate;
+                    console.log("[GestionarEstadoBases] Base recibida:", {
+                        id: idValue,
+                        imp,
+                    });
+                    return {
+                        id: idValue, // Prioridad: id numérico
+                        LastUpdate: imp.base || imp.import_id || imp.LastUpdate,
+                        BaseState: imp.estado_base === "ACTIVO" ? "1" : "0",
+                    };
+                });
             }
             setImportacionesConEstado(rows);
 
@@ -123,12 +130,17 @@ export default function GestionarEstadoBases() {
 
         const action =
             String(row.BaseState).trim() === "1" ? "desactivar" : "activar";
+        console.log(
+            "[GestionarEstadoBases] Ejecutando acción base con row:",
+            row,
+        );
         const payload = {
             campaignId: subcampaniaSeleccionada,
             importDate: row.LastUpdate,
             action,
-            id: row.id,
+            id: row.id, // Ahora será el id numérico correcto
         };
+        console.log("[GestionarEstadoBases] Payload enviado:", payload);
 
         try {
             setLoading(true);

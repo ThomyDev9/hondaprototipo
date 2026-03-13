@@ -622,11 +622,12 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
             fecha_agendamiento || respuestas[0] || "",
         ).trim();
 
+        // Solo incrementar Number si se guarda una gestión (insert/update en gestionfinal)
+        // Aquí solo actualizamos los campos de gestión, sin tocar Number
         await pool.query(
             `UPDATE contactimportcontact
              SET Action = ?,
                  LastManagementResult = ?,
-                 Number = COALESCE(Number, 0) + 1,
                  LastAgent = ?,
                  UserShift = ?,
                  TmStmpShift = NOW()
@@ -706,42 +707,52 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
                     campaignLike,
                 ],
             );
-
-            if ((insertGestionResult?.affectedRows || 0) === 0) {
+            // Solo si se insertó gestión, incrementamos Number
+            if ((insertGestionResult?.affectedRows || 0) > 0) {
+                await pool.query(
+                    `UPDATE contactimportcontact SET Number = COALESCE(Number, 0) + 1 WHERE Id = ?`,
+                    [resolvedId],
+                );
+            } else {
                 return res.status(404).json({
                     error: "No se encontró cliente origen para insertar gestión",
                 });
             }
         } else {
-            await pool.query(agenteQueries.updateGestionFinalByContactId, [
-                contactAddressToUse,
-                interactionIdToUse,
-                agenteActor,
-                level1ToUse,
-                level2ToUse,
-                level3ToUse,
-                managementResultCode || estadoFinalToUse,
-                startedManagement,
-                tmstmp,
-                intentos,
-                fechaAgendamientoToUse,
-                telefonoAdToUse,
-                observacionesToUse,
-                ...preguntas,
-                ...respuestas,
-                resolvedContactId,
-            ]);
-        }
-
-        try {
+            const [updateGestionResult] = await pool.query(
+                agenteQueries.updateGestionFinalByContactId,
+                [
+                    contactAddressToUse,
+                    interactionIdToUse,
+                    agenteActor,
+                    level1ToUse,
+                    level2ToUse,
+                    level3ToUse,
+                    managementResultCode || estadoFinalToUse,
+                    startedManagement,
+                    tmstmp,
+                    intentos,
+                    fechaAgendamientoToUse,
+                    telefonoAdToUse,
+                    observacionesToUse,
+                    ...preguntas,
+                    ...respuestas,
+                    resolvedId,
+                    resolvedContactId,
+                    identificationToUse,
+                    campaignLike,
+                ],
+            );
+            // Solo si se actualizó gestión, incrementamos Number
+            if ((updateGestionResult?.affectedRows || 0) > 0) {
+                await pool.query(
+                    `UPDATE contactimportcontact SET Number = COALESCE(Number, 0) + 1 WHERE Id = ?`,
+                    [resolvedId],
+                );
+            }
             await pool.query(
                 agenteQueries.insertGestionHistoricaFromGestionFinal,
                 [resolvedContactId],
-            );
-        } catch (error_) {
-            console.warn(
-                "[agente/guardar-gestion] No se pudo insertar en gestionhistorica:",
-                error_?.sqlMessage || error_?.message || error_,
             );
         }
 

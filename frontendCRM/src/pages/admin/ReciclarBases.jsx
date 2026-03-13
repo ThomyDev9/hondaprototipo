@@ -52,7 +52,7 @@ export default function ReciclarBases() {
                 setLoadingBases(true);
                 const token = localStorage.getItem("access_token") || "";
                 const response = await fetch(
-                    `${API_BASE}/bases/importaciones-estado/${encodeURIComponent(subcampaniaSeleccionada)}`,
+                    `${API_BASE}/bases/importaciones/${encodeURIComponent(subcampaniaSeleccionada)}`,
                     {
                         headers: {
                             Authorization: token ? `Bearer ${token}` : "",
@@ -103,7 +103,7 @@ export default function ReciclarBases() {
 
                 let stillExists = false;
                 for (const option of options) {
-                    if (option.id === baseSeleccionada) {
+                    if (option && option.id === baseSeleccionada) {
                         stillExists = true;
                         break;
                     }
