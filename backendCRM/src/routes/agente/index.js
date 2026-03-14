@@ -165,91 +165,141 @@ async function saveDynamicResponseIfTemplateActive({
 ============================================================================ */
 router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
   try {
+
     const agenteActor = getAgentActor(req);
     const campaignToUse = String(req.body?.campaignId || "").trim();
     const tabSessionId = String(req.body?.tabSessionId || "").trim();
 
-    const [latestImportRows] = await pool.query(
-      agenteQueries.getActiveImportByCampaign,
+    if (!campaignToUse) {
+      return res.status(400).json({ error: "Campaign requerida" });
+    }
+
+    /* ============================================================
+       1. OBTENER BASE ACTIVA (LastUpdate)
+    ============================================================ */
+
+    const [baseRows] = await pool.query(
+      `
+      SELECT ImportId
+      FROM campaign_active_base
+      WHERE CampaignId = ?
+      AND state = 1
+      LIMIT 1
+      `,
       [campaignToUse]
     );
 
-    const latestImportId = latestImportRows[0]?.ImportId;
-
-    if (!latestImportId) {
+    if (!baseRows.length) {
       return res.status(404).json({
         error: "No hay base activa para esta campaña",
       });
     }
 
-    /* ============================================================
-       1. INTENTAR ASIGNAR UN REGISTRO DIRECTAMENTE (ATÓMICO)
-    ============================================================ */
-
-    const [updateResult] = await pool.query(
-      `
-      UPDATE contactimportcontact
-SET 
-  LastAgent = ?,
-  TabSessionId = ?,
-  Action = 'Asignar Base',
-  TmStmpShift = NOW()
-WHERE Campaign = ?
-AND LastUpdate = ?
-AND LastAgent IN ('','Pendiente')
-AND Action NOT IN ('Cancelar base')
-AND (
-      (LastManagementResult IS NULL OR LastManagementResult = '')
-      OR
-      (
-        Action IN ('re_llamada','reciclable')
-        AND LastManagementResult IN ('34','60','61','62','63','64')
-      )
-)
-ORDER BY Number ASC, ID ASC
-LIMIT 1
-      `,
-      [agenteActor, tabSessionId, campaignToUse, latestImportId]
-    );
-
-    if (updateResult.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ error: "No hay registros disponibles en tu cola" });
-    }
+    const lastUpdate = baseRows[0].ImportId;
 
     /* ============================================================
-       2. OBTENER EL REGISTRO QUE ACABAMOS DE ASIGNAR
+       2. VER SI YA TIENE REGISTRO ASIGNADO
     ============================================================ */
 
     const [assignedRows] = await pool.query(
       `
       SELECT 
-        c.ID,
-        c.Campaign,
-        c.Name,
-        c.Identification,
-        c.LastUpdate,
-        c.LastManagementResult,
-        c.Number AS intentos_totales,
-        c.Action,
-        c.LastAgent,
-        c.TabSessionId
-      FROM contactimportcontact c
-      WHERE c.TabSessionId = ?
+        ID,
+        Campaign,
+        Name,
+        Identification,
+        LastUpdate,
+        Number AS intentos_totales,
+        LastAgent
+      FROM contactimportcontact
+      WHERE LastAgent = ?
+      AND TabSessionId = ?
+      AND Campaign = ?
+      AND LastUpdate = ?
+      AND Action = 'Asignar Base'
       LIMIT 1
       `,
-      [tabSessionId]
+      [agenteActor, tabSessionId, campaignToUse, lastUpdate]
     );
 
-    if (assignedRows.length === 0) {
-      return res.status(404).json({ error: "No se pudo recuperar el registro asignado" });
+    let registro;
+
+    if (assignedRows.length > 0) {
+
+      registro = assignedRows[0];
+
+    } else {
+
+      /* ============================================================
+         3. AUTO ASIGNAR REGISTRO
+      ============================================================ */
+
+      const [updateResult] = await pool.query(
+        `
+        UPDATE contactimportcontact
+        SET 
+          LastAgent = ?,
+          TabSessionId = ?,
+          Action = 'Asignar Base',
+          TmStmpShift = NOW()
+        WHERE Campaign = ?
+        AND LastUpdate = ?
+        AND LastAgent IN ('','Pendiente')
+        AND Action NOT IN ('Cancelar base')
+        AND (
+              (LastManagementResult IS NULL OR LastManagementResult = '')
+              OR
+              (
+                Action IN ('re_llamada','reciclable')
+                AND LastManagementResult IN ('34','60','61','62','63','64')
+              )
+        )
+        ORDER BY Number ASC, ID ASC
+        LIMIT 1
+        `,
+        [agenteActor, tabSessionId, campaignToUse, lastUpdate]
+      );
+
+      if (updateResult.affectedRows === 0) {
+        return res.status(404).json({
+          error: "No hay registros disponibles en la base activa",
+        });
+      }
+
+      /* ============================================================
+         4. OBTENER REGISTRO ASIGNADO
+      ============================================================ */
+
+      const [rows] = await pool.query(
+        `
+        SELECT 
+          ID,
+          Campaign,
+          Name,
+          Identification,
+          LastUpdate,
+          Number AS intentos_totales,
+          LastAgent
+        FROM contactimportcontact
+        WHERE LastAgent = ?
+        AND TabSessionId = ?
+        AND Campaign = ?
+        AND LastUpdate = ?
+        ORDER BY TmStmpShift DESC
+        LIMIT 1
+        `,
+        [agenteActor, tabSessionId, campaignToUse, lastUpdate]
+      );
+
+      registro = rows[0];
     }
 
-    const registro = assignedRows[0];
+    if (!registro) {
+      return res.status(404).json({ error: "No se encontró registro" });
+    }
 
     /* ============================================================
-       3. TELEFONOS
+       5. TELEFONOS
     ============================================================ */
 
     const [phones] = await pool.query(
@@ -263,7 +313,7 @@ LIMIT 1
       .slice(0, 2);
 
     /* ============================================================
-       4. CLIENTE DETALLE
+       6. CLIENTE DETALLE
     ============================================================ */
 
     let [clienteRows] = await pool.query(
@@ -272,10 +322,12 @@ LIMIT 1
     );
 
     if (clienteRows.length === 0 && registro.Identification) {
+
       [clienteRows] = await pool.query(
         agenteQueries.getClienteByIdentificationAndCampaign,
         [registro.Identification, `${campaignToUse}%`]
       );
+
     }
 
     return res.json({
@@ -295,13 +347,15 @@ LIMIT 1
     });
 
   } catch (err) {
+
     console.error("Error en /agente/siguiente:", err);
-    return res
-      .status(500)
-      .json({ error: "Error tomando siguiente registro" });
+
+    return res.status(500).json({
+      error: "Error tomando siguiente registro",
+    });
+
   }
 });
-
 router.get("/bases-activas-resumen", ...agenteMiddlewares, async (req, res) => {
     try {
         await ensureImportStatsTable(pool);

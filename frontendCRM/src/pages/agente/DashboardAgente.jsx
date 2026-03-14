@@ -177,70 +177,34 @@ export default function DashboardAgente({
         setRegistro(null);
     };
 
-    const loadActiveBaseCards = async () => {
-        try {
-            setLoadingActiveBaseCards(true);
-            const token = localStorage.getItem("access_token") || "";
-            const resp = await fetch(
-                `${API_BASE}/agente/bases-activas-resumen`,
-                {
-                    headers: {
-                        Authorization: token ? `Bearer ${token}` : "",
-                    },
-                },
-            );
+   const loadBases = async () => {
 
-            const json = await resp.json();
+    const token = localStorage.getItem("access_token") || "";
 
-            if (resp.status === 403) {
-                handle403(json);
-                setActiveBaseCards([]);
-                return;
-            }
+    try {
 
-            if (!resp.ok) {
-                setActiveBaseCards([]);
-                return;
-            }
+        const [activasResp, regestionResp] = await Promise.all([
+            fetch(`${API_BASE}/agente/bases-activas-resumen`, {
+                headers: { Authorization: `Bearer ${token}` }
+            }),
+            fetch(`${API_BASE}/agente/bases-regestion-resumen`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+        ]);
 
-            setActiveBaseCards(Array.isArray(json.data) ? json.data : []);
-        } catch (err) {
-            console.error("Error cargando bases activas resumen:", err);
-            setActiveBaseCards([]);
-        } finally {
-            setLoadingActiveBaseCards(false);
-        }
-    };
+        const activasJson = await activasResp.json();
+        const regestionJson = await regestionResp.json();
 
-    const loadRegestionBaseCards = async () => {
-        try {
-            setLoadingRegestionBaseCards(true);
-            const token = localStorage.getItem("access_token") || "";
-            const resp = await fetch(
-                `${API_BASE}/agente/bases-regestion-resumen`,
-                {
-                    headers: {
-                        Authorization: token ? `Bearer ${token}` : "",
-                    },
-                },
-            );
-            const json = await resp.json();
-            console.log("[FRONT] Respuesta bases regestión", json);
-            setRegestionBaseCards(Array.isArray(json.data) ? json.data : []);
-        } catch (err) {
-            console.error("[FRONT] Error bases regestión", err);
-            setRegestionBaseCards([]);
-        } finally {
-            setLoadingRegestionBaseCards(false);
-        }
-    };
+        setActiveBaseCards(activasJson.data || []);
+        setRegestionBaseCards(regestionJson.data || []);
 
-    useEffect(() => {
-        console.log(
-            "[FRONT] useEffect bases regestión: ejecutando loadRegestionBaseCards",
-        );
-        loadRegestionBaseCards();
-    }, []);
+    } catch (err) {
+        console.error(err);
+    }
+};
+   useEffect(() => {
+    if (!bloqueado) loadBases();
+}, [bloqueado]);
 
     useEffect(() => {
         if (agentPage === "inicio") return;
@@ -273,11 +237,7 @@ export default function DashboardAgente({
         setCampaignIdSeleccionada("");
     }, [agentPage]);
 
-    useEffect(() => {
-        if (bloqueado) return;
-        loadActiveBaseCards();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [bloqueado]);
+
 
     useEffect(() => {
         if (!requestedAgentStatus || bloqueado) return;
