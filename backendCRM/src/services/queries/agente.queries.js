@@ -252,46 +252,7 @@ const agenteQueries = {
         LIMIT 1
       `,
 
-    //asigancion de registro automatico a asesor segun campaña e importación
-    getNextCandidateByCampaignAndImport: `
-        SELECT c.Id,
-               c.Name,
-               c.Identification,
-               c.LastUpdate,
-               c.LastManagementResult,
-               c.Action,
-               c.Campaign,
-               COALESCE(c.Number, 0) AS intentos_totales
-        FROM contactimportcontact c
-        WHERE c.Campaign = ?
-          AND c.LastUpdate = ?
-          AND c.Action <> 'Cancelar base'
-          AND c.LastAgent IN ('','Pendiente')
-          AND (
-            (
-              COALESCE(TRIM(c.LastManagementResult), '') = ''
-              AND COALESCE(TRIM(c.Action), '') <> 're_llamada' AND COALESCE(TRIM(c.Action), '') <> 'reciclable'
-            )
-            OR (
-              (COALESCE(TRIM(c.Action), '') = 're_llamada' OR COALESCE(TRIM(c.Action), '') = 'reciclable')
-              AND
-              (
-                CAST(COALESCE(NULLIF(TRIM(c.LastManagementResult), ''), '0') AS UNSIGNED) BETWEEN 60 AND 64
-                OR CAST(COALESCE(NULLIF(TRIM(c.LastManagementResult), ''), '0') AS UNSIGNED) = 34
-              )
-              AND NOT EXISTS (
-                SELECT 1
-                FROM contactimportcontact c_pending
-                WHERE c_pending.Campaign = c.Campaign
-                  AND c_pending.LastUpdate = c.LastUpdate
-                  AND c_pending.Action <> 'Cancelar base'
-                  AND COALESCE(TRIM(c_pending.LastManagementResult), '') = ''
-              )
-            )
-          )
-        ORDER BY c.Number ASC, c.Id ASC
-        LIMIT 1
-    `,
+    
 
     getPhonesByContactId: `
         SELECT NumeroMarcado
@@ -435,39 +396,89 @@ const agenteQueries = {
       VALUES (?, ?, ?, ?, ?, ?, NOW())
     `,
 
-    // Asignacion de registro automtico desde card asesor
-    getAssignedClientByAgentAndSessionAndCampaignLike: `
-    SELECT
-      c.ID,
-      c.CampaignId,
-      c.ImportId,
-      c.IDENTIFICACION,
-      c.NOMBRE_CLIENTE,
-      c.CAMPO1,
-      c.CAMPO2,
-      c.CAMPO3,
-      c.CAMPO4,
-      c.CAMPO5,
-      c.CAMPO6,
-      c.CAMPO7,
-      c.CAMPO8,
-      c.CAMPO9,
-      c.CAMPO10,
-      c.ResultLevel1,
-      c.ResultLevel2,
-      cc.LastAgent AS Agent,
-      cc.LastUpdate,
-      cc.Number AS intentos_totales
-    FROM ${encuestaSchema}.clientes c
-    INNER JOIN contactimportcontact cc ON c.ID = cc.Id
-    WHERE cc.LastAgent = ?
-      AND cc.TabSessionId = ?
-      AND c.CampaignId = ?
-      AND (cc.Action IS NULL OR cc.Action <> 'Cancelar base')
-      AND COALESCE(cc.Action, '') <> 'Gestionado'
-    ORDER BY cc.TmStmpShift DESC, c.ID DESC
-    LIMIT 1
-  `,
+  //   // Asignacion de registro automtico desde card asesor
+  //   getAssignedClientByAgentAndSessionAndCampaignLike: `
+  //   SELECT
+  //     c.ID,
+  //     c.CampaignId,
+  //     c.ImportId,
+  //     c.IDENTIFICACION,
+  //     c.NOMBRE_CLIENTE,
+  //     c.CAMPO1,
+  //     c.CAMPO2,
+  //     c.CAMPO3,
+  //     c.CAMPO4,
+  //     c.CAMPO5,
+  //     c.CAMPO6,
+  //     c.CAMPO7,
+  //     c.CAMPO8,
+  //     c.CAMPO9,
+  //     c.CAMPO10,
+  //     c.ResultLevel1,
+  //     c.ResultLevel2,
+  //     cc.LastAgent AS Agent,
+  //     cc.LastUpdate,
+  //     cc.Number AS intentos_totales
+  //   FROM ${encuestaSchema}.clientes c
+  //   INNER JOIN contactimportcontact cc ON c.ID = cc.Id
+  //   WHERE cc.LastAgent = ?
+  //     AND cc.TabSessionId = ?
+  //     AND c.CampaignId = ?
+  //     AND (cc.Action IS NULL OR cc.Action <> 'Cancelar base')
+  //     AND COALESCE(cc.Action, '') <> 'Gestionado'
+  //   ORDER BY cc.TmStmpShift DESC, c.ID DESC
+  //   LIMIT 1
+  // `,
+
+  //asigancion de registro automatico a asesor segun campaña e importación
+    // asignación de registro automático a asesor según campaña e importación
+getNextCandidateByCampaignAndImport: `
+(
+  SELECT c.Id,
+         c.Name,
+         c.Identification,
+         c.LastUpdate,
+         c.LastManagementResult,
+         c.Action,
+         c.Campaign,
+         COALESCE(c.Number,0) AS intentos_totales
+  FROM contactimportcontact c
+  WHERE c.Campaign = ?
+    AND c.LastUpdate = ?
+    AND c.LastAgent IN ('','Pendiente')
+    AND c.Action NOT IN ('Cancelar base','re_llamada','reciclable')
+    AND (c.LastManagementResult IS NULL OR c.LastManagementResult = '')
+  ORDER BY c.Number ASC, c.Id ASC
+  LIMIT 1
+)
+
+UNION ALL
+
+(
+  SELECT c.Id,
+         c.Name,
+         c.Identification,
+         c.LastUpdate,
+         c.LastManagementResult,
+         c.Action,
+         c.Campaign,
+         COALESCE(c.Number,0) AS intentos_totales
+  FROM contactimportcontact c
+  WHERE c.Campaign = ?
+    AND c.LastUpdate = ?
+    AND c.LastAgent IN ('','Pendiente')
+    AND c.Action IN ('re_llamada','reciclable')
+    AND (
+          c.LastManagementResult BETWEEN '60' AND '64'
+          OR c.LastManagementResult = '34'
+        )
+  ORDER BY c.Number ASC, c.Id ASC
+  LIMIT 1
+)
+
+ORDER BY intentos_totales ASC, Id ASC
+LIMIT 1
+`,
     // Nueva versión: tomar candidato y asignar por agente y sesión de pestaña
     takeCandidateForAgentWithSession: `
     UPDATE contactimportcontact

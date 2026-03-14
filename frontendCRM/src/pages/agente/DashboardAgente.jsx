@@ -803,27 +803,6 @@ export default function DashboardAgente({
         );
     }
 
-    /* =====================  UI BLOQUEADO  ===================== */
-    if (bloqueado) {
-        return (
-            <PageContainer fullWidth className="agent-page-container">
-                <div className="agent-page">
-                    <h1 className="agent-title">Módulo de agente</h1>
-                    <p className="agent-subtitle">
-                        Tu usuario se encuentra{" "}
-                        <strong>bloqueado por inactividad</strong> o marcado
-                        como <strong>inactivo</strong>.
-                    </p>
-                    <p className="agent-subtitle">
-                        Por favor, comunícate con un administrador para que te
-                        desbloquee.
-                    </p>
-                    {error && <p className="agent-error-blocked">{error}</p>}
-                </div>
-            </PageContainer>
-        );
-    }
-
     const hasCampaignSelection = Boolean(campaignIdSeleccionada);
     const shouldShowQueueMessage =
         !loadingRegistro &&
