@@ -19,7 +19,7 @@ const agenteQueries = {
         SELECT ImportId
         FROM campaign_active_base
         WHERE CampaignId = ?
-          AND UPPER(State) IN ('1', 'ACTIVO', 'ACTIVE', 'A')
+        AND State = 1
         LIMIT 1
     `,
     // Card de bases activas para agente dashboard, con conteo de pendientes
@@ -55,38 +55,38 @@ const agenteQueries = {
       GROUP BY ci.Campaign, ci.LastUpdate
       ORDER BY total_reciclables DESC, ci.Campaign ASC;
     `,
-
-    getAssignedClientByAgentAndCampaignLike: `
-        SELECT
-            c.ID,
-            c.CampaignId,
-            c.ImportId,
-            c.IDENTIFICACION,
-            c.NOMBRE_CLIENTE,
-            c.CAMPO1,
-            c.CAMPO2,
-            c.CAMPO3,
-            c.CAMPO4,
-            c.CAMPO5,
-            c.CAMPO6,
-            c.CAMPO7,
-            c.CAMPO8,
-            c.CAMPO9,
-            c.CAMPO10,
-            c.ResultLevel1,
-            c.ResultLevel2,
-            cc.LastAgent AS Agent,
-            cc.LastUpdate,
-            cc.Number AS intentos_totales
-        FROM ${encuestaSchema}.clientes c
-        INNER JOIN contactimportcontact cc ON c.ID = cc.Id
-        WHERE cc.LastAgent = ?
-          AND c.CampaignId LIKE ?
-          AND (cc.Action IS NULL OR cc.Action <> 'Cancelar base')
-          AND COALESCE(cc.Action, '') <> 'Gestionado'
-        ORDER BY cc.TmStmpShift DESC, c.ID DESC
-        LIMIT 1
-    `,
+    //asignación de registro automático a asesor segun campaña e importación, versión original sin sesión de pestaña
+    // getAssignedClientByAgentAndCampaignLike: `
+    //     SELECT
+    //         c.ID,
+    //         c.CampaignId,
+    //         c.ImportId,
+    //         c.IDENTIFICACION,
+    //         c.NOMBRE_CLIENTE,
+    //         c.CAMPO1,
+    //         c.CAMPO2,
+    //         c.CAMPO3,
+    //         c.CAMPO4,
+    //         c.CAMPO5,
+    //         c.CAMPO6,
+    //         c.CAMPO7,
+    //         c.CAMPO8,
+    //         c.CAMPO9,
+    //         c.CAMPO10,
+    //         c.ResultLevel1,
+    //         c.ResultLevel2,
+    //         cc.LastAgent AS Agent,
+    //         cc.LastUpdate,
+    //         cc.Number AS intentos_totales
+    //     FROM ${encuestaSchema}.clientes c
+    //     INNER JOIN contactimportcontact cc ON c.ID = cc.Id
+    //     WHERE cc.LastAgent = ?
+    //       AND c.CampaignId LIKE ?
+    //       AND (cc.Action IS NULL OR cc.Action <> 'Cancelar base')
+    //       AND COALESCE(cc.Action, '') <> 'Gestionado'
+    //     ORDER BY cc.TmStmpShift DESC, c.ID DESC
+    //     LIMIT 1
+    // `,
 
     releaseStaleAutoAssignmentsByCampaign: `
         UPDATE contactimportcontact
@@ -252,17 +252,6 @@ const agenteQueries = {
         LIMIT 1
       `,
 
-    getLatestImportWithPendingByCampaign: `
-      SELECT c.LastUpdate AS ImportId
-      FROM contactimportcontact c
-      WHERE c.Campaign = ?
-        AND c.LastUpdate IS NOT NULL
-        AND c.LastUpdate <> ''
-        AND c.Action <> 'Cancelar base'
-        AND (c.LastAgent = '' OR c.LastAgent = 'Pendiente')
-        ORDER BY c.LastUpdate DESC
-      LIMIT 1
-    `,
     //asigancion de registro automatico a asesor segun campaña e importación
     getNextCandidateByCampaignAndImport: `
         SELECT c.Id,
@@ -277,7 +266,7 @@ const agenteQueries = {
         WHERE c.Campaign = ?
           AND c.LastUpdate = ?
           AND c.Action <> 'Cancelar base'
-          AND (c.LastAgent = '' OR c.LastAgent = 'Pendiente')
+          AND c.LastAgent IN ('','Pendiente')
           AND (
             (
               COALESCE(TRIM(c.LastManagementResult), '') = ''
@@ -300,20 +289,8 @@ const agenteQueries = {
               )
             )
           )
-        ORDER BY COALESCE(c.Number, 0) ASC, c.Id ASC
+        ORDER BY c.Number ASC, c.Id ASC
         LIMIT 1
-    `,
-
-    takeCandidateForAgent: `
-        UPDATE contactimportcontact
-        SET LastAgent = ?,
-            Action = ?,
-            Number = COALESCE(Number, 0) + 1,
-            UserShift = ?,
-            TmStmpShift = NOW()
-        WHERE Id = ?
-          AND Campaign = ?
-          AND (LastAgent = '' OR LastAgent = 'Pendiente')
     `,
 
     getPhonesByContactId: `
@@ -332,19 +309,6 @@ const agenteQueries = {
         ORDER BY FechaHoraFin DESC, FechaHora DESC
         LIMIT 1
       `,
-
-    updateContactPhoneFromGestion: `
-      UPDATE contactimportphone
-      SET InteractionId = ?,
-        Agente = ?,
-        Estado = ?,
-        FechaHora = NOW(),
-        FechaHoraFin = NOW(),
-        DescripcionTelefono = COALESCE(NULLIF(?, ''), DescripcionTelefono),
-        IdentificacionCliente = COALESCE(NULLIF(?, ''), IdentificacionCliente)
-      WHERE ContactId = ?
-        AND NumeroMarcado = ?
-    `,
 
     updateContactPhoneByStatusChange: `
       UPDATE contactimportphone
@@ -471,7 +435,7 @@ const agenteQueries = {
       VALUES (?, ?, ?, ?, ?, ?, NOW())
     `,
 
-    // Nueva versión: asignación por agente y sesión de pestaña
+    // Asignacion de registro automtico desde card asesor
     getAssignedClientByAgentAndSessionAndCampaignLike: `
     SELECT
       c.ID,
@@ -498,7 +462,7 @@ const agenteQueries = {
     INNER JOIN contactimportcontact cc ON c.ID = cc.Id
     WHERE cc.LastAgent = ?
       AND cc.TabSessionId = ?
-      AND c.CampaignId LIKE ?
+      AND c.CampaignId = ?
       AND (cc.Action IS NULL OR cc.Action <> 'Cancelar base')
       AND COALESCE(cc.Action, '') <> 'Gestionado'
     ORDER BY cc.TmStmpShift DESC, c.ID DESC
@@ -517,23 +481,6 @@ const agenteQueries = {
       AND Campaign = ?
       AND (LastAgent = '' OR LastAgent = 'Pendiente')
   `,
-
-    // Traer todas las bases activas e inactivas para filtros
-    getAllBasesSummary: `
-      SELECT
-        cab.CampaignId AS campaign_id,
-        cab.ImportId AS import_id,
-        cab.State AS base_state,
-        COALESCE(cis.TotalRegistros, cab.TotalRegistros, 0) AS total_registros,
-        COALESCE(cis.PendientesReales, 0) AS pendientes,
-        COALESCE(cis.PendientesLibres, 0) AS pendientes_libres,
-        COALESCE(cis.PendientesAsignadosSinGestion, 0) AS pendientes_asignados_sin_gestion
-      FROM campaign_active_base cab
-      LEFT JOIN campaign_import_stats cis
-        ON cis.CampaignId = cab.CampaignId
-       AND cis.ImportId = cab.ImportId
-      ORDER BY cab.CampaignId ASC, cab.ImportId DESC
-    `,
 };
 
 export default agenteQueries;

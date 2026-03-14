@@ -172,32 +172,14 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
             process.env.AGENT_ASSIGNMENT_TIMEOUT_MINUTES || "10",
             10,
         );
-
-        console.log("[agente/siguiente] payload", {
-            campaignId: campaignFromBody,
-            agente: agenteActor,
-            tabSessionId,
-        });
-
-        if (!campaignFromBody) {
-            return res.status(400).json({
-                error: "Debes seleccionar una campaña para tomar registros",
-            });
-        }
-        if (!tabSessionId) {
-            return res.status(400).json({
-                error: "Falta el identificador de sesión de pestaña (tabSessionId)",
-            });
-        }
-
         const campaignToUse = campaignFromBody;
 
-        await pool.query(agenteQueries.releaseStaleAutoAssignmentsByCampaign, [
-            `${campaignToUse}%`,
-            Number.isFinite(staleAssignmentMinutes)
-                ? staleAssignmentMinutes
-                : 30,
-        ]);
+        // await pool.query(agenteQueries.releaseStaleAutoAssignmentsByCampaign, [
+        //     `${campaignToUse}%`,
+        //     Number.isFinite(staleAssignmentMinutes)
+        //         ? staleAssignmentMinutes
+        //         : 30,
+        // ]);
 
         // Buscar si ya hay un registro asignado a este agente y tabSessionId
         const [assignedRows] = await pool.query(

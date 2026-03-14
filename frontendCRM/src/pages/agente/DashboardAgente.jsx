@@ -125,10 +125,6 @@ export default function DashboardAgente({
     const [loadingRegistro, setLoadingRegistro] = useState(false);
     const [error, setError] = useState("");
 
-    // DEMO: Mostrar formulario F2 de Gestión Outbound para revisión
-    const [showGestionOutboundDemo, setShowGestionOutboundDemo] =
-        useState(false);
-
     // bloqueado real viene del backend (/auth/me) o por inactividad
     const [bloqueado, setBloqueado] = useState(
         user?.bloqueado === true || user?.is_active === false,
@@ -788,57 +784,6 @@ export default function DashboardAgente({
             setError("Error de conexión con el servidor");
         }
     };
-
-    /* =====================  INACTIVIDAD (10 min)  ===================== */
-    useEffect(() => {
-        if (bloqueado) return;
-
-        const handler = () => marcarActividad();
-
-        globalThis.addEventListener("click", handler);
-        globalThis.addEventListener("keydown", handler);
-        globalThis.addEventListener("mousemove", handler);
-
-        const interval = setInterval(async () => {
-            if (bloqueado || !registro) return;
-
-            const ahora = Date.now();
-            const diff = ahora - lastActivityRef.current;
-
-            if (diff > INACTIVITY_MS && !inactivityHandledRef.current) {
-                inactivityHandledRef.current = true;
-
-                try {
-                    const token = localStorage.getItem("access_token");
-                    await fetch(`${API_BASE}/agente/bloquearme`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: token ? `Bearer ${token}` : "",
-                        },
-                        body: JSON.stringify({
-                            registro_id: registro?.id ?? null,
-                        }),
-                    });
-                } catch (err) {
-                    console.error("Error llamando /agente/bloquearme:", err);
-                }
-
-                setBloqueado(true);
-                setRegistro(null);
-                setError(
-                    "Has sido bloqueado por inactividad (más de 10 minutos sin actividad). Comunícate con un administrador.",
-                );
-            }
-        }, 30_000);
-
-        return () => {
-            globalThis.removeEventListener("click", handler);
-            globalThis.removeEventListener("keydown", handler);
-            globalThis.removeEventListener("mousemove", handler);
-            clearInterval(interval);
-        };
-    }, [bloqueado, registro]);
 
     if (!isAgente) {
         return (
