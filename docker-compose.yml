@@ -1,9 +1,9 @@
 services:
   backend:
     build:
-      context: ./agendamiento-autos
+      context: ./backendCRM
       dockerfile: Dockerfile
-    container_name: honda-backend
+    container_name: backendCRM
     restart: always
     env_file:
       - .env.docker
@@ -14,15 +14,15 @@ services:
     ports:
       - "4004:4004"
     volumes:
-      - ./agendamiento-autos/uploads:/app/uploads
+      - ./backendCRM/uploads:/app/uploads
 
   frontend:
     build:
-      context: ./agendamiento-autos-front
+      context: ./frontendCRM
       dockerfile: Dockerfile
       args:
         VITE_API_BASE: ${VITE_API_BASE:-http://172.19.10.61:4004}
-    container_name: honda-frontend
+    container_name: frontendCRM
     restart: always
     ports:
       - "5173:80"
