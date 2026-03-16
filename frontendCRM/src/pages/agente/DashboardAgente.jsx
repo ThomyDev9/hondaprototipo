@@ -37,15 +37,6 @@ import OutHondaPage from "./OutHondaPage";
 import { esGestionOutbound } from "../../utils/gestionOutbound";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
-const INACTIVITY_MS = 100 * 600 * 10000; // 10 minutos
-
-const ESTADOS_OPERATIVOS = [
-    { code: "disponible", label: "Disponible" },
-    { code: "baño", label: "Baño" },
-    { code: "consulta", label: "Consulta" },
-    { code: "lunch", label: "Lunch" },
-    { code: "reunion", label: "Reunión" },
-];
 
 function buildInitialSurveyAnswers(surveyConfig) {
     if (!surveyConfig?.fields?.length) return {};
@@ -117,6 +108,7 @@ export default function DashboardAgente({
     onAgentStatusSync,
     agentPage,
     onSelectCampaign,
+    onChangeAgentPage,
 }) {
     const roles = user?.roles || [];
     const isAgente = roles.includes("ASESOR");
@@ -147,10 +139,9 @@ export default function DashboardAgente({
     const [dynamicSurveyConfig, setDynamicSurveyConfig] = useState(null);
     const [surveyAnswers, setSurveyAnswers] = useState({});
     const [activeBaseCards, setActiveBaseCards] = useState([]);
-    const [loadingActiveBaseCards, setLoadingActiveBaseCards] = useState(false);
+    const [loadingActiveBaseCards] = useState(false);
     const [regestionBaseCards, setRegestionBaseCards] = useState([]);
-    const [loadingRegestionBaseCards, setLoadingRegestionBaseCards] =
-        useState(false);
+    const [loadingRegestionBaseCards] = useState(false);
 
     const surveyFieldsToRender = dynamicSurveyConfig?.fields || [];
 
@@ -177,34 +168,31 @@ export default function DashboardAgente({
         setRegistro(null);
     };
 
-   const loadBases = async () => {
+    const loadBases = async () => {
+        const token = localStorage.getItem("access_token") || "";
 
-    const token = localStorage.getItem("access_token") || "";
+        try {
+            const [activasResp, regestionResp] = await Promise.all([
+                fetch(`${API_BASE}/agente/bases-activas-resumen`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+                fetch(`${API_BASE}/agente/bases-regestion-resumen`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            ]);
 
-    try {
+            const activasJson = await activasResp.json();
+            const regestionJson = await regestionResp.json();
 
-        const [activasResp, regestionResp] = await Promise.all([
-            fetch(`${API_BASE}/agente/bases-activas-resumen`, {
-                headers: { Authorization: `Bearer ${token}` }
-            }),
-            fetch(`${API_BASE}/agente/bases-regestion-resumen`, {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-        ]);
-
-        const activasJson = await activasResp.json();
-        const regestionJson = await regestionResp.json();
-
-        setActiveBaseCards(activasJson.data || []);
-        setRegestionBaseCards(regestionJson.data || []);
-
-    } catch (err) {
-        console.error(err);
-    }
-};
-   useEffect(() => {
-    if (!bloqueado) loadBases();
-}, [bloqueado]);
+            setActiveBaseCards(activasJson.data || []);
+            setRegestionBaseCards(regestionJson.data || []);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+    useEffect(() => {
+        if (!bloqueado) loadBases();
+    }, [bloqueado]);
 
     useEffect(() => {
         if (agentPage === "inicio") return;
@@ -230,14 +218,61 @@ export default function DashboardAgente({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedCampaignId, selectedCampaignTick, bloqueado, agentPage]);
 
+    // Unify Cancel and Inicio logic: always release record if exists
     useEffect(() => {
-        if (agentPage !== "inicio") return;
-        setRegistro(null);
-        setError("");
-        setCampaignIdSeleccionada("");
-    }, [agentPage]);
-
-
+        const releaseAndReset = async () => {
+            if (registro?.id) {
+                try {
+                    setError("");
+                    const token = localStorage.getItem("access_token");
+                    await fetch(`${API_BASE}/agente/liberar-registro`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: token ? `Bearer ${token}` : "",
+                        },
+                        body: JSON.stringify({ registro_id: registro.id }),
+                    });
+                } catch {
+                    setError("Error liberando registro");
+                }
+            }
+            setRegistro(null);
+            setError("");
+            setCampaignIdSeleccionada("");
+        };
+        if (agentPage === "inicio") {
+            releaseAndReset();
+        }
+    // Add registro?.id to dependencies to avoid React warning
+    }, [agentPage, registro?.id]);
+    // 15-min inactivity timeout: auto-cancel and release record
+    useEffect(() => {
+        if (!registro || agentPage === "inicio" || bloqueado) return;
+        const timeoutMs = 15 * 60 * 1000; // 15 minutes
+        const handle = setTimeout(async () => {
+            if (registro?.id) {
+                try {
+                    setError("");
+                    const token = localStorage.getItem("access_token");
+                    await fetch(`${API_BASE}/agente/liberar-registro`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: token ? `Bearer ${token}` : "",
+                        },
+                        body: JSON.stringify({ registro_id: registro.id }),
+                    });
+                } catch {
+                    setError("Error liberando registro por inactividad");
+                }
+            }
+            if (typeof onChangeAgentPage === "function") {
+                onChangeAgentPage("inicio");
+            }
+        }, timeoutMs);
+        return () => clearTimeout(handle);
+    }, [registro, agentPage, bloqueado, onChangeAgentPage]);
 
     useEffect(() => {
         if (!requestedAgentStatus || bloqueado) return;
@@ -737,8 +772,6 @@ export default function DashboardAgente({
             } else {
                 setRegistro(null);
             }
-
-            await loadActiveBaseCards();
         } catch (err) {
             console.error(err);
             setError("Error de conexión con el servidor");
@@ -954,6 +987,27 @@ export default function DashboardAgente({
                             surveyFieldsToRender={surveyFieldsToRender}
                             surveyAnswers={surveyAnswers}
                             onSurveyFieldChange={handleSurveyFieldChange}
+                            onCancelarGestion={async () => {
+                                if (registro?.id) {
+                                    try {
+                                        setError("");
+                                        const token = localStorage.getItem("access_token");
+                                        await fetch(`${API_BASE}/agente/liberar-registro`, {
+                                            method: "POST",
+                                            headers: {
+                                                "Content-Type": "application/json",
+                                                Authorization: token ? `Bearer ${token}` : "",
+                                            },
+                                            body: JSON.stringify({ registro_id: registro.id }),
+                                        });
+                                    } catch {
+                                        setError("Error liberando registro");
+                                    }
+                                }
+                                if (typeof onChangeAgentPage === "function") {
+                                    onChangeAgentPage("inicio");
+                                }
+                            }}
                         />
                     )}
                     {/* Mostrar Formulario F2 solo en campañas Out específicas */}

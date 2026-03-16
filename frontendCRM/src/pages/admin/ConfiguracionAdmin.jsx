@@ -13,7 +13,7 @@ import {
     obtenerPlantillaAsignada,
     guardarPlantillaDinamica,
 } from "../../services/adminForms.service";
-import "./CargarBases.css";
+import "./ConfiguracionAdmin.css";
 
 const FIELD_TYPE_OPTIONS = [
     { id: "text", label: "Texto" },
@@ -31,6 +31,34 @@ const FORM_TYPE_OPTIONS = [
     { id: "F2", label: "Formulario 2" },
     { id: "F3", label: "Formulario 3" },
 ];
+
+const F2_DEFAULT_KEYS = [
+    "IDENTIFICACION",
+    "NOMBRE_CLIENTE",
+    "CAMPO1",
+    "CAMPO2",
+    "CAMPO3",
+    "CAMPO4",
+    "CAMPO5",
+    "CAMPO6",
+    "CAMPO7",
+    "CAMPO8",
+    "CAMPO9",
+    "CAMPO10",
+];
+
+function createDefaultF2Fields() {
+    return F2_DEFAULT_KEYS.map((key, index) => ({
+        id: `${Date.now()}-${index}`,
+        key,
+        label: "", // ← vacío para que el admin lo escriba
+        type: "text",
+        required: false,
+        maxLength: "",
+        optionsText: "",
+    }));
+}
+
 const MAX_FIELDS = 30;
 
 function createEmptyField() {
@@ -143,10 +171,17 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
 
     useEffect(() => {
         setCurrentTemplateMeta(null);
-        setFields([createEmptyField()]);
+
+        if (formType === "F2") {
+            setFields(createDefaultF2Fields());
+        } else {
+            setFields([createEmptyField()]);
+        }
     }, [editorMode, formType, menuItemId]);
 
     useEffect(() => {
+        if (editorMode === "create") return;
+
         const loadCurrentTemplate = async () => {
             if (!menuItemId || !formType) {
                 setCurrentTemplateMeta(null);
@@ -156,6 +191,7 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
 
             try {
                 setLoadingTemplate(true);
+
                 const template = await obtenerPlantillaAsignada(
                     menuItemId,
                     formType,
@@ -172,6 +208,7 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
                     version: template.version,
                     fieldCount: template.fields?.length || 0,
                 });
+
                 setFields(mapTemplateFieldsToEditorState(template));
             } catch (error) {
                 setAlert({
@@ -185,7 +222,7 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
         };
 
         loadCurrentTemplate();
-    }, [menuItemId, formType]);
+    }, [menuItemId, formType, editorMode]);
 
     const updateField = (id, key, value) => {
         setFields((prev) =>
@@ -211,7 +248,23 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
             return;
         }
 
-        setFields((prev) => [...prev, createEmptyField()]);
+        if (formType === "F2") {
+            const nextIndex = fields.length - 1;
+            const newKey = `CAMPO${nextIndex}`;
+
+            const newField = {
+                id: `${Date.now()}-${Math.random()}`,
+                key: newKey,
+                label: newKey,
+                type: "text",
+                required: false,
+                maxLength: "",
+            };
+
+            setFields((prev) => [...prev, newField]);
+        } else {
+            setFields((prev) => [...prev, createEmptyField()]);
+        }
     };
 
     const handleCancel = async () => {
@@ -350,59 +403,25 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
     }
 
     return (
-        <div
-            className="previewBox config-editor-panel manage-bases-wrapper"
-            style={{
-                marginTop: 0,
-                minHeight: 0,
-                height: "100%",
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-            }}
-        >
+        <div className="">
             {alert && <Alert type={alert.type} message={alert.message} />}
 
-            <div className="config-editor-header">
-                {currentTemplateMeta && (
-                    <div className="fileInfo config-editor-header__meta">
-                        Actual: <strong>{currentTemplateMeta.name}</strong> · v
-                        {currentTemplateMeta.version} · campos:{" "}
-                        {currentTemplateMeta.fieldCount}
-                    </div>
-                )}
-            </div>
+            {currentTemplateMeta && (
+                <div className="">
+                    Actual: <strong>{currentTemplateMeta.name}</strong> · v
+                    {currentTemplateMeta.version} · campos:{" "}
+                    {currentTemplateMeta.fieldCount}
+                </div>
+            )}
 
-            <div className="config-editor-scroll">
+            {/* creacion formularios */}
+            <div className="config-fields-grid-f2">
                 {fields.map((field, index) => (
-                    <div
-                        key={field.id}
-                        className="previewBox config-field-card"
-                        style={{ marginTop: index === 0 ? 0 : "0.5rem" }}
-                    >
-                        <div className="config-field-card__title">
-                            Campo {index + 1}
-                        </div>
+                    <div key={field.id} className="config-field-card-f2">
                         {isF2 ? (
                             <div className="config-row-f2">
-                                <label className="label" style={{ margin: 0 }}>
-                                    <span>Key</span>
-                                    <input
-                                        className="input"
-                                        value={field.key}
-                                        onChange={(e) =>
-                                            updateField(
-                                                field.id,
-                                                "key",
-                                                e.target.value,
-                                            )
-                                        }
-                                        placeholder="Ej: respuesta1"
-                                    />
-                                </label>
-
-                                <label className="label" style={{ margin: 0 }}>
-                                    <span>Etiqueta</span>
+                                <label className="label">
+                                    <span>Etiqueta {index + 1}</span>
                                     <input
                                         className="input"
                                         value={field.label}
@@ -413,7 +432,7 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
                                                 e.target.value,
                                             )
                                         }
-                                        placeholder="Texto visible del campo"
+                                        placeholder="Texto a asignar"
                                     />
                                 </label>
 
@@ -423,132 +442,75 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
                                     onClick={() => removeField(field.id)}
                                     disabled={fields.length <= 1}
                                 >
-                                    Eliminar campo
+                                    Eliminar
                                 </Button>
                             </div>
                         ) : (
                             <>
                                 {isF3 ? (
-                                    <div className="config-row-f3">
-                                        <label
-                                            className="label"
-                                            style={{ margin: 0 }}
+                                    <div className="config-fields-grid-f3">
+                                        <div
+                                            key={field.id}
+                                            className="config-field-card-f3"
                                         >
-                                            <span>Pregunta</span>
-                                            <input
-                                                className="input"
-                                                value={field.label}
-                                                onChange={(e) =>
-                                                    updateField(
-                                                        field.id,
-                                                        "label",
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                placeholder="Texto visible del campo"
-                                            />
-                                        </label>
+                                            <div className="config-row-f3-new">
+                                                <label className="label">
+                                                    <span>
+                                                        Pregunta {index + 1}
+                                                    </span>
+                                                    <input
+                                                        className="input"
+                                                        value={field.label}
+                                                        onChange={(e) =>
+                                                            updateField(
+                                                                field.id,
+                                                                "label",
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        placeholder="Texto pregunta"
+                                                    />
+                                                </label>
 
-                                        <Select
-                                            label="Tipo"
-                                            options={fieldTypeOptions}
-                                            value={field.type}
-                                            onChange={(value) =>
-                                                updateField(
-                                                    field.id,
-                                                    "type",
-                                                    value,
-                                                )
-                                            }
-                                        />
-
-                                        <Button
-                                            variant="danger"
-                                            type="button"
-                                            onClick={() =>
-                                                removeField(field.id)
-                                            }
-                                            disabled={fields.length <= 1}
-                                        >
-                                            Eliminar campo
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="form manage-bases-form">
-                                            <label className="label">
-                                                <span>Key</span>
-                                                <input
-                                                    className="input"
-                                                    value={field.key}
-                                                    onChange={(e) =>
+                                                <Select
+                                                    label="Tipo"
+                                                    options={fieldTypeOptions}
+                                                    value={field.type}
+                                                    onChange={(value) =>
                                                         updateField(
                                                             field.id,
-                                                            "key",
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    placeholder="Ej: respuesta1"
-                                                />
-                                            </label>
-
-                                            <label className="label">
-                                                <span>Etiqueta</span>
-                                                <input
-                                                    className="input"
-                                                    value={field.label}
-                                                    onChange={(e) =>
-                                                        updateField(
-                                                            field.id,
-                                                            "label",
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    placeholder="Texto visible del campo"
-                                                />
-                                            </label>
-
-                                            <label className="label">
-                                                <span>Máx. longitud</span>
-                                                <input
-                                                    className="input"
-                                                    type="number"
-                                                    value={field.maxLength}
-                                                    onChange={(e) =>
-                                                        updateField(
-                                                            field.id,
-                                                            "maxLength",
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    placeholder="Opcional"
-                                                />
-                                            </label>
-                                        </div>
-
-                                        <div className="config-row-actions">
-                                            <label
-                                                className="label"
-                                                style={{
-                                                    flexDirection: "row",
-                                                    alignItems: "center",
-                                                    gap: "0.5rem",
-                                                    margin: 0,
-                                                }}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={field.required}
-                                                    onChange={(e) =>
-                                                        updateField(
-                                                            field.id,
-                                                            "required",
-                                                            e.target.checked,
+                                                            "type",
+                                                            value,
                                                         )
                                                     }
                                                 />
-                                                <span>Campo requerido</span>
-                                            </label>
+                                            </div>
+
+                                            {field.type === "select" && (
+                                                <label className="label config-options">
+                                                    <span>
+                                                        Opciones (una por línea)
+                                                    </span>
+                                                    <textarea
+                                                        className="input config-options-textarea"
+                                                        rows={4}
+                                                        value={
+                                                            field.optionsText
+                                                        }
+                                                        onChange={(e) =>
+                                                            updateField(
+                                                                field.id,
+                                                                "optionsText",
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        placeholder={`opcion 1
+opcion 2
+opcion 3`}
+                                                    />
+                                                </label>
+                                            )}
+
                                             <Button
                                                 variant="danger"
                                                 type="button"
@@ -560,58 +522,39 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
                                                 Eliminar campo
                                             </Button>
                                         </div>
-                                    </>
-                                )}
+                                    </div>
+                                ) : null}
                             </>
-                        )}
-
-                        {field.type === "select" && (
-                            <label className="label config-options">
-                                <span>Opciones (una por línea)</span>
-                                <textarea
-                                    className="input"
-                                    rows={4}
-                                    value={field.optionsText}
-                                    onChange={(e) =>
-                                        updateField(
-                                            field.id,
-                                            "optionsText",
-                                            e.target.value,
-                                        )
-                                    }
-                                />
-                            </label>
                         )}
                     </div>
                 ))}
+            </div>
+            <div className="config-footer-actions">
+                <Button
+                    type="button"
+                    variant="default"
+                    onClick={addField}
+                    disabled={loading || fields.length >= MAX_FIELDS}
+                >
+                    Agregar campo
+                </Button>
 
-                <div className="config-footer-actions">
-                    <Button
-                        type="button"
-                        variant="default"
-                        onClick={addField}
-                        disabled={loading || fields.length >= MAX_FIELDS}
-                    >
-                        Agregar campo
-                    </Button>
+                <Button
+                    type="button"
+                    variant="default"
+                    onClick={handleCancel}
+                    disabled={loading || loadingTemplate}
+                >
+                    Cancelar
+                </Button>
 
-                    <Button
-                        type="button"
-                        variant="default"
-                        onClick={handleCancel}
-                        disabled={loading || loadingTemplate}
-                    >
-                        Cancelar
-                    </Button>
-
-                    <Button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={loading || loadingTemplate}
-                    >
-                        {saveButtonLabel}
-                    </Button>
-                </div>
+                <Button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={loading || loadingTemplate}
+                >
+                    {saveButtonLabel}
+                </Button>
             </div>
         </div>
     );
@@ -718,22 +661,13 @@ export default function ConfiguracionAdmin() {
     ];
 
     return (
-        <PageContainer fullWidth>
-            <div
-                style={{
-                    flex: 1,
-                    minHeight: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                }}
-            >
-                <Tabs
-                    tabs={tabs}
-                    activeTab={activeTab}
-                    onChange={setActiveTab}
-                    variant="default"
-                />
-            </div>
+        <PageContainer>
+            <Tabs
+                tabs={tabs}
+                activeTab={activeTab}
+                onChange={setActiveTab}
+                variant="default"
+            />
         </PageContainer>
     );
 }

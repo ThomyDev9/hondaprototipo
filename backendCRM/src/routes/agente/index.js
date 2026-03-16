@@ -164,45 +164,44 @@ async function saveDynamicResponseIfTemplateActive({
    1. TOMAR SIGUIENTE REGISTRO (auto-asignación)
 ============================================================================ */
 router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
-  try {
+    try {
+        const agenteActor = getAgentActor(req);
+        const campaignToUse = String(req.body?.campaignId || "").trim();
+        const tabSessionId = String(req.body?.tabSessionId || "").trim();
 
-    const agenteActor = getAgentActor(req);
-    const campaignToUse = String(req.body?.campaignId || "").trim();
-    const tabSessionId = String(req.body?.tabSessionId || "").trim();
+        if (!campaignToUse) {
+            return res.status(400).json({ error: "Campaign requerida" });
+        }
 
-    if (!campaignToUse) {
-      return res.status(400).json({ error: "Campaign requerida" });
-    }
-
-    /* ============================================================
+        /* ============================================================
        1. OBTENER BASE ACTIVA (LastUpdate)
     ============================================================ */
 
-    const [baseRows] = await pool.query(
-      `
+        const [baseRows] = await pool.query(
+            `
       SELECT ImportId
       FROM campaign_active_base
       WHERE CampaignId = ?
       AND state = 1
       LIMIT 1
       `,
-      [campaignToUse]
-    );
+            [campaignToUse],
+        );
 
-    if (!baseRows.length) {
-      return res.status(404).json({
-        error: "No hay base activa para esta campaña",
-      });
-    }
+        if (!baseRows.length) {
+            return res.status(404).json({
+                error: "No hay base activa para esta campaña",
+            });
+        }
 
-    const lastUpdate = baseRows[0].ImportId;
+        const lastUpdate = baseRows[0].ImportId;
 
-    /* ============================================================
+        /* ============================================================
        2. VER SI YA TIENE REGISTRO ASIGNADO
     ============================================================ */
 
-    const [assignedRows] = await pool.query(
-      `
+        const [assignedRows] = await pool.query(
+            `
       SELECT 
         ID,
         Campaign,
@@ -219,23 +218,20 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
       AND Action = 'Asignar Base'
       LIMIT 1
       `,
-      [agenteActor, tabSessionId, campaignToUse, lastUpdate]
-    );
+            [agenteActor, tabSessionId, campaignToUse, lastUpdate],
+        );
 
-    let registro;
+        let registro;
 
-    if (assignedRows.length > 0) {
-
-      registro = assignedRows[0];
-
-    } else {
-
-      /* ============================================================
+        if (assignedRows.length > 0) {
+            registro = assignedRows[0];
+        } else {
+            /* ============================================================
          3. AUTO ASIGNAR REGISTRO
       ============================================================ */
 
-      const [updateResult] = await pool.query(
-        `
+            const [updateResult] = await pool.query(
+                `
         UPDATE contactimportcontact
         SET 
           LastAgent = ?,
@@ -257,21 +253,21 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
         ORDER BY Number ASC, ID ASC
         LIMIT 1
         `,
-        [agenteActor, tabSessionId, campaignToUse, lastUpdate]
-      );
+                [agenteActor, tabSessionId, campaignToUse, lastUpdate],
+            );
 
-      if (updateResult.affectedRows === 0) {
-        return res.status(404).json({
-          error: "No hay registros disponibles en la base activa",
-        });
-      }
+            if (updateResult.affectedRows === 0) {
+                return res.status(404).json({
+                    error: "No hay registros disponibles en la base activa",
+                });
+            }
 
-      /* ============================================================
+            /* ============================================================
          4. OBTENER REGISTRO ASIGNADO
       ============================================================ */
 
-      const [rows] = await pool.query(
-        `
+            const [rows] = await pool.query(
+                `
         SELECT 
           ID,
           Campaign,
@@ -288,74 +284,68 @@ router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
         ORDER BY TmStmpShift DESC
         LIMIT 1
         `,
-        [agenteActor, tabSessionId, campaignToUse, lastUpdate]
-      );
+                [agenteActor, tabSessionId, campaignToUse, lastUpdate],
+            );
 
-      registro = rows[0];
-    }
+            registro = rows[0];
+        }
 
-    if (!registro) {
-      return res.status(404).json({ error: "No se encontró registro" });
-    }
+        if (!registro) {
+            return res.status(404).json({ error: "No se encontró registro" });
+        }
 
-    /* ============================================================
+        /* ============================================================
        5. TELEFONOS
     ============================================================ */
 
-    const [phones] = await pool.query(
-      agenteQueries.getPhonesByContactId,
-      [registro.ID]
-    );
+        const [phones] = await pool.query(agenteQueries.getPhonesByContactId, [
+            registro.ID,
+        ]);
 
-    const numeros = phones
-      .map((row) => row.NumeroMarcado)
-      .filter(Boolean)
-      .slice(0, 2);
+        const numeros = phones
+            .map((row) => row.NumeroMarcado)
+            .filter(Boolean)
+            .slice(0, 2);
 
-    /* ============================================================
+        /* ============================================================
        6. CLIENTE DETALLE
     ============================================================ */
 
-    let [clienteRows] = await pool.query(
-      agenteQueries.getClienteById,
-      [registro.ID]
-    );
+        let [clienteRows] = await pool.query(agenteQueries.getClienteById, [
+            registro.ID,
+        ]);
 
-    if (clienteRows.length === 0 && registro.Identification) {
+        if (clienteRows.length === 0 && registro.Identification) {
+            [clienteRows] = await pool.query(
+                agenteQueries.getClienteByIdentificationAndCampaign,
+                [registro.Identification, `${campaignToUse}%`],
+            );
+        }
 
-      [clienteRows] = await pool.query(
-        agenteQueries.getClienteByIdentificationAndCampaign,
-        [registro.Identification, `${campaignToUse}%`]
-      );
+        return res.json({
+            registro: {
+                id: registro.ID,
+                contact_id: clienteRows[0]?.ContactId || registro.ID,
+                nombre_completo: registro.Name,
+                telefono1: numeros[0] || null,
+                telefono2: numeros[1] || null,
+                intentos_totales: Number(registro.intentos_totales || 0),
+                base_nombre: registro.LastUpdate || "Base activa",
+                campaign_id: registro.Campaign,
+                identification: registro.Identification || null,
+                agente: registro.LastAgent,
+            },
+            detalleCliente: clienteRows[0] || null,
+        });
+    } catch (err) {
+        console.error("Error en /agente/siguiente:", err);
 
+        return res.status(500).json({
+            error: "Error tomando siguiente registro",
+        });
     }
-
-    return res.json({
-      registro: {
-        id: registro.ID,
-        contact_id: clienteRows[0]?.ContactId || registro.ID,
-        nombre_completo: registro.Name,
-        telefono1: numeros[0] || null,
-        telefono2: numeros[1] || null,
-        intentos_totales: Number(registro.intentos_totales || 0),
-        base_nombre: registro.LastUpdate || "Base activa",
-        campaign_id: registro.Campaign,
-        identification: registro.Identification || null,
-        agente: registro.LastAgent,
-      },
-      detalleCliente: clienteRows[0] || null,
-    });
-
-  } catch (err) {
-
-    console.error("Error en /agente/siguiente:", err);
-
-    return res.status(500).json({
-      error: "Error tomando siguiente registro",
-    });
-
-  }
 });
+
 router.get("/bases-activas-resumen", ...agenteMiddlewares, async (req, res) => {
     try {
         await ensureImportStatsTable(pool);
@@ -1221,69 +1211,55 @@ router.post("/bloquearme", requireAuth, async (req, res) => {
     }
 });
 
-/* ============================================================================
-    8. LIMPIAR REGISTROS COLGADOS (ADMIN)
-    Todos los contactos asignados más antiguos que X minutos
-    se devuelven a 'Pendiente'.
-============================================================================ */
-router.post(
-    "/limpiar-colgados",
-    requireAuth,
-    loadUserRoles,
-    requireRole(["ADMINISTRADOR"]),
-    async (req, res) => {
-        try {
-            const LIMITE_MINUTOS = 30;
-
-            const [result] = await pool.query(
-                `UPDATE contactimportcontact
-                 SET LastAgent = 'Pendiente',
-                     UserShift = 'system',
-                     TmStmpShift = NOW()
-                 WHERE LastAgent IS NOT NULL
-                   AND LastAgent <> ''
-                   AND LastAgent <> 'Pendiente'
-                   AND TmStmpShift IS NOT NULL
-                   AND TmStmpShift < DATE_SUB(NOW(), INTERVAL ? MINUTE)`,
-                [LIMITE_MINUTOS],
-            );
-
-            if ((result?.affectedRows || 0) > 0) {
-                const [activeImports] = await pool.query(
-                    `SELECT CampaignId, ImportId
-                     FROM campaign_active_base
-                     WHERE State = '1'`,
-                );
-
-                for (const row of activeImports) {
-                    const campaignId = String(row?.CampaignId || "").trim();
-                    const importId = String(row?.ImportId || "").trim();
-
-                    if (!campaignId || !importId) {
-                        continue;
-                    }
-
-                    await recomputeImportStats(
-                        campaignId,
-                        importId,
-                        "system",
-                        pool,
-                    );
-                }
-            }
-
-            return res.json({
-                message: "Registros colgados limpiados correctamente",
-                count: result.affectedRows || 0,
-            });
-        } catch (err) {
-            console.error("Error en /agente/limpiar-colgados:", err);
-            return res
-                .status(500)
-                .json({ error: "Error limpiando registros colgados" });
+/*
+============================================================================
+    LIBERAR REGISTRO ASIGNADO (usado por Cancelar, timeout, volver a inicio)
+============================================================================
+*/
+router.post("/liberar-registro", ...agenteMiddlewares, async (req, res) => {
+    try {
+        const actor = getAgentActor(req);
+        const { registro_id } = req.body || {};
+        if (!registro_id) {
+            return res.status(400).json({ error: "Falta registro_id" });
         }
-    },
-);
+
+        // Consultar el registro para saber si es reciclable
+        const [rows] = await pool.query(
+            `SELECT Id, LastAgent, Action, LastManagementResult FROM contactimportcontact WHERE Id = ? LIMIT 1`,
+            [registro_id],
+        );
+        if (!rows.length) {
+            return res.status(404).json({ error: "Registro no encontrado" });
+        }
+        const reg = rows[0];
+
+        // Determinar si es reciclable
+        const reciclableCodes = [34, 60, 61, 62, 63, 64];
+        const isReciclable = reciclableCodes.includes(
+            Number(reg.LastManagementResult),
+        );
+
+        let updateSql = `UPDATE contactimportcontact SET LastAgent = 'Pendiente', TabSessionId = '', UserShift = ?, TmStmpShift = NOW()`;
+        let params = [actor];
+        if (isReciclable) {
+            updateSql += `, Action = 'reciclable'`;
+        }
+        updateSql += ` WHERE Id = ? AND LastAgent = ?`;
+        params.push(registro_id, reg.LastAgent);
+
+        const [releaseResult] = await pool.query(updateSql, params);
+
+        if ((releaseResult?.affectedRows || 0) > 0) {
+            await recomputeStatsByContactId(registro_id, actor);
+        }
+
+        return res.json({ success: true, reciclable: isReciclable });
+    } catch (err) {
+        console.error("Error en /agente/liberar-registro:", err);
+        return res.status(500).json({ error: "Error liberando registro" });
+    }
+});
 
 // Endpoint para tipos de campaña dinámico para Out Maquita Cushunchic
 router.get("/tipos-campania", requireAuth, async (req, res) => {

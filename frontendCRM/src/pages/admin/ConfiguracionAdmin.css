@@ -1,0 +1,149 @@
+/* FONDO PANEL */
+.config-fields-grid-f2 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+
+/* TARJETAS */
+.config-field-card-f2 {
+    background: #8f8f8f;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+/* HOVER */
+.config-field-card-f2:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* TITULO */
+.config-field-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+/* INPUT */
+.config-field-card-f2 input {
+    height: 34px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    padding: 0 10px;
+    background: #fff;
+}
+
+/* INPUT FOCUS */
+.config-field-card-f2 input:focus {
+    border-color: #3b82f6;
+    outline: none;
+}
+
+/* BOTON */
+.config-field-card-f2 button {
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 4px 10px;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1200px) {
+    .config-fields-grid-f2 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .config-fields-grid-f2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* GRID FORMULARIO F3 */
+.config-fields-grid-f3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-top: 12px;
+}
+
+/* TARJETA DE CAMPO */
+.config-field-card-f3 {
+    width: 350px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.15s ease;
+}
+
+/* FILA PREGUNTA + TIPO */
+.config-row-f3-new {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+}
+
+/* INPUT */
+.config-field-card-f3 input {
+    height: 34px;
+}
+
+/* SELECT */
+.config-field-card-f3 select {
+    height: 34px;
+}
+
+/* CONTENEDOR OPCIONES */
+.config-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* TEXTAREA OPCIONES */
+.config-options-textarea {
+    width: 90%;
+    min-height: 70px;
+
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+
+    padding: 8px;
+    font-size: 13px;
+
+    resize: vertical;
+}
+
+/* BOTON ELIMINAR */
+.config-field-card-f3 button {
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 6px 10px;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1200px) {
+    .config-fields-grid-f3 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 700px) {
+    .config-fields-grid-f3 {
+        grid-template-columns: 1fr;
+    }
+
+    .config-row-f3-new {
+        grid-template-columns: 1fr;
+    }
+}

@@ -28,6 +28,7 @@ function AgentGestionForm({
     surveyFieldsToRender,
     surveyAnswers,
     onSurveyFieldChange,
+    onCancelarGestion,
 }) {
     // Referencia para saber si es la primera vez que se monta
     const firstRender = useRef(true);
@@ -580,6 +581,9 @@ function AgentGestionForm({
             <div className="agent-form-actions">
                 <button type="submit" className="agent-primary-button">
                     Guardar gestión
+                </button>
+                <button type="button" onClick={onCancelarGestion}>
+                    Cancelar gestión
                 </button>
             </div>
         </form>
