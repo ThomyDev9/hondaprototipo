@@ -23,7 +23,7 @@ services:
       args:
         VITE_API_BASE: ${VITE_API_BASE:-http://172.19.10.61:4004}
     container_name: honda-frontend
-    restart: alwaysMNT
+    restart: always
     ports:
       - "5173:80"
     depends_on:
