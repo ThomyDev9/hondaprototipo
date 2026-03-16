@@ -1,0 +1,37 @@
+.niveles-gestion-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.niveles-gestion-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.niveles-gestion-fileInfo {
+    color: #888;
+    font-size: 0.95em;
+    margin-bottom: 0.25em;
+}
+
+.niveles-gestion-pool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.niveles-gestion-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.niveles-gestion-maxwidth {
+    width: 100%;
+    max-width: 900px;
+    margin-bottom: 0.75rem;
+}

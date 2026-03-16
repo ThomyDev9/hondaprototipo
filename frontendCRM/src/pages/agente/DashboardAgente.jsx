@@ -244,7 +244,7 @@ export default function DashboardAgente({
         if (agentPage === "inicio") {
             releaseAndReset();
         }
-    // Add registro?.id to dependencies to avoid React warning
+        // Add registro?.id to dependencies to avoid React warning
     }, [agentPage, registro?.id]);
     // 15-min inactivity timeout: auto-cancel and release record
     useEffect(() => {
@@ -609,6 +609,7 @@ export default function DashboardAgente({
         level1Target,
         level2Target,
         estadoTelefonoTarget,
+        observacion,
     }) => {
         const level1Options = [
             ...new Set(levels.map((item) => item.level1).filter(Boolean)),
@@ -632,7 +633,7 @@ export default function DashboardAgente({
         setLevel1Seleccionado(matchedLevel1);
         setLevel2Seleccionado(matchedLevel2);
         setEstadoTelefonoSeleccionado(matchedEstadoTelefono);
-        setObservacion("");
+        setObservacion(observacion || "");
     };
 
     const handleNoContestaAutofill = () => {
@@ -640,6 +641,7 @@ export default function DashboardAgente({
             level1Target: "NU1 Regestionables",
             level2Target: "no contesta",
             estadoTelefonoTarget: "no contesta",
+            observacion: "No contesta",
         });
     };
 
@@ -991,15 +993,26 @@ export default function DashboardAgente({
                                 if (registro?.id) {
                                     try {
                                         setError("");
-                                        const token = localStorage.getItem("access_token");
-                                        await fetch(`${API_BASE}/agente/liberar-registro`, {
-                                            method: "POST",
-                                            headers: {
-                                                "Content-Type": "application/json",
-                                                Authorization: token ? `Bearer ${token}` : "",
+                                        const token =
+                                            localStorage.getItem(
+                                                "access_token",
+                                            );
+                                        await fetch(
+                                            `${API_BASE}/agente/liberar-registro`,
+                                            {
+                                                method: "POST",
+                                                headers: {
+                                                    "Content-Type":
+                                                        "application/json",
+                                                    Authorization: token
+                                                        ? `Bearer ${token}`
+                                                        : "",
+                                                },
+                                                body: JSON.stringify({
+                                                    registro_id: registro.id,
+                                                }),
                                             },
-                                            body: JSON.stringify({ registro_id: registro.id }),
-                                        });
+                                        );
                                     } catch {
                                         setError("Error liberando registro");
                                     }

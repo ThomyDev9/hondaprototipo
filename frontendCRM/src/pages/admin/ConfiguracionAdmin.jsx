@@ -30,6 +30,7 @@ const F3_FIELD_TYPE_OPTIONS = [
 const FORM_TYPE_OPTIONS = [
     { id: "F2", label: "Formulario 2" },
     { id: "F3", label: "Formulario 3" },
+    { id: "F4", label: "Formulario 4 (Gestión rápida)" },
 ];
 
 const F2_DEFAULT_KEYS = [
@@ -475,6 +476,83 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
                                                 <Select
                                                     label="Tipo"
                                                     options={fieldTypeOptions}
+                                                    value={field.type}
+                                                    onChange={(value) =>
+                                                        updateField(
+                                                            field.id,
+                                                            "type",
+                                                            value,
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+
+                                            {field.type === "select" && (
+                                                <label className="label config-options">
+                                                    <span>
+                                                        Opciones (una por línea)
+                                                    </span>
+                                                    <textarea
+                                                        className="input config-options-textarea"
+                                                        rows={4}
+                                                        value={
+                                                            field.optionsText
+                                                        }
+                                                        onChange={(e) =>
+                                                            updateField(
+                                                                field.id,
+                                                                "optionsText",
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        placeholder={`opcion 1
+opcion 2
+opcion 3`}
+                                                    />
+                                                </label>
+                                            )}
+
+                                            <Button
+                                                variant="danger"
+                                                type="button"
+                                                onClick={() =>
+                                                    removeField(field.id)
+                                                }
+                                                disabled={fields.length <= 1}
+                                            >
+                                                Eliminar campo
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : null}
+                                {formType === "F4" ? (
+                                    <div className="config-fields-grid-f3">
+                                        <div
+                                            key={field.id}
+                                            className="config-field-card-f3"
+                                        >
+                                            <div className="config-row-f3-new">
+                                                <label className="label">
+                                                    <span>
+                                                        Campo {index + 1}
+                                                    </span>
+                                                    <input
+                                                        className="input"
+                                                        value={field.label}
+                                                        onChange={(e) =>
+                                                            updateField(
+                                                                field.id,
+                                                                "label",
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        placeholder="Texto campo"
+                                                    />
+                                                </label>
+
+                                                <Select
+                                                    label="Tipo"
+                                                    options={FIELD_TYPE_OPTIONS}
                                                     value={field.type}
                                                     onChange={(value) =>
                                                         updateField(

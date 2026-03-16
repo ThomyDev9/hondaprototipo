@@ -242,10 +242,10 @@ router.get("/subcampaigns", ...middlewaresAdmin, async (req, res) => {
         const scope = String(req.query?.scope || "without-template")
             .trim()
             .toLowerCase();
-        if (!["F2", "F3"].includes(formType)) {
+        if (!["F2", "F3", "F4"].includes(formType)) {
             return res
                 .status(400)
-                .json({ error: "formType (F2/F3) es requerido" });
+                .json({ error: "formType (F2/F3/F4) es requerido" });
         }
 
         if (!["without-template", "with-template", "all"].includes(scope)) {
@@ -272,6 +272,14 @@ router.get("/subcampaigns", ...middlewaresAdmin, async (req, res) => {
                         `
             : "";
 
+        // Solo permitir subcampañas bajo campaña padre 'Gestión Outbound' para F4
+        let categoriaFilter = "";
+        if (formType === "F4") {
+            categoriaFilter = `AND p.nombre_item = 'Gestión Outbound'`;
+        } else {
+            categoriaFilter = ""; // Sin filtro extra para F2/F3
+        }
+
         const [rows] = await pool.query(
             `
                         SELECT
@@ -285,15 +293,14 @@ router.get("/subcampaigns", ...middlewaresAdmin, async (req, res) => {
                             ON a.menu_item_id = s.id
                          AND a.form_type = ?
                          AND a.is_active = 1
-                        WHERE s.id_categoria = ?
-                            AND p.id_categoria = ?
-                            AND s.id_padre IS NOT NULL
+                        WHERE s.id_padre IS NOT NULL
                             AND s.estado = 'activo'
                             AND p.estado = 'activo'
                             ${assignmentFilter}
+                            ${categoriaFilter}
                         ORDER BY p.nombre_item ASC, s.nombre_item ASC
                         `,
-            [formType, OUTBOUND_CATEGORY_ID, OUTBOUND_CATEGORY_ID],
+            [formType],
         );
 
         const data = rows.map((row) => ({

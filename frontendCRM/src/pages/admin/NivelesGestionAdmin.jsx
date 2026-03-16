@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import "./NivelesGestionAdmin.css";
 import {
     PageContainer,
     Alert,
@@ -29,20 +30,16 @@ export default function NivelesGestionAdmin() {
     const [saving, setSaving] = useState(false);
     const [rowActionLoadingId, setRowActionLoadingId] = useState("");
     const [alert, setAlert] = useState(null);
-
     const [code, setCode] = useState("");
     const [level1, setLevel1] = useState("");
     const [level2, setLevel2] = useState("");
     const [level2Pool, setLevel2Pool] = useState([]);
     const [level1Suggestions, setLevel1Suggestions] = useState([]);
     const [level2Suggestions, setLevel2Suggestions] = useState([]);
-
     const [editingId, setEditingId] = useState("");
     const [editLevel1, setEditLevel1] = useState("");
     const [editLevel2, setEditLevel2] = useState("");
-
     const effectiveCampaignId = String(selectedSubcampaignId || "").trim();
-
     const campaignOptions = useMemo(
         () =>
             (campaignTree || [])
@@ -80,23 +77,11 @@ export default function NivelesGestionAdmin() {
 
     const tableColumns = useMemo(
         () => [
-            { key: "Id", label: "ID", width: "90px" },
             { key: "CampaignId", label: "CampaignId" },
             { key: "Code", label: "Code", width: "90px" },
-            {
-                key: "Isgoal",
-                label: "Isgoal",
-                width: "90px",
-                render: (value) => (Number(value || 0) === 1 ? "1" : "0"),
-            },
             { key: "Level1", label: "Level1" },
             { key: "Level2", label: "Level2" },
-            {
-                key: "State",
-                label: "State",
-                width: "90px",
-                render: (value) => String(value || ""),
-            },
+            { key: "State", label: "State" },
         ],
         [],
     );
@@ -230,14 +215,8 @@ export default function NivelesGestionAdmin() {
             id: "view",
             label: "Ver niveles",
             content: (
-                <div className="wrapper" style={{ marginTop: "0.75rem" }}>
-                    <div
-                        style={{
-                            width: "100%",
-                            maxWidth: "900px",
-                            marginBottom: "0.75rem",
-                        }}
-                    >
+                <div className="niveles-gestion-wrapper">
+                    <div className="niveles-gestion-maxwidth">
                         <TwoSelectRow
                             marginBottom="0"
                             first={{
@@ -282,9 +261,8 @@ export default function NivelesGestionAdmin() {
             id: "create",
             label: "Crear niveles",
             content: (
-                <div className="wrapper" style={{ marginTop: "0.75rem" }}>
+                <div className="niveles-gestion-wrapper">
                     <TwoSelectRow
-                        marginBottom="0.75rem"
                         first={{
                             label: "Campaña",
                             options: campaignOptions,
@@ -306,27 +284,12 @@ export default function NivelesGestionAdmin() {
                         }}
                     />
 
-                    <div
-                        style={{
-                            width: "100%",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.75rem",
-                        }}
-                    >
+                    <div className="niveles-gestion-wrapper">
                         <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
                             Crear pool dinámico de Level2
                         </h3>
 
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns:
-                                    "repeat(auto-fit, minmax(220px, 1fr))",
-                                gap: "0.75rem",
-                                alignItems: "end",
-                            }}
-                        >
+                        <div className="niveles-gestion-grid">
                             <Select
                                 label="Level1"
                                 options={level1Options}
@@ -381,16 +344,10 @@ export default function NivelesGestionAdmin() {
                             </Button>
                         </div>
 
-                        <div className="fileInfo">
+                        {/* <div className="niveles-gestion-fileInfo">
                             Ejemplos antiguos para este Level1:
                         </div>
-                        <div
-                            style={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                gap: "0.5rem",
-                            }}
-                        >
+                        <div className="niveles-gestion-pool">
                             {level2SuggestedValues.length > 0 ? (
                                 level2SuggestedValues
                                     .slice(0, 12)
@@ -409,13 +366,13 @@ export default function NivelesGestionAdmin() {
                                         </Button>
                                     ))
                             ) : (
-                                <span className="fileInfo">
+                                <span className="niveles-gestion-fileInfo">
                                     Sin ejemplos para este Level1
                                 </span>
                             )}
-                        </div>
+                        </div> */}
 
-                        <div className="fileInfo">
+                        <div className="niveles-gestion-fileInfo">
                             Pool actual: {level2Pool.length} Level2
                         </div>
 
@@ -427,13 +384,7 @@ export default function NivelesGestionAdmin() {
                             noDataMessage="Aún no agregas Level2 al pool"
                         />
 
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: "0.75rem",
-                                flexWrap: "wrap",
-                            }}
-                        >
+                        <div className="niveles-gestion-actions">
                             <Button
                                 type="button"
                                 variant="secondary"
@@ -467,9 +418,8 @@ export default function NivelesGestionAdmin() {
             id: "edit",
             label: "Editar niveles",
             content: (
-                <div className="wrapper" style={{ marginTop: "0.75rem" }}>
+                <div className="niveles-gestion-wrapper">
                     <TwoSelectRow
-                        marginBottom="0.75rem"
                         first={{
                             label: "Campaña",
                             options: campaignOptions,
@@ -491,14 +441,7 @@ export default function NivelesGestionAdmin() {
                         }}
                     />
 
-                    <div
-                        style={{
-                            width: "100%",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "0.75rem",
-                        }}
-                    >
+                    <div className="niveles-gestion-wrapper">
                         <Table
                             columns={tableColumnsEdit}
                             data={rows}
