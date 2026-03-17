@@ -838,6 +838,9 @@ export default function DashboardAgente({
                             <div className="agent-base-card__campaign-horizontal">
                                 {card.campaignId}
                             </div>
+                            <div className="agent-base-card__import-id">
+                                {card.importId || card.base}
+                            </div>
                             <div className="agent-base-card__metrics-horizontal">
                                 <div className="agent-base-card__metric-horizontal">
                                     {card.pendientes}

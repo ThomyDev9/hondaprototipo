@@ -625,7 +625,7 @@ export default function NivelesGestionAdmin() {
 
     useEffect(() => {
         setLevel2("");
-        setLevel2Pool([]);
+        //setLevel2Pool([]);
     }, [level1]);
 
     useEffect(() => {

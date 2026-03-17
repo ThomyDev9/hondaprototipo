@@ -1,27 +1,29 @@
 .agent-base-cards {
-    padding: 0.8rem;
-    border-radius: 0.7rem;
+    padding: 1.2rem;
+    border-radius: 0.8rem;
     background: #f4f6f9;
 }
 
+/* GRID */
 .agent-base-cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 0.8rem;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 1rem;
 }
 
+/* CARD */
 .agent-base-card {
     position: relative;
     background: #ffffff;
-    border-radius: 0.8rem;
-    padding: 0.7rem 0.8rem;
+    border-radius: 12px;
+    padding: 1rem;
 
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    justify-content: space-between;
+    gap: 0.8rem;
 
     border: 1px solid #e5e7eb;
-
     transition: all 0.2s ease;
 }
 
@@ -30,50 +32,74 @@
     position: absolute;
     top: 0;
     left: 0;
-    height: 3px;
+    height: 4px;
     width: 100%;
     background: #2563eb;
-    border-radius: 0.8rem 0.8rem 0 0;
+    border-radius: 12px 12px 0 0;
 }
 
 .agent-base-card:hover {
     border-color: #2563eb;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
-    transform: translateY(-2px);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
+    transform: translateY(-3px);
 }
 
-.agent-base-card__metrics-horizontal {
+/* INFO */
+.agent-base-card__info-horizontal {
     display: flex;
+    flex-direction: column;
     gap: 0.35rem;
 }
 
-.agent-base-card__metric-horizontal {
-    font-size: 0.8rem;
+/* CAMPAÑA (menos importante) */
+.agent-base-card__campaign-horizontal {
+    font-size: 0.75rem;
     font-weight: 500;
-    color: #475569;
-    background: #f1f5f9;
-    padding: 0.15rem 0.5rem;
-    border-radius: 6px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.agent-base-card__button-horizontal {
-    margin-top: 0.3rem;
-    align-self: flex-end;
-
-    padding: 0.25rem 0.75rem;
-    font-size: 0.8rem;
+/* IMPORT ID (puede ser principal) */
+.agent-base-card__import-id {
+    font-size: 0.9rem;
     font-weight: 600;
-
-    border-radius: 6px;
-
-    border: 1px solid #2563eb;
-    background: #2563eb;
-    color: #ffffff;
-
-    cursor: pointer;
-    transition: background 0.2s;
+    color: #0f172a;
 }
 
-.agent-base-card__button-horizontal:hover {
-    background: #1d4ed8;
+/* MÉTRICAS */
+.agent-base-card__metrics-horizontal {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+}
+
+/* BLOQUE MÉTRICA */
+.agent-base-card__metric-horizontal {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+
+    padding: 0.5rem;
+    border-radius: 10px;
+
+    min-height: 55px;
+}
+
+/* NÚMERO (PROTAGONISTA) */
+.agent-base-card__metric-horizontal > *:first-child {
+    font-size: 0.9rem;
+    font-weight: 300;
+    color: #0f172a;
+}
+
+/* LABEL */
+.agent-base-card__metric-label-horizontal {
+    font-size: 0.5rem;
+    color: #64748b;
 }
