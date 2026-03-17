@@ -178,9 +178,10 @@ function AgentGestionForm({
                         <label className="agent-label">
                             <span>Resultado gestión - Nivel 1</span>
                             <select
-                                value={level1Seleccionado}
+                                value={level1Seleccionado || ""}
                                 onChange={(e) => onLevel1Change(e.target.value)}
                                 className="agent-input"
+                                required
                             >
                                 <option value="">Selecciona...</option>
                                 {[
@@ -201,9 +202,10 @@ function AgentGestionForm({
                         <label className="agent-label">
                             <span>Resultado gestión - Nivel 2</span>
                             <select
-                                value={level2Seleccionado}
+                                value={level2Seleccionado || ""}
                                 onChange={(e) => onLevel2Change(e.target.value)}
                                 className="agent-input"
+                                required
                             >
                                 <option value="">Selecciona...</option>
                                 {levels
@@ -225,11 +227,12 @@ function AgentGestionForm({
                         <label className="agent-label">
                             <span>Teléfonos a marcar</span>
                             <select
-                                value={telefonoSeleccionado}
+                                value={telefonoSeleccionado || ""}
                                 onChange={(e) =>
                                     onTelefonoChange(e.target.value)
                                 }
                                 className="agent-input"
+                                required
                             >
                                 <option value="">Selecciona...</option>
                                 {telefonos.map((fono) => (
@@ -254,11 +257,12 @@ function AgentGestionForm({
                         <label className="agent-label">
                             <span>Estados teléfonos</span>
                             <select
-                                value={estadoTelefonoSeleccionado}
+                                value={estadoTelefonoSeleccionado || ""}
                                 onChange={(e) =>
                                     onEstadoTelefonoChange(e.target.value)
                                 }
                                 className="agent-input"
+                                required
                             >
                                 <option value="">Selecciona...</option>
                                 {estadoTelefonos.map((opt) => (
@@ -275,11 +279,12 @@ function AgentGestionForm({
                             <input
                                 type="text"
                                 placeholder="Ej: Cliente prefiere WhatsApp para confirmación."
-                                value={observacion}
+                                value={observacion || ""}
                                 onChange={(e) =>
                                     onObservacionChange(e.target.value)
                                 }
                                 className="agent-input"
+                                required
                             />
                         </label>
                     </div>
