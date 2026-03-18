@@ -1268,7 +1268,7 @@ router.get("/tipos-campania", requireAuth, async (req, res) => {
     try {
         // Usar pool directamente, suponiendo que la base campaniasoutbound está accesible
         const [rows] = await pool.query(
-            "SELECT TipoCampania FROM campaniasoutbound.campañas WHERE cliente = ? AND estado = '1'",
+            "SELECT TipoCampania FROM campaniasoutbound_dev.campañas WHERE cliente = ? AND estado = '1'",
             [cliente],
         );
         res.json({ data: rows });
@@ -1291,7 +1291,7 @@ router.get("/trxout", requireAuth, async (req, res) => {
     }
     try {
         const [rows] = await pool.query(
-            "SELECT * FROM campaniasoutbound.trxout WHERE Identificacion = ? ORDER BY Id DESC LIMIT 1",
+            "SELECT * FROM campaniasoutbound_dev.trxout WHERE Identificacion = ? ORDER BY Id DESC LIMIT 1",
             [identificacion],
         );
         console.log("[DEBUG] Resultado SQL trxout:", rows);
@@ -1327,7 +1327,7 @@ router.post("/trxout", requireAuth, async (req, res) => {
     try {
         // Insertar en trxout
         const [result] = await pool.query(
-            `INSERT INTO campaniasoutbound.trxout
+            `INSERT INTO campaniasoutbound_dev.trxout
             (Agent, StartedManagement, TmStmp, Cooperativa, TipoCampania, Identificacion, NombreCliente, Celular, MotivoLlamada, SubmotivoLlamada, Observaciones, AgentShift, TmStmpShift)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
@@ -1348,7 +1348,7 @@ router.post("/trxout", requireAuth, async (req, res) => {
         );
         // Insertar en trxouthistorico usando el siguiente ID disponible
         const [[{ maxId }]] = await pool.query(
-            "SELECT IFNULL(MAX(ID), 0) AS maxId FROM campaniasoutbound.trxouthistorico",
+            "SELECT IFNULL(MAX(ID), 0) AS maxId FROM campaniasoutbound_dev.trxouthistorico",
         );
         const nextId = maxId + 1;
         console.log("[HISTORICO][POST] Insertando en trxouthistorico", {
@@ -1403,7 +1403,7 @@ router.put("/trxout", requireAuth, async (req, res) => {
     }
     try {
         const [result] = await pool.query(
-            `UPDATE campaniasoutbound.trxout SET
+            `UPDATE campaniasoutbound_dev.trxout SET
                 Agent=?,
                 StartedManagement=?,
                 TmStmp=?,
