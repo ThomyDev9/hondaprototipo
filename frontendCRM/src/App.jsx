@@ -134,11 +134,12 @@ function App() {
                 onChangeAdminPage={setAdminPage}
                 selectedAgentStatus={selectedAgentStatus}
                 onChangeAgentStatus={setSelectedAgentStatus}
-                onSelectCampaign={(campaignId) => {
+                onSelectCampaign={(campaignId, importId) => {
                     setAgentPage("gestion");
                     setSelectedAgentCampaign({
                         campaignId,
                         tick: Date.now(),
+                        importId: importId || "",
                     });
                 }}
                 agentPage={agentPage}
@@ -175,14 +176,16 @@ function App() {
                         user={userInfo}
                         selectedCampaignId={selectedAgentCampaign.campaignId}
                         selectedCampaignTick={selectedAgentCampaign.tick}
+                        selectedImportId={selectedAgentCampaign.importId}
                         requestedAgentStatus={selectedAgentStatus}
                         onAgentStatusSync={setSelectedAgentStatus}
                         agentPage={agentPage}
-                        onSelectCampaign={(campaignId) => {
+                        onSelectCampaign={(campaignId, importId) => {
                             setAgentPage("gestion");
                             setSelectedAgentCampaign({
                                 campaignId,
                                 tick: Date.now(),
+                                importId: importId || "",
                             });
                         }}
                         onChangeAgentPage={setAgentPage}

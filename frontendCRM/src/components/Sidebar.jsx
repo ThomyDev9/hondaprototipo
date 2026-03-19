@@ -214,13 +214,11 @@ function Sidebar({
                                     }}
                                 >
                                     <AccordionMenu
-                                        onLeafSelect={({ campaignId }) => {
-                                            if (
-                                                onSelectCampaign &&
-                                                campaignId
-                                            ) {
+                                        onLeafSelect={({ campaignId, importId }) => {
+                                            if (onSelectCampaign && campaignId) {
                                                 onChangeAgentPage?.("gestion");
-                                                onSelectCampaign(campaignId);
+                                                // Si hay importId, pásalo; si no, solo campaignId (outbound)
+                                                onSelectCampaign(campaignId, importId);
                                             }
                                         }}
                                     />

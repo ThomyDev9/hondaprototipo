@@ -98,8 +98,7 @@ function AgentGestionForm({
     return (
         <form onSubmit={onSubmit} style={{ width: "95%" }}>
             {/* Bloque F1 */}
-            <div
-                style={{
+            <div  style={{
                     width: "100%",
                     background: "#aea7a7",
                     borderRadius: "10px",
@@ -131,7 +130,7 @@ function AgentGestionForm({
                             type="button"
                             className="agent-primary-button"
                             style={{
-                                fontSize: "0.92em",
+                                fontSize: "0.7em",
 
                                 minWidth: 0,
                             }}
@@ -143,7 +142,7 @@ function AgentGestionForm({
                             type="button"
                             className="agent-primary-button"
                             style={{
-                                fontSize: "0.92em",
+                                fontSize: "0.7em",
                                 padding: "0.28em 0.8em",
                                 minWidth: 0,
                             }}
@@ -155,7 +154,7 @@ function AgentGestionForm({
                             type="button"
                             className="agent-primary-button"
                             style={{
-                                fontSize: "0.92em",
+                                fontSize: "0.7em",
                                 padding: "0.28em 0.8em",
                                 minWidth: 0,
                             }}

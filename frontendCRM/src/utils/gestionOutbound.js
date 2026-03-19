@@ -5,6 +5,8 @@ export function esGestionOutbound(campaignId = "") {
         lower.includes("out maquita cushunchic") ||
         lower.includes("out cacpeco") ||
         lower.includes("out kullki wasi") ||
-        lower.includes("out mutualista imbabura")
+        lower.includes("out mutualista imbabura") ||
+        lower.includes("out honda")
+
     );
 }

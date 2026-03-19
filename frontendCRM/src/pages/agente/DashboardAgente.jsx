@@ -109,6 +109,7 @@ export default function DashboardAgente({
     agentPage,
     onSelectCampaign,
     onChangeAgentPage,
+    selectedImportId, // Nuevo prop opcional
 }) {
     const roles = user?.roles || [];
     const isAgente = roles.includes("ASESOR");
@@ -125,6 +126,7 @@ export default function DashboardAgente({
 
     const [estadoAgente, setEstadoAgente] = useState("disponible");
     const [campaignIdSeleccionada, setCampaignIdSeleccionada] = useState("");
+    const [importIdSeleccionada, setImportIdSeleccionada] = useState("");
     const [levels, setLevels] = useState([]);
     const [level1Seleccionado, setLevel1Seleccionado] = useState("");
     const [level2Seleccionado, setLevel2Seleccionado] = useState("");
@@ -202,7 +204,6 @@ export default function DashboardAgente({
             return;
         }
 
-        // Excluir campañas Out que no usan autoasignación
         const label = String(selectedCampaignId || "").toLowerCase();
         const isOutManual = [
             "out maquita cushunchic",
@@ -212,7 +213,23 @@ export default function DashboardAgente({
             "out mutualista imbabura",
         ].some((l) => label.includes(l));
         setCampaignIdSeleccionada(selectedCampaignId);
-        if (!isOutManual) {
+        if (isOutManual) {
+            setImportIdSeleccionada("");
+            setRegistro(null);
+            setDynamicFormConfig(null);
+            setDynamicFormDetail(null);
+            setDynamicSurveyConfig(null);
+            setSurveyAnswers({});
+            setLevel1Seleccionado("");
+            setLevel2Seleccionado("");
+            setTelefonos([]);
+            setTelefonoSeleccionado("");
+            setEstadoTelefonos([]);
+            setEstadoTelefonoSeleccionado("");
+            setInteractionIdActual("");
+            setObservacion("");
+            setLevels([]);
+        } else {
             fetchSiguienteRegistro(selectedCampaignId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -293,7 +310,8 @@ export default function DashboardAgente({
 
 
             const campaignIdToUse = campaignIdOverride || campaignIdSeleccionada;
-            const importIdToUse = importIdOverride;
+            // Prioridad: argumento > importIdSeleccionada > prop
+            const importIdToUse = importIdOverride || importIdSeleccionada || selectedImportId;
 
 
             if (!campaignIdToUse || !importIdToUse) {
@@ -819,6 +837,8 @@ export default function DashboardAgente({
                 .includes(l),
         );
     const isHomeView = agentPage === "inicio";
+    // Forzar render de formulario outbound si agentPage es 'gestion' y es campaña outbound
+    const isGestionOutbound = esGestionOutbound(campaignIdSeleccionada || selectedCampaignId);
 
     let activeBaseCardsContent = null;
     if (loadingActiveBaseCards) {
@@ -864,6 +884,7 @@ export default function DashboardAgente({
                             className="agent-base-card__button-horizontal"
                             onClick={() => {
                                 setCampaignIdSeleccionada(card.campaignId);
+                                setImportIdSeleccionada(card.importId);
                                 fetchSiguienteRegistro(card.campaignId, card.importId);
                                 if (typeof onChangeAgentPage === "function") {
                                     onChangeAgentPage("gestion");
@@ -953,7 +974,7 @@ export default function DashboardAgente({
 
                     {loadingRegistro &&
                         !isHomeView &&
-                        !esGestionOutbound(campaignIdSeleccionada) && (
+                        !isGestionOutbound && (
                             <p className="agent-info-text">
                                 Asignando registro...
                             </p>
@@ -961,7 +982,7 @@ export default function DashboardAgente({
 
                     {shouldShowQueueMessage &&
                         !isHomeView &&
-                        !esGestionOutbound(campaignIdSeleccionada) && (
+                        !isGestionOutbound && (
                             <p className="agent-info-text">
                                 {estadoAgente === "disponible"
                                     ? "No hay registros disponibles en tu cola en este momento."
@@ -1034,17 +1055,14 @@ export default function DashboardAgente({
                         />
                     )}
                     {/* Mostrar Formulario F2 solo en campañas Out específicas */}
-                    {isAgente &&
+                    {isAgente && !isHomeView && isGestionOutbound && (
                         (() => {
                             const label = (
-                                registro?.campania ||
-                                registro?.campaign_name ||
-                                registro?.campaign ||
-                                registro?.nombre_campania ||
-                                registro?.label ||
                                 campaignIdSeleccionada ||
+                                selectedCampaignId ||
                                 ""
                             ).toLowerCase();
+                            const key = `${campaignIdSeleccionada || selectedCampaignId || ""}-${selectedCampaignTick || ""}`;
                             if (
                                 [
                                     "out cacpeco",
@@ -1052,16 +1070,17 @@ export default function DashboardAgente({
                                     "out mutualista imbabura",
                                 ].some((l) => label.includes(l))
                             ) {
-                                return <GestionOutboundDemo />;
+                                return <GestionOutboundDemo key={key} />;
                             }
                             if (label.includes("out maquita cushunchic")) {
-                                return <OutMaquitaPage />;
+                                return <OutMaquitaPage key={key} />;
                             }
                             if (label.includes("out honda")) {
-                                return <OutHondaPage />;
+                                return <OutHondaPage key={key} />;
                             }
                             return null;
-                        })()}
+                        })()
+                    )}
                 </div>
             </section>
         </PageContainer>

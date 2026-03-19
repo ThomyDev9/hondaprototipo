@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
+import { fetchBasesActivasPorCampania } from "../services/basesActivas.service";
+import { esGestionOutbound } from "../utils/gestionOutbound";
 
 const OUTBOUND_MENU_CACHE_KEY = "outbound_menu_tree_cache";
 const OUTBOUND_MENU_CACHE_TTL_MS = 60_000;
@@ -47,6 +49,7 @@ const styles = {
         transition: "background 0.2s, border-color 0.2s",
         display: "block",
         minWidth: 0,
+        maxWidth: "100%",
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
@@ -164,6 +167,10 @@ function AccordionMenu({ onLeafSelect }) {
         return "rgba(51,65,85,0.44)";
     };
 
+    // Estado para bases activas por campaña
+    const [basesPorCampania, setBasesPorCampania] = useState({});
+    const [loadingBases, setLoadingBases] = useState({});
+
     // Renderiza recursivamente el árbol
     function renderTree(nodes, level = 0, parentKey = "", pathLabels = []) {
         if (!Array.isArray(nodes) || nodes.length === 0) return null;
@@ -177,6 +184,9 @@ function AccordionMenu({ onLeafSelect }) {
                     const hasChildren = children.length > 0;
                     const isOpen = open[key];
                     const label = getNodeLabel(node);
+                    const campaignId = resolveCampaignId(pathLabels, label, node);
+                    const bases = basesPorCampania[campaignId] || [];
+                    const isLoadingBases = loadingBases[campaignId];
                     return (
                         <li
                             key={key}
@@ -227,30 +237,37 @@ function AccordionMenu({ onLeafSelect }) {
                                     e.currentTarget.style.borderColor =
                                         "rgba(255,255,255,0.12)";
                                 }}
-                                onClick={() => {
+                                onClick={async () => {
                                     if (hasChildren) {
-                                        setOpen(
-                                            toggleBranch(open, key, parentKey),
-                                        );
+                                        setOpen(toggleBranch(open, key, parentKey));
                                         return;
                                     }
-
                                     if (pathLabels.length < 1) {
                                         return;
                                     }
-
-                                    const campaignId = resolveCampaignId(
-                                        pathLabels,
-                                        label,
-                                        node,
-                                    );
-                                    if (campaignId && onLeafSelect) {
-                                        onLeafSelect({
+                                    if (!campaignId) return;
+                                    // Si es gestión outbound, seleccionar directamente la campaña
+                                    if (esGestionOutbound(campaignId)) {
+                                        onLeafSelect && onLeafSelect({
                                             campaignId,
                                             leafLabel: label,
-                                            parentLabel:
-                                                pathLabels.at(-1) || "",
+                                            parentLabel: pathLabels.at(-1) || "",
                                         });
+                                        return;
+                                    }
+                                    setLoadingBases((prev) => ({ ...prev, [campaignId]: true }));
+                                    const bases = await fetchBasesActivasPorCampania(campaignId);
+                                    setLoadingBases((prev) => ({ ...prev, [campaignId]: false }));
+                                    setBasesPorCampania((prev) => ({ ...prev, [campaignId]: bases }));
+                                    if (bases.length === 1) {
+                                        onLeafSelect && onLeafSelect({
+                                            campaignId,
+                                            importId: bases[0].importId,
+                                            leafLabel: label,
+                                            parentLabel: pathLabels.at(-1) || "",
+                                        });
+                                    } else if (bases.length > 1) {
+                                        setOpen((prev) => ({ ...prev, [key + "-bases"]: true }));
                                     }
                                 }}
                                 title={node.campania || node}
@@ -263,11 +280,61 @@ function AccordionMenu({ onLeafSelect }) {
                                         whiteSpace: "nowrap",
                                         textAlign: "left",
                                         letterSpacing: "0.01em",
+                                        maxWidth: "calc(100vw - 120px)",
                                     }}
+                                    title={label}
                                 >
                                     {label}
                                 </span>
                             </button>
+                            {/* Submenú de bases activas si hay más de una */}
+                            {isLoadingBases && (
+                                <div style={{ fontSize: "0.75rem", color: "#cbd5e1", marginLeft: 16 }}>
+                                    Cargando bases...
+                                </div>
+                            )}
+                            {bases.length > 1 && open[key + "-bases"] && (
+                                <ul style={{ ...styles.submenu, marginLeft: 16, maxWidth: "100%", overflowX: "auto" }}>
+                                    {bases.map((base) => (
+                                        <li key={base.importId} style={{ maxWidth: "100%" }}>
+                                            <button
+                                                type="button"
+                                                style={{
+                                                    ...styles.menuItem,
+                                                    fontSize: "0.78em",
+                                                    paddingLeft: 16,
+                                                    maxWidth: "100%",
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                                title={base.importId}
+                                                onClick={() => {
+                                                    onLeafSelect && onLeafSelect({
+                                                        campaignId,
+                                                        importId: base.importId,
+                                                        leafLabel: label,
+                                                        parentLabel: pathLabels.at(-1) || "",
+                                                    });
+                                                }}
+                                            >
+                                                <span style={{
+                                                    display: "inline-block",
+                                                    maxWidth: 120,
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    verticalAlign: "middle",
+                                                }} title={base.importId}>
+                                                    {base.importId}
+                                                </span>
+                                                <span style={{ color: "#94a3b8", marginLeft: 6, verticalAlign: "middle" }}>
+                                                    ({base.pendientes} pendientes)
+                                                </span>
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                             {hasChildren && isOpen && (
                                 <div>
                                     {renderTree(
