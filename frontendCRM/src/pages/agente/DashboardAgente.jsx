@@ -284,19 +284,21 @@ export default function DashboardAgente({
 
     /* =====================  SIGUIENTE REGISTRO  ===================== */
 
-    const fetchSiguienteRegistro = async (campaignIdOverride = null) => {
+    const fetchSiguienteRegistro = async (campaignIdOverride = null, importIdOverride = null) => {
         try {
             const tabSessionId = getOrCreateTabSessionId();
             setLoadingRegistro(true);
             setError("");
             setRegistro(null);
 
-            const campaignIdToUse =
-                campaignIdOverride || campaignIdSeleccionada;
 
-            if (!campaignIdToUse) {
+            const campaignIdToUse = campaignIdOverride || campaignIdSeleccionada;
+            const importIdToUse = importIdOverride;
+
+
+            if (!campaignIdToUse || !importIdToUse) {
                 setError(
-                    "Selecciona una opción del menú de campañas para cargar registros",
+                    "Selecciona una campaña y base para cargar registros",
                 );
                 setDynamicFormConfig(null);
                 setDynamicFormDetail(null);
@@ -326,6 +328,7 @@ export default function DashboardAgente({
                 },
                 body: JSON.stringify({
                     campaignId: campaignIdToUse,
+                    importId: importIdToUse,
                     tabSessionId,
                 }),
             });
@@ -860,7 +863,11 @@ export default function DashboardAgente({
                             type="button"
                             className="agent-base-card__button-horizontal"
                             onClick={() => {
-                                onSelectCampaign?.(card.campaignId);
+                                setCampaignIdSeleccionada(card.campaignId);
+                                fetchSiguienteRegistro(card.campaignId, card.importId);
+                                if (typeof onChangeAgentPage === "function") {
+                                    onChangeAgentPage("gestion");
+                                }
                             }}
                         >
                             Ingresar

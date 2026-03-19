@@ -164,37 +164,37 @@ async function saveDynamicResponseIfTemplateActive({
    1. TOMAR SIGUIENTE REGISTRO (auto-asignación)
 ============================================================================ */
 router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
+
     try {
         const agenteActor = getAgentActor(req);
         const campaignToUse = String(req.body?.campaignId || "").trim();
         const tabSessionId = String(req.body?.tabSessionId || "").trim();
+        const importIdFromBody = String(req.body?.importId || "").trim();
 
         if (!campaignToUse) {
             return res.status(400).json({ error: "Campaign requerida" });
         }
 
-        /* ============================================================
-       1. OBTENER BASE ACTIVA (LastUpdate)
-    ============================================================ */
-
-        const [baseRows] = await pool.query(
-            `
-      SELECT ImportId
-      FROM campaign_active_base
-      WHERE CampaignId = ?
-      AND state = 1
-      LIMIT 1
-      `,
-            [campaignToUse],
-        );
-
-        if (!baseRows.length) {
-            return res.status(404).json({
-                error: "No hay base activa para esta campaña",
-            });
+        // Usar importId recibido si está presente, si no buscar la base activa
+        let lastUpdate = importIdFromBody;
+        if (!lastUpdate) {
+            const [baseRows] = await pool.query(
+                `
+                SELECT ImportId
+                FROM campaign_active_base
+                WHERE CampaignId = ?
+                AND state = 1
+                LIMIT 1
+                `,
+                [campaignToUse],
+            );
+            if (!baseRows.length) {
+                return res.status(404).json({
+                    error: "No hay base activa para esta campaña",
+                });
+            }
+            lastUpdate = baseRows[0].ImportId;
         }
-
-        const lastUpdate = baseRows[0].ImportId;
 
         /* ============================================================
        2. VER SI YA TIENE REGISTRO ASIGNADO
