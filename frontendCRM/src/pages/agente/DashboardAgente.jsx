@@ -301,23 +301,24 @@ export default function DashboardAgente({
 
     /* =====================  SIGUIENTE REGISTRO  ===================== */
 
-    const fetchSiguienteRegistro = async (campaignIdOverride = null, importIdOverride = null) => {
+    const fetchSiguienteRegistro = async (
+        campaignIdOverride = null,
+        importIdOverride = null,
+    ) => {
         try {
             const tabSessionId = getOrCreateTabSessionId();
             setLoadingRegistro(true);
             setError("");
             setRegistro(null);
 
-
-            const campaignIdToUse = campaignIdOverride || campaignIdSeleccionada;
+            const campaignIdToUse =
+                campaignIdOverride || campaignIdSeleccionada;
             // Prioridad: argumento > importIdSeleccionada > prop
-            const importIdToUse = importIdOverride || importIdSeleccionada || selectedImportId;
-
+            const importIdToUse =
+                importIdOverride || importIdSeleccionada || selectedImportId;
 
             if (!campaignIdToUse || !importIdToUse) {
-                setError(
-                    "Selecciona una campaña y base para cargar registros",
-                );
+                setError("Selecciona una campaña y base para cargar registros");
                 setDynamicFormConfig(null);
                 setDynamicFormDetail(null);
                 setDynamicSurveyConfig(null);
@@ -838,7 +839,9 @@ export default function DashboardAgente({
         );
     const isHomeView = agentPage === "inicio";
     // Forzar render de formulario outbound si agentPage es 'gestion' y es campaña outbound
-    const isGestionOutbound = esGestionOutbound(campaignIdSeleccionada || selectedCampaignId);
+    const isGestionOutbound = esGestionOutbound(
+        campaignIdSeleccionada || selectedCampaignId,
+    );
 
     let activeBaseCardsContent = null;
     if (loadingActiveBaseCards) {
@@ -885,7 +888,10 @@ export default function DashboardAgente({
                             onClick={() => {
                                 setCampaignIdSeleccionada(card.campaignId);
                                 setImportIdSeleccionada(card.importId);
-                                fetchSiguienteRegistro(card.campaignId, card.importId);
+                                fetchSiguienteRegistro(
+                                    card.campaignId,
+                                    card.importId,
+                                );
                                 if (typeof onChangeAgentPage === "function") {
                                     onChangeAgentPage("gestion");
                                 }
@@ -935,7 +941,15 @@ export default function DashboardAgente({
                             type="button"
                             className="agent-base-card__button-horizontal"
                             onClick={() => {
-                                onSelectCampaign?.(card.campaignId);
+                                setCampaignIdSeleccionada(card.campaignId);
+                                setImportIdSeleccionada(card.importId);
+                                fetchSiguienteRegistro(
+                                    card.campaignId,
+                                    card.importId,
+                                );
+                                if (typeof onChangeAgentPage === "function") {
+                                    onChangeAgentPage("gestion");
+                                }
                             }}
                         >
                             Ingresar
@@ -972,13 +986,9 @@ export default function DashboardAgente({
 
                     {error && <p className="agent-error">{error}</p>}
 
-                    {loadingRegistro &&
-                        !isHomeView &&
-                        !isGestionOutbound && (
-                            <p className="agent-info-text">
-                                Asignando registro...
-                            </p>
-                        )}
+                    {loadingRegistro && !isHomeView && !isGestionOutbound && (
+                        <p className="agent-info-text">Asignando registro...</p>
+                    )}
 
                     {shouldShowQueueMessage &&
                         !isHomeView &&
@@ -1055,7 +1065,9 @@ export default function DashboardAgente({
                         />
                     )}
                     {/* Mostrar Formulario F2 solo en campañas Out específicas */}
-                    {isAgente && !isHomeView && isGestionOutbound && (
+                    {isAgente &&
+                        !isHomeView &&
+                        isGestionOutbound &&
                         (() => {
                             const label = (
                                 campaignIdSeleccionada ||
@@ -1079,8 +1091,7 @@ export default function DashboardAgente({
                                 return <OutHondaPage key={key} />;
                             }
                             return null;
-                        })()
-                    )}
+                        })()}
                 </div>
             </section>
         </PageContainer>
