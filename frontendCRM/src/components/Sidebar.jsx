@@ -51,6 +51,7 @@ function Sidebar({
         { label: "Dashboard", key: "dashboard" },
         { label: "Agentes", key: "agents" },
         { label: "Reportes", key: "reports" },
+        { label: "Grabaciones Outbound", key: "grabaciones-outbound" },
     ];
     const menuAgente = [
         { label: "Inicio", key: "inicio" },
@@ -106,6 +107,14 @@ function Sidebar({
             item.key !== "campanias-outbound"
         ) {
             setShowOutbound(false);
+        }
+        if (
+            effectiveRole === "SUPERVISOR" &&
+            item.key === "grabaciones-outbound" &&
+            onChangeAdminPage
+        ) {
+            onChangeAdminPage(item.key);
+            return;
         }
     };
     const isActive = (item) => {

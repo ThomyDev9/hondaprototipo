@@ -2,6 +2,7 @@ import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "./context/AuthContext";
 import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
+import GrabacionesOutboundPage from "./pages/supervisor/GrabacionesOutboundPage";
 import DashboardAgente from "./pages/agente/DashboardAgente";
 import AdministrarBases from "./pages/admin/AdministrarBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
@@ -162,9 +163,12 @@ function App() {
                     </>
                 )}
 
-                {userInfo.roles?.includes("SUPERVISOR") && (
-                    <DashboardSupervisor />
-                )}
+                {userInfo.roles?.includes("SUPERVISOR") &&
+                    (adminPage === "grabaciones-outbound" ? (
+                        <GrabacionesOutboundPage />
+                    ) : (
+                        <DashboardSupervisor />
+                    ))}
 
                 {userInfo.roles?.includes("ASESOR") && (
                     <DashboardAgente

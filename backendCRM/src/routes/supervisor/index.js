@@ -1,5 +1,7 @@
+import recordingSftpRouter from "./recording.sftp.js";
 import express from "express";
 import pool from "../../services/db.js";
+import { getRecordingsByPhone } from "./recordings.controller.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -11,6 +13,10 @@ const router = express.Router();
 router.use(requireAuth);
 router.use(loadUserRoles);
 router.use(requireRole(["SUPERVISOR"]));
+
+// Endpoint: grabaciones por número de teléfono
+router.get("/grabaciones", getRecordingsByPhone);
+router.use("/grabacion-sftp", recordingSftpRouter);
 
 // Dashboard supervisor: métricas globales
 router.get("/dashboard", async (req, res) => {

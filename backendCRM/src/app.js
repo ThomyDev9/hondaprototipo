@@ -25,6 +25,10 @@ app.options("*", cors());
 // Para poder leer JSON en req.body
 app.use(express.json());
 
+// Servir archivos de grabaciones desde una ruta local configurable
+const recordingsPath =
+    process.env.RECORDINGS_PATH || path.join(process.cwd(), "grabaciones");
+app.use("/grabaciones", express.static(recordingsPath));
 // Servir archivos PDF desde /uploads
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 

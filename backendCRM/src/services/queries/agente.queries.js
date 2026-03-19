@@ -4,10 +4,46 @@
  * Sentencias SQL específicas del módulo de asesor/agente.
  */
 
+// Para compatibilidad con queries existentes
 const encuestaSchema =
-    process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev  ";
+    process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev";
+const encuestaSchemaDev = "bancopichinchaencuesta_dev";
+const encuestaSchemaProd = "bancopichinchaencuesta";
 
 const agenteQueries = {
+    // Grabaciones por número de teléfono en bancopichinchaencuesta_dev
+    getRecordingsByPhoneDev: `
+      SELECT
+        CampaignId,
+        ContactId,
+        ContactName,
+        ContactAddress,
+        InteractionId,
+        ImportId,
+        Agent,
+        ResultLevel1
+      FROM ${encuestaSchemaDev}.gestionfinal
+      WHERE ContactAddress IS NOT NULL
+      ORDER BY Id DESC
+      LIMIT 100
+    `,
+
+    // Grabaciones por número de teléfono en bancopichinchaencuesta
+    getRecordingsByPhoneProd: `
+      SELECT
+        CampaignId,
+        ContactId,
+        ContactName,
+        ContactAddress,
+        InteractionId,
+        ImportId,
+        Agent,
+        ResultLevel1
+      FROM ${encuestaSchemaProd}.gestionfinal
+      WHERE ContactAddress IS NOT NULL
+      ORDER BY Id DESC
+      LIMIT 100
+    `,
     getUserStateByIdUser: `
         SELECT State
         FROM user
@@ -214,8 +250,6 @@ const agenteQueries = {
         ORDER BY TmStmp DESC
         LIMIT 1
       `,
-
-    
 
     getPhonesByContactId: `
         SELECT NumeroMarcado

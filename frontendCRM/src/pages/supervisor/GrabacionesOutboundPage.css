@@ -1,0 +1,43 @@
+.grabaciones-table {
+    border-collapse: collapse;
+    width: 100%;
+    background: #fff;
+    font-size: 15px;
+    box-shadow: 0 2px 8px #0001;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.grabaciones-table th,
+.grabaciones-table td {
+    border: 1px solid #e5e7eb;
+    padding: 8px 10px;
+    text-align: left;
+    background: #f9fafb;
+    color: #222;
+    font-size: 12px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.grabaciones-table th {
+    background: #f3f4f6;
+}
+.grabaciones-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 102px;
+    height: 32px;
+    border-radius: 16px;
+    color: #fff;
+    background: #000;
+}
+
+.grabaciones-icon {
+    display: block;
+}

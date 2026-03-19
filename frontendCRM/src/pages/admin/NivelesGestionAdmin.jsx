@@ -625,7 +625,7 @@ export default function NivelesGestionAdmin() {
 
     useEffect(() => {
         setLevel2("");
-        //setLevel2Pool([]);
+        setLevel2Pool([]);
     }, [level1]);
 
     useEffect(() => {
@@ -674,23 +674,23 @@ export default function NivelesGestionAdmin() {
         setLevel2("");
     }
 
-    function handleAddLevel2ToPool(value) {
-        const nextValue = String(value || "").trim();
-        if (!nextValue) {
-            return;
-        }
+    // function handleAddLevel2ToPool(value) {
+    //     const nextValue = String(value || "").trim();
+    //     if (!nextValue) {
+    //         return;
+    //     }
 
-        setLevel2Pool((prev) => {
-            const alreadyExists = prev.some(
-                (item) =>
-                    String(item).toLowerCase() === nextValue.toLowerCase(),
-            );
-            if (alreadyExists) {
-                return prev;
-            }
-            return [...prev, nextValue];
-        });
-    }
+    //     setLevel2Pool((prev) => {
+    //         const alreadyExists = prev.some(
+    //             (item) =>
+    //                 String(item).toLowerCase() === nextValue.toLowerCase(),
+    //         );
+    //         if (alreadyExists) {
+    //             return prev;
+    //         }
+    //         return [...prev, nextValue];
+    //     });
+    // }
 
     function handleRemoveLevel2FromPool(value) {
         const target = String(value || "")

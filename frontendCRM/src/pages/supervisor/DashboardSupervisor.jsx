@@ -23,14 +23,44 @@ export default function DashboardSupervisor() {
     const [dashboard, setDashboard] = useState(null);
     const [agentes, setAgentes] = useState([]);
     const [error, setError] = useState(null);
+    const [grabaciones, setGrabaciones] = useState([]);
+    const [loadingGrabaciones, setLoadingGrabaciones] = useState(false);
+    const [audioUrls, setAudioUrls] = useState({}); // { [recordingfile]: objectUrl }
+    // Limpia los object URLs al desmontar
+    useEffect(() => {
+        return () => {
+            Object.values(audioUrls).forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, [audioUrls]);
+    // Función para obtener el audio como blob y crear un object URL
+    const fetchAudioUrl = async (recordingfile) => {
+        if (audioUrls[recordingfile]) return audioUrls[recordingfile];
+        const API_BASE = import.meta.env.VITE_API_BASE;
+        try {
+            const res = await fetch(
+                `${API_BASE}/supervisor/grabacion-sftp/${recordingfile}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            if (!res.ok) throw new Error("No autorizado o error de descarga");
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            setAudioUrls((prev) => ({ ...prev, [recordingfile]: url }));
+            return url;
+        } catch (err) {
+            alert("No se pudo obtener la grabación: " + err.message);
+            return null;
+        }
+    };
 
     useEffect(() => {
-        // Dashboard
         const API_BASE = import.meta.env.VITE_API_BASE;
         if (!token) {
             setError("No hay sesión activa");
             return;
         }
+        // Dashboard
         fetch(`${API_BASE}/supervisor/dashboard`, {
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -68,6 +98,24 @@ export default function DashboardSupervisor() {
                 setError("No se pudo cargar la lista de agentes");
                 setAgentes([]);
             });
+
+        // Grabaciones
+        setLoadingGrabaciones(true);
+        fetch(`${API_BASE}/supervisor/grabaciones`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error("No autorizado");
+                return res.json();
+            })
+            .then((data) => setGrabaciones(Array.isArray(data) ? data : []))
+            .catch((err) => {
+                console.error("Error cargando grabaciones:", err);
+                setGrabaciones([]);
+            })
+            .finally(() => setLoadingGrabaciones(false));
     }, []);
 
     const styles = {
@@ -149,6 +197,8 @@ export default function DashboardSupervisor() {
                             ))}
                     </tbody>
                 </table>
+
+                {/* Tabla de grabaciones eliminada del dashboard principal. Ahora solo en la sección Grabaciones Outbound. */}
             </div>
         </PageContainer>
     );
