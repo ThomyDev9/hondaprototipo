@@ -6,6 +6,7 @@ export default function FormularioDinamico({
     onActualizar,
     initialValues,
     esUpdate = false,
+    onChangeCampo,
 }) {
     const [form, setForm] = React.useState(() => {
         const initial = {};
@@ -15,11 +16,22 @@ export default function FormularioDinamico({
         return initial;
     });
 
+    React.useEffect(() => {
+        const initial = {};
+        template.forEach(
+            (f) => (initial[f.name] = initialValues?.[f.name] || ""),
+        );
+        setForm(initial);
+    }, [initialValues, template]);
+
     const handleChange = (e, customOnChange) => {
         const { name, value } = e.target;
         setForm((f) => ({ ...f, [name]: value }));
         if (typeof customOnChange === "function") {
             customOnChange(e);
+        }
+        if (typeof onChangeCampo === "function") {
+            onChangeCampo(name, value);
         }
     };
 

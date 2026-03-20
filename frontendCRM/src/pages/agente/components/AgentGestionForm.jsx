@@ -176,6 +176,36 @@ function AgentGestionForm({
                 >
                     <div className="agent-form-field">
                         <label className="agent-label">
+                            <span>Teléfonos a marcar</span>
+                            <select
+                                value={telefonoSeleccionado || ""}
+                                onChange={(e) =>
+                                    onTelefonoChange(e.target.value)
+                                }
+                                className="agent-input"
+                                required
+                            >
+                                <option value="">Selecciona...</option>
+                                {telefonos.map((fono) => (
+                                    <option key={fono} value={fono}>
+                                        {fono}
+                                    </option>
+                                ))}
+                            </select>
+                            {telefonoSeleccionado && (
+                                <span
+                                    style={{
+                                        color: "#16a34a",
+                                        fontSize: "0.95em",
+                                    }}
+                                >
+                                    Copiado al portapapeles
+                                </span>
+                            )}
+                        </label>
+                    </div>
+                    <div className="agent-form-field">
+                        <label className="agent-label">
                             <span>Resultado gestión - Nivel 1</span>
                             <select
                                 value={level1Seleccionado || ""}
@@ -223,36 +253,7 @@ function AgentGestionForm({
                             </select>
                         </label>
                     </div>
-                    <div className="agent-form-field">
-                        <label className="agent-label">
-                            <span>Teléfonos a marcar</span>
-                            <select
-                                value={telefonoSeleccionado || ""}
-                                onChange={(e) =>
-                                    onTelefonoChange(e.target.value)
-                                }
-                                className="agent-input"
-                                required
-                            >
-                                <option value="">Selecciona...</option>
-                                {telefonos.map((fono) => (
-                                    <option key={fono} value={fono}>
-                                        {fono}
-                                    </option>
-                                ))}
-                            </select>
-                            {telefonoSeleccionado && (
-                                <span
-                                    style={{
-                                        color: "#16a34a",
-                                        fontSize: "0.95em",
-                                    }}
-                                >
-                                    Copiado al portapapeles
-                                </span>
-                            )}
-                        </label>
-                    </div>
+
                     <div className="agent-form-field">
                         <label className="agent-label">
                             <span>Estados teléfonos</span>

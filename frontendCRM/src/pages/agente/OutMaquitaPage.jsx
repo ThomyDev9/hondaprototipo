@@ -31,6 +31,56 @@ export default function OutMaquitaPage() {
     const [levels, setLevels] = React.useState([]);
     const [tiposCampania, setTiposCampania] = React.useState([]);
     // Obtener tipos de campaña dinámicamente
+    const extraFields = [
+        {
+            name: "montoSolicitado",
+            label: "Monto Solicitado",
+            type: "text",
+            required: false,
+        },
+        {
+            name: "procesoARealizar",
+            label: "Proceso a realizar",
+            type: "text",
+            required: false,
+        },
+        {
+            name: "montoAplica",
+            label: "Monto Aplica",
+            type: "text",
+            required: false,
+        },
+        {
+            name: "observacionCooperativa",
+            label: "Observación Cooperativa",
+            type: "textarea",
+            required: false,
+        },
+        {
+            name: "fechaContacto",
+            label: "Fecha contacto",
+            type: "text",
+            required: false,
+        },
+        {
+            name: "estatusA",
+            label: "Estatus A",
+            type: "text",
+            required: false,
+        },
+        {
+            name: "agencia",
+            label: "Agencia",
+            type: "text",
+            required: false,
+        },
+        {
+            name: "asesorOperativo",
+            label: "Asesor Operativo",
+            type: "text",
+            required: false,
+        },
+    ];
     React.useEffect(() => {
         async function fetchTipos() {
             try {
@@ -143,7 +193,7 @@ export default function OutMaquitaPage() {
         return (
             <div className="outmaquita-flex-row">
                 <div className="outmaquita-form-panel">
-                    <h1 className="outmaquita-title">Out Maquita Cushunchic</h1>
+                    <h5 className="outmaquita-title">Out Maquita Cushunchic</h5>
                     <div>
                         <input
                             type="text"
@@ -235,34 +285,48 @@ export default function OutMaquitaPage() {
         submotivoInteraccion:
             registro?.submotivoInteraccion || registro?.SubmotivoLlamada || "",
         observaciones: registro?.observaciones || registro?.Observaciones || "",
+        montoSolicitado: registro?.["Monto solicitado"] || "",
+        procesoARealizar: registro?.["PROCESO A REALIZAR "] || "",
+        montoAplica: registro?.["Monto Aplica"] || "",
+        observacionCooperativa: registro?.["Observacion Cooperativa "] || "",
+        fechaContacto: registro?.["Fecha de contacto"] || "",
+        estatusA: registro?.["Estatus"] || "",
+        agencia: registro?.["Agencia "] || "",
+        asesorOperativo: registro?.["Asesor Operativo "] || "",
     };
 
     // Construir template dinámico para el formulario
-    const dynamicTemplate = formF2Template.map((field) => {
-        if (field.name === "tipoCampana") {
-            return {
-                ...field,
-                type: "select",
-                options: tiposCampania.map((tc) => ({ value: tc, label: tc })),
-            };
-        }
-        if (field.name === "motivoInteraccion") {
-            return {
-                ...field,
-                type: "select",
-                options: motivos.map((m) => ({ value: m, label: m })),
-                onChange: (e) => setSelectedMotivo(e.target.value),
-            };
-        }
-        if (field.name === "submotivoInteraccion") {
-            return {
-                ...field,
-                type: "select",
-                options: submotivos.map((s) => ({ value: s, label: s })),
-            };
-        }
-        return field;
-    });
+    const dynamicTemplate = [
+        ...formF2Template.map((field) => {
+            if (field.name === "tipoCampana") {
+                return {
+                    ...field,
+                    type: "select",
+                    options: tiposCampania.map((tc) => ({
+                        value: tc,
+                        label: tc,
+                    })),
+                };
+            }
+            if (field.name === "motivoInteraccion") {
+                return {
+                    ...field,
+                    type: "select",
+                    options: motivos.map((m) => ({ value: m, label: m })),
+                    onChange: (e) => setSelectedMotivo(e.target.value),
+                };
+            }
+            if (field.name === "submotivoInteraccion") {
+                return {
+                    ...field,
+                    type: "select",
+                    options: submotivos.map((s) => ({ value: s, label: s })),
+                };
+            }
+            return field;
+        }),
+        ...extraFields,
+    ];
 
     return (
         <div className="outmaquita-flex-row">

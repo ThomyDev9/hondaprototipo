@@ -35,7 +35,7 @@ export const formF2Template = [
     },
     {
         name: "motivoInteraccion",
-        label: "Motivo de la interacción",
+        label: "Motivo interacción",
         type: "select",
         required: true,
         options: [
@@ -46,7 +46,7 @@ export const formF2Template = [
     },
     {
         name: "submotivoInteraccion",
-        label: "Submotivo de la interacción",
+        label: "Submotivo interacción",
         type: "select",
         required: true,
         options: [
@@ -57,7 +57,7 @@ export const formF2Template = [
     },
     {
         name: "observaciones",
-        label: "Observaciones de la interacción",
+        label: "Observacion",
         type: "textarea",
         required: false,
     },

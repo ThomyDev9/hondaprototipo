@@ -16,6 +16,9 @@ export default function GestionOutboundDemo() {
     // Cambia aquí el nombre de la campaña para probar otros outs
     const nombreCampania = "Out Kullki Wasi";
 
+    // Puedes definir un nombre de formulario más amigable aquí si lo deseas
+    const nombreFormulario = `Gestión Outbound · ${nombreCampania}`;
+
     // Utilidad para opciones de selects (fuera del componente)
 
     useEffect(() => {
@@ -118,7 +121,7 @@ export default function GestionOutboundDemo() {
                 boxShadow: "0 2px 8px #0001",
             }}
         >
-            <h2>Gestión Outbound · Formulario F2</h2>
+            <h2>{nombreFormulario}</h2>
             {loading && <div>Cargando tipos de campaña...</div>}
             {error && <div style={{ color: "red" }}>{error}</div>}
             <FormularioDinamico

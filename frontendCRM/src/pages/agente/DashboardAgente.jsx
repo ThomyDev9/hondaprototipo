@@ -687,6 +687,7 @@ export default function DashboardAgente({
             level1Target: "NU1 Regestionables",
             level2Target: "grabadora",
             estadoTelefonoTarget: "grabadora",
+            observacion: "Contesta grabadora",
         });
     };
 
@@ -695,6 +696,7 @@ export default function DashboardAgente({
             level1Target: "NU1 Regestionables",
             level2Target: "contesta tercero",
             estadoTelefonoTarget: "contactado",
+            observacion: "Contesta tercero",
         });
     };
 
