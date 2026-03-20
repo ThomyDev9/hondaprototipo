@@ -1,7 +1,7 @@
 import React, { useContext, useRef } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import { formF2Template } from "../../templates/formF2Template";
-import { fetchTiposCampaniaOutMaquita } from "../../services/tiposCampania.service";
+import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
 import FormularioDinamico from "../../components/FormularioDinamico";
 import {
     insertarTrxOut,
@@ -34,10 +34,10 @@ export default function OutMaquitaPage() {
     React.useEffect(() => {
         async function fetchTipos() {
             try {
-                const tipos = await fetchTiposCampaniaOutMaquita();
-                setTiposCampania(
-                    tipos.map((t) => t.TipoCampania).filter(Boolean),
+                const tipos = await fetchTiposCampaniaOutbound(
+                    "Out Maquita Cushunchic",
                 );
+                setTiposCampania(tipos.filter(Boolean));
             } catch (err) {
                 setTiposCampania([]);
             }

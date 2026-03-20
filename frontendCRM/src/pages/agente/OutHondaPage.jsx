@@ -1,7 +1,7 @@
 import React, { useContext, useRef, useEffect, useState } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import { formF2Template } from "../../templates/formF2Template";
-import { fetchTiposCampaniaOutHonda } from "../../services/tiposCampania.service";
+import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
 import FormularioDinamicoReseteable from "../../components/FormularioDinamicoReseteable";
 import { buscarTrxOutPorIdentificacion } from "../../services/buscarTrxOut.service";
 import {
@@ -62,10 +62,8 @@ export default function OutHondaPage() {
     React.useEffect(() => {
         async function fetchTipos() {
             try {
-                const tipos = await fetchTiposCampaniaOutHonda();
-                setTiposCampania(
-                    tipos.map((t) => t.TipoCampania).filter(Boolean),
-                );
+                const tipos = await fetchTiposCampaniaOutbound("Out Honda");
+                setTiposCampania(tipos.filter(Boolean));
             } catch {
                 setTiposCampania([]);
             }

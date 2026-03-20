@@ -98,7 +98,8 @@ function AgentGestionForm({
     return (
         <form onSubmit={onSubmit} style={{ width: "95%" }}>
             {/* Bloque F1 */}
-            <div  style={{
+            <div
+                style={{
                     width: "100%",
                     background: "#aea7a7",
                     borderRadius: "10px",
@@ -439,105 +440,133 @@ function AgentGestionForm({
                 </div>
             )}
 
-            {/* Bloque F3 */}
-            {dynamicSurveyConfig && (
-                <div
-                    className="agent-form-block agent-form-block-tertiary"
-                    style={{
-                        width: "100%",
-                        background: "#e0f2fe",
-                        borderRadius: "10px",
-                        boxShadow: "0 1px 4px 0 rgba(15,23,42,0.03)",
-                        padding: "0.7rem 0.8rem 0.7rem 0.8rem",
-                        border: "1px solid #38bdf8",
-                    }}
-                >
-                    <p className="agent-form-block-title">
-                        Formulario 3 · {dynamicSurveyConfig.title}
-                    </p>
+            {/* Bloque F3: solo mostrar si level1Seleccionado inicia con 'CU1' */}
+            {dynamicSurveyConfig &&
+                typeof level1Seleccionado === "string" &&
+                level1Seleccionado.trim().toUpperCase().startsWith("CU1") && (
+                    <div
+                        className="agent-form-block agent-form-block-tertiary"
+                        style={{
+                            width: "100%",
+                            background: "#e0f2fe",
+                            borderRadius: "10px",
+                            boxShadow: "0 1px 4px 0 rgba(15,23,42,0.03)",
+                            padding: "0.7rem 0.8rem 0.7rem 0.8rem",
+                            border: "1px solid #38bdf8",
+                        }}
+                    >
+                        <p className="agent-form-block-title">
+                            Formulario 3 · {dynamicSurveyConfig.title}
+                        </p>
 
-                    <div className="agent-survey-grid">
-                        {surveyFieldsToRender.map((field) => (
-                            <div
-                                key={field.key}
-                                className="agent-survey-item"
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.7em",
-                                }}
-                            >
-                                <label
-                                    className="agent-label"
+                        <div className="agent-survey-grid">
+                            {surveyFieldsToRender.map((field) => (
+                                <div
+                                    key={field.key}
+                                    className="agent-survey-item"
                                     style={{
-                                        flex: 1,
-                                        fontWeight: 500,
                                         display: "flex",
                                         alignItems: "center",
                                         gap: "0.7em",
                                     }}
                                 >
-                                    <span
+                                    <label
+                                        className="agent-label"
                                         style={{
-                                            whiteSpace: "pre-line",
-                                            minWidth: 120,
+                                            flex: 1,
+                                            fontWeight: 500,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "0.7em",
                                         }}
                                     >
-                                        {field.label}
-                                    </span>
-                                    {(() => {
-                                        const currentValue =
-                                            surveyAnswers[field.key] || "";
-                                        const handleChange = (e) =>
-                                            onSurveyFieldChange(
-                                                field.key,
-                                                e.target.value,
-                                            );
-                                        if (field.type === "select") {
+                                        <span
+                                            style={{
+                                                whiteSpace: "pre-line",
+                                                minWidth: 120,
+                                            }}
+                                        >
+                                            {field.label}
+                                        </span>
+                                        {(() => {
+                                            const currentValue =
+                                                surveyAnswers[field.key] || "";
+                                            const handleChange = (e) =>
+                                                onSurveyFieldChange(
+                                                    field.key,
+                                                    e.target.value,
+                                                );
+                                            if (field.type === "select") {
+                                                return (
+                                                    <select
+                                                        className="agent-input agent-survey-input"
+                                                        value={currentValue}
+                                                        onChange={handleChange}
+                                                        style={{
+                                                            minWidth: 120,
+                                                            maxWidth: 220,
+                                                        }}
+                                                    >
+                                                        <option value="">
+                                                            Selecciona...
+                                                        </option>
+                                                        {field.options?.map(
+                                                            (option) => (
+                                                                <option
+                                                                    key={option}
+                                                                    value={
+                                                                        option
+                                                                    }
+                                                                >
+                                                                    {option}
+                                                                </option>
+                                                            ),
+                                                        )}
+                                                    </select>
+                                                );
+                                            }
+                                            if (field.type === "label") {
+                                                return (
+                                                    <div
+                                                        className="agent-input agent-survey-input"
+                                                        style={{
+                                                            backgroundColor:
+                                                                "#f8fafc",
+                                                            color: "#475569",
+                                                            minWidth: 120,
+                                                        }}
+                                                    >
+                                                        {field.label}
+                                                    </div>
+                                                );
+                                            }
+                                            if (field.type === "textarea") {
+                                                return (
+                                                    <textarea
+                                                        className="agent-input agent-survey-input"
+                                                        maxLength={
+                                                            field.maxLength ||
+                                                            undefined
+                                                        }
+                                                        value={currentValue}
+                                                        onChange={handleChange}
+                                                        style={{
+                                                            minWidth: 120,
+                                                            maxWidth: 220,
+                                                        }}
+                                                    />
+                                                );
+                                            }
+                                            let inputType = "text";
+                                            if (field.type === "datetime-local")
+                                                inputType = "datetime-local";
+                                            else if (field.type === "date")
+                                                inputType = "date";
+                                            else if (field.type === "number")
+                                                inputType = "number";
                                             return (
-                                                <select
-                                                    className="agent-input agent-survey-input"
-                                                    value={currentValue}
-                                                    onChange={handleChange}
-                                                    style={{
-                                                        minWidth: 120,
-                                                        maxWidth: 220,
-                                                    }}
-                                                >
-                                                    <option value="">
-                                                        Selecciona...
-                                                    </option>
-                                                    {field.options?.map(
-                                                        (option) => (
-                                                            <option
-                                                                key={option}
-                                                                value={option}
-                                                            >
-                                                                {option}
-                                                            </option>
-                                                        ),
-                                                    )}
-                                                </select>
-                                            );
-                                        }
-                                        if (field.type === "label") {
-                                            return (
-                                                <div
-                                                    className="agent-input agent-survey-input"
-                                                    style={{
-                                                        backgroundColor:
-                                                            "#f8fafc",
-                                                        color: "#475569",
-                                                        minWidth: 120,
-                                                    }}
-                                                >
-                                                    {field.label}
-                                                </div>
-                                            );
-                                        }
-                                        if (field.type === "textarea") {
-                                            return (
-                                                <textarea
+                                                <input
+                                                    type={inputType}
                                                     className="agent-input agent-survey-input"
                                                     maxLength={
                                                         field.maxLength ||
@@ -551,36 +580,13 @@ function AgentGestionForm({
                                                     }}
                                                 />
                                             );
-                                        }
-                                        let inputType = "text";
-                                        if (field.type === "datetime-local")
-                                            inputType = "datetime-local";
-                                        else if (field.type === "date")
-                                            inputType = "date";
-                                        else if (field.type === "number")
-                                            inputType = "number";
-                                        return (
-                                            <input
-                                                type={inputType}
-                                                className="agent-input agent-survey-input"
-                                                maxLength={
-                                                    field.maxLength || undefined
-                                                }
-                                                value={currentValue}
-                                                onChange={handleChange}
-                                                style={{
-                                                    minWidth: 120,
-                                                    maxWidth: 220,
-                                                }}
-                                            />
-                                        );
-                                    })()}
-                                </label>
-                            </div>
-                        ))}
+                                        })()}
+                                    </label>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
             <div className="agent-form-actions">
                 <button type="submit" className="agent-primary-button">

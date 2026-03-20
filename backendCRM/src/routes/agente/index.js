@@ -164,7 +164,6 @@ async function saveDynamicResponseIfTemplateActive({
    1. TOMAR SIGUIENTE REGISTRO (auto-asignación)
 ============================================================================ */
 router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
-
     try {
         const agenteActor = getAgentActor(req);
         const campaignToUse = String(req.body?.campaignId || "").trim();
@@ -1263,15 +1262,20 @@ router.post("/liberar-registro", ...agenteMiddlewares, async (req, res) => {
 
 // Endpoint para tipos de campaña dinámico para Out Maquita Cushunchic
 router.get("/tipos-campania", requireAuth, async (req, res) => {
-    const cliente = req.query.cliente;
-    if (!cliente) return res.status(400).json({ error: "Falta cliente" });
+    let cliente = req.query.cliente;
+    if (!cliente) {
+        return res.status(400).json({ error: "Falta cliente" });
+    }
+    cliente = cliente.trim();
     try {
         // Usar pool directamente, suponiendo que la base campaniasoutbound está accesible
+        console.log("cliente:", cliente);
         const [rows] = await pool.query(
-            "SELECT TipoCampania FROM campaniasoutbound_dev.campañas WHERE cliente = ? AND estado = '1'",
+            "select mi.nombre_item , tc.nombre  , tc.estado as estadoTipo from  cck_dev.menu_item_campania_tipo mct join cck_dev.menu_items mi on  mi.id = mct.menu_item_id join cck_dev.tipos_campania tc on tc.id = mct.tipo_id  where mi.nombre_item  = ? and  tc.estado  = 1",
             [cliente],
         );
-        res.json({ data: rows });
+        // Devolver solo los nombres de tipo de campaña como array de strings
+        res.json({ data: rows.map((r) => r.nombre) });
     } catch (err) {
         console.error("Error en /agente/tipos-campania:", err);
         res.status(500).json({ error: "Error consultando tipos de campaña" });

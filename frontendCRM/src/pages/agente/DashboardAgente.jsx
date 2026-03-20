@@ -193,8 +193,19 @@ export default function DashboardAgente({
         }
     };
     useEffect(() => {
-        if (!bloqueado) loadBases();
-    }, [bloqueado]);
+        // Solo cargar bases si NO es campaña outbound
+        const label = String(
+            campaignIdSeleccionada || selectedCampaignId || "",
+        ).toLowerCase();
+        const isOutManual = [
+            "out maquita cushunchic",
+            "out honda",
+            "out cacpeco",
+            "out kullki wasi",
+            "out mutualista imbabura",
+        ].some((l) => label.includes(l));
+        if (!bloqueado && !isOutManual) loadBases();
+    }, [bloqueado, campaignIdSeleccionada, selectedCampaignId]);
 
     useEffect(() => {
         if (agentPage === "inicio") return;
@@ -317,7 +328,11 @@ export default function DashboardAgente({
             const importIdToUse =
                 importIdOverride || importIdSeleccionada || selectedImportId;
 
-            if (!campaignIdToUse || !importIdToUse) {
+            // Para campañas outbound, solo requerimos campaignId
+            if (
+                !campaignIdToUse ||
+                (!importIdToUse && !esGestionOutbound(campaignIdToUse))
+            ) {
                 setError("Selecciona una campaña y base para cargar registros");
                 setDynamicFormConfig(null);
                 setDynamicFormDetail(null);
