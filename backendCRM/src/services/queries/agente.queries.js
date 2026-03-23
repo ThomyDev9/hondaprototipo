@@ -140,7 +140,6 @@ const agenteQueries = {
           TmStmp = NOW()
         WHERE Id = ?
            OR ContactId = ?
-           OR (IDENTIFICACION = ? AND CampaignId LIKE ?)
       `,
 
     getGestionFinalByContactId: `
@@ -186,7 +185,7 @@ const agenteQueries = {
           ?,
           c.ID,
           c.CODIGO_CAMPANIA,
-          c.IDENTIFICACION,
+          ?,
           c.NOMBRE_CLIENTE,
           c.CAMPO1,
           c.CAMPO2,
@@ -207,7 +206,6 @@ const agenteQueries = {
         FROM ${encuestaSchema}.clientes c
           WHERE c.Id = ?
             OR c.ContactId = ?
-            OR (c.IDENTIFICACION = ? AND c.CampaignId LIKE ?)
         LIMIT 1
       `,
 

@@ -126,6 +126,39 @@ async function buildAgentNameMap() {
     return agentNameMap;
 }
 
+async function buildClientByPhoneMap(phones = []) {
+    const normalizedPhones = Array.from(
+        new Set(phones.map((phone) => normalizePhone(phone)).filter(Boolean)),
+    );
+
+    if (!normalizedPhones.length) {
+        return new Map();
+    }
+
+    const placeholders = normalizedPhones.map(() => "?").join(",");
+    const [rows] = await pool.query(
+        `
+        SELECT ContactAddress, ContactName, NOMBRE_CLIENTE, ContactId, CampaignId, TmStmp
+        FROM bancopichinchaencuesta_dev.clientes
+        WHERE REPLACE(REPLACE(REPLACE(REPLACE(ContactAddress, ' ', ''), '-', ''), '(', ''), ')', '') IN (${placeholders})
+        ORDER BY TmStmp DESC, Id DESC
+        `,
+        normalizedPhones,
+    );
+
+    const clientMap = new Map();
+    for (const row of rows) {
+        const phoneKey = normalizePhone(row?.ContactAddress);
+        if (!phoneKey || clientMap.has(phoneKey)) {
+            continue;
+        }
+
+        clientMap.set(phoneKey, row);
+    }
+
+    return clientMap;
+}
+
 export async function getRecordingsByPhone(req, res) {
     try {
         const { phone } = req.query;
@@ -176,6 +209,9 @@ export async function getRecordingsByPhone(req, res) {
             ...phones,
             ...phones,
         ]);
+        const clientByPhoneMap = await buildClientByPhoneMap(
+            cdrRows.flatMap((cdr) => [cdr?.src, cdr?.dst]),
+        );
 
         const recordings = gestionRows
             .map((g) => {
@@ -194,9 +230,33 @@ export async function getRecordingsByPhone(req, res) {
                     cdr?.recordingfile && cdr?.calldate
                         ? buildRecordingPath(cdr.recordingfile, cdr.calldate)
                         : null;
+                const fallbackClient =
+                    !linked && cdr
+                        ? clientByPhoneMap.get(normalizePhone(cdr?.dst)) ||
+                          clientByPhoneMap.get(normalizePhone(cdr?.src)) ||
+                          null
+                        : null;
+                const fallbackPhone = normalizePhone(cdr?.dst || cdr?.src);
+                const basePhone = normalizePhone(g?.ContactAddress);
+                const isFallbackAmbiguous =
+                    !linked && Boolean(cdr) && fallbackPhone !== basePhone;
 
                 return {
                     ...g,
+                    ContactName:
+                        isFallbackAmbiguous
+                            ? "Cliente no confirmado"
+                            : fallbackClient?.ContactName ||
+                              fallbackClient?.NOMBRE_CLIENTE ||
+                              g.ContactName,
+                    ContactId:
+                        isFallbackAmbiguous
+                            ? g.ContactId
+                            : fallbackClient?.ContactId || g.ContactId,
+                    CampaignId:
+                        isFallbackAmbiguous
+                            ? g.CampaignId
+                            : fallbackClient?.CampaignId || g.CampaignId,
                     AgentName:
                         agentNameMap.get(String(g.Agent || "").trim()) ||
                         String(g.Agent || "").trim(),
@@ -209,6 +269,7 @@ export async function getRecordingsByPhone(req, res) {
                     recordingfile:
                         linked?.recording_path || fallbackRecordingfile || null,
                     recordingLinked: Boolean(linked?.recording_path),
+                    fallbackAmbiguous: isFallbackAmbiguous,
                     calldateLocal:
                         toLocalDateString(
                             linked?.cdr_calldate || cdr?.calldate || null,

@@ -700,8 +700,6 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
                 agenteActor,
                 resolvedId,
                 resolvedContactId,
-                identificationToUse,
-                campaignLike,
             ],
         );
 
@@ -736,12 +734,11 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
                     fechaAgendamientoToUse,
                     telefonoAdToUse,
                     observacionesToUse,
+                    identificationToUse,
                     ...preguntas,
                     ...respuestas,
                     resolvedId,
                     resolvedContactId,
-                    identificationToUse,
-                    campaignLike,
                 ],
             );
             // Solo si se insertó gestión, incrementamos Number
@@ -1779,9 +1776,9 @@ router.post(
                         fechaAgendamiento,
                         contactAddress,
                         observaciones,
+                        identification,
                         ...preguntas,
                         ...respuestas,
-                        identification,
                         contactId,
                         identification,
                         campaignLike,
