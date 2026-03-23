@@ -1,21 +1,18 @@
-import React, { useContext, useRef, useEffect, useState } from "react";
-import { AuthContext } from "../../context/AuthContext";
+import React, { useEffect, useState } from "react";
 import { formF2Template } from "../../templates/formF2Template";
 import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
 import FormularioDinamicoReseteable from "../../components/FormularioDinamicoReseteable";
-import { buscarTrxOutPorIdentificacion } from "../../services/buscarTrxOut.service";
 import {
     fetchSheetAsJson,
     fetchDatosWebSheet,
 } from "../../services/webSheet.service";
+import {
+    fetchGestionOutboundByIdentification,
+    guardarGestionOutbound,
+} from "../../services/dashboard.service";
 import "./OutHondaPage.css";
 
 export default function OutHondaPage() {
-    const { userInfo } = useContext(AuthContext);
-    const startedManagementRef = useRef(null);
-    React.useEffect(() => {
-        startedManagementRef.current = new Date();
-    }, []);
     const [busquedaId, setBusquedaId] = React.useState("");
     const [buscando, setBuscando] = React.useState(false);
     const [registro, setRegistro] = React.useState(null);
@@ -220,23 +217,6 @@ export default function OutHondaPage() {
                     options: motivos.map((m) => ({ value: m, label: m })),
                 };
             }
-            if (field.name === "tipoCampana") {
-                return {
-                    ...field,
-                    type: "select",
-                    options: tiposCampania.map((tc) => ({
-                        value: tc,
-                        label: tc,
-                    })),
-                };
-            }
-            if (field.name === "submotivoInteraccion") {
-                return {
-                    ...field,
-                    type: "select",
-                    options: submotivos.map((s) => ({ value: s, label: s })),
-                };
-            }
             if (field.name === "submotivoInteraccion") {
                 return {
                     ...field,
@@ -387,17 +367,14 @@ export default function OutHondaPage() {
                             setBuscando(true);
                             setError("");
                             try {
-                                let data = null;
-                                try {
-                                    data = await fetchDatosWebSheet(busquedaId);
-                                } catch {}
-                                if (!data) {
-                                    // Si no está en Google Sheets, buscar en la base local
-                                    data =
-                                        await buscarTrxOutPorIdentificacion(
-                                            busquedaId,
-                                        );
-                                }
+                                const { ok, json } =
+                                    await fetchGestionOutboundByIdentification({
+                                        campaignId: "Out Honda",
+                                        identification: busquedaId,
+                                    });
+                                const data =
+                                    (ok ? json?.data : null) ||
+                                    (await fetchDatosWebSheet(busquedaId));
                                 if (data) {
                                     setRegistro(data);
                                     setTimeout(() => {
@@ -522,9 +499,10 @@ export default function OutHondaPage() {
                             className="outmaquita-form outhonda-form-3col"
                             onGuardar={async (formData) => {
                                 try {
-                                    // Separar nombre y apellido
+                                    setError("");
                                     let nombre = "";
                                     let apellido = "";
+
                                     if (formData.apellidosNombres) {
                                         const partes = formData.apellidosNombres
                                             .trim()
@@ -541,13 +519,33 @@ export default function OutHondaPage() {
                                             apellido = "";
                                         }
                                     }
-                                    // Buscar identificación en varias variantes posibles
+
                                     const identificacion =
                                         formData.identificacion ||
                                         formData.Identificacion ||
                                         formData["Identificación"] ||
                                         formData["identificación"] ||
                                         "";
+                                    const fieldsMeta = dynamicTemplate.map(
+                                        (field) => ({
+                                            name: field.name,
+                                            label: field.label,
+                                        }),
+                                    );
+                                    const { ok, json } =
+                                        await guardarGestionOutbound({
+                                            campaignId: "Out Honda",
+                                            formData,
+                                            fieldsMeta,
+                                        });
+
+                                    if (!ok) {
+                                        throw new Error(
+                                            json?.error ||
+                                                "No se pudo guardar la gestion outbound",
+                                        );
+                                    }
+
                                     setResumenExcel({
                                         nombre,
                                         apellido,
@@ -572,6 +570,10 @@ export default function OutHondaPage() {
                                     console.error(
                                         "Error en onGuardar OutHondaPage:",
                                         e,
+                                    );
+                                    setError(
+                                        e?.message ||
+                                            "Error guardando gestion outbound",
                                     );
                                 }
                             }}
@@ -631,3 +633,7 @@ export default function OutHondaPage() {
         </div>
     );
 }
+
+
+
+

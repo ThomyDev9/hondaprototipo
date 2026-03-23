@@ -1,7 +1,7 @@
 import recordingSftpRouter from "./recording.sftp.js";
 import express from "express";
 import pool from "../../services/db.js";
-import { getRecordingsByPhone } from "./recordings.controller.js";
+import { getRecordingsByPhone } from "./recordings-linked.controller.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,

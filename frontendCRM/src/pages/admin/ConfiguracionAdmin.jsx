@@ -25,6 +25,9 @@ const FIELD_TYPE_OPTIONS = [
 ];
 const F3_FIELD_TYPE_OPTIONS = [
     { id: "text", label: "Texto" },
+    { id: "number", label: "Número" },
+    { id: "date", label: "Fecha" },
+    { id: "textarea", label: "Texto largo" },
     { id: "select", label: "Combo" },
 ];
 const FORM_TYPE_OPTIONS = [

@@ -6,6 +6,7 @@ import {
     ensureImportStatsTable,
     recomputeImportStats,
 } from "../../services/bases.service.js";
+import { linkManagementToRecording } from "../../services/recording-link.service.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -13,6 +14,8 @@ import {
 } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
+const encuestaSchema =
+    process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev";
 
 // Estados operativos válidos del agente
 const ESTADOS_OPERATIVOS = new Set([
@@ -158,6 +161,33 @@ async function saveDynamicResponseIfTemplateActive({
         String(agentUser || "").trim(),
         payloadJson,
     ]);
+}
+
+function buildOutboundQuestionPayload(entries = []) {
+    const preguntas = Array.from({ length: 30 }, () => "");
+    const respuestas = Array.from({ length: 30 }, () => "");
+
+    entries.slice(0, 30).forEach((entry, index) => {
+        preguntas[index] = String(entry?.label || "").trim();
+        respuestas[index] = String(entry?.value || "").trim();
+    });
+
+    return { preguntas, respuestas };
+}
+
+function buildOutboundCampos(formData = {}) {
+    return [
+        String(formData?.tipoCampana || "").trim(),
+        String(formData?.Concesionario || "").trim(),
+        String(formData?.Modelo || "").trim(),
+        String(formData?.Plataforma || "").trim(),
+        String(formData?.Provincia || "").trim(),
+        String(formData?.Gestion || "").trim(),
+        String(formData?.FechaAgenda || "").trim(),
+        String(formData?.Email || "").trim(),
+        String(formData?.motivoInteraccion || "").trim(),
+        String(formData?.submotivoInteraccion || "").trim(),
+    ];
 }
 
 /* ============================================================================
@@ -763,6 +793,25 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
             );
         }
 
+        let linkedRecording = null;
+        try {
+            linkedRecording = await linkManagementToRecording({
+                schemaName: encuestaSchema,
+                contactId: resolvedContactId,
+                gestionRowId: resolvedId,
+                interactionId: interactionIdToUse,
+                campaignId: campaignToUse,
+                agent: agenteActor,
+                contactAddress: contactAddressToUse,
+                managementTimestamp: tmstmp,
+            });
+        } catch (linkErr) {
+            console.warn(
+                "[agente/guardar-gestion] no se pudo enlazar grabacion",
+                linkErr?.message || linkErr,
+            );
+        }
+
         const citaCreada =
             estadoFinalToUse === "ub_exito_agendo_cita" &&
             Boolean(fecha_cita) &&
@@ -814,6 +863,8 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         return res.json({
             message: "Gestión guardada",
             managementResultCode,
+            recordingLinked: Boolean(linkedRecording?.recording_path),
+            recordingfile: linkedRecording?.recording_path || null,
             cita_creada: citaCreada,
             resumenHoy: { total_gestionados, total_citas, total_rellamadas },
         });
@@ -1443,4 +1494,371 @@ router.put("/trxout", requireAuth, async (req, res) => {
         res.status(500).json({ error: "Error actualizando trxout" });
     }
 });
+
+router.get(
+    "/buscar-gestion-outbound",
+    ...agenteMiddlewares,
+    async (req, res) => {
+        try {
+            const campaignId = String(req.query?.campaignId || "").trim();
+            const identification = String(
+                req.query?.identification || req.query?.identificacion || "",
+            ).trim();
+
+            if (!campaignId || !identification) {
+                return res.status(400).json({
+                    error: "campaignId e identification son requeridos",
+                });
+            }
+
+            const campaignLike = `${campaignId}%`;
+            const [rows] = await pool.query(
+                agenteQueries.getClienteByIdentificationAndCampaign,
+                [identification, campaignLike],
+            );
+
+            const row = rows[0];
+            if (!row) {
+                return res.status(404).json({ error: "Gestion no encontrada" });
+            }
+
+            let dynamicPayload = {};
+            try {
+                dynamicPayload = row.CamposAdicionalesJson
+                    ? JSON.parse(row.CamposAdicionalesJson)
+                    : {};
+            } catch {
+                dynamicPayload = {};
+            }
+
+            return res.json({
+                success: true,
+                data: {
+                    ...dynamicPayload,
+                    identificacion:
+                        dynamicPayload.identificacion ||
+                        dynamicPayload.Identificacion ||
+                        row.IDENTIFICACION ||
+                        "",
+                    apellidosNombres:
+                        dynamicPayload.apellidosNombres ||
+                        dynamicPayload.NombreCliente ||
+                        row.NOMBRE_CLIENTE ||
+                        row.ContactName ||
+                        "",
+                    celular:
+                        dynamicPayload.celular ||
+                        dynamicPayload.Celular ||
+                        row.ContactAddress ||
+                        "",
+                    tipoCampana:
+                        dynamicPayload.tipoCampana ||
+                        dynamicPayload.TipoCampania ||
+                        row.CAMPO1 ||
+                        "",
+                    motivoInteraccion:
+                        dynamicPayload.motivoInteraccion ||
+                        dynamicPayload.MotivoLlamada ||
+                        row.ResultLevel1 ||
+                        "",
+                    submotivoInteraccion:
+                        dynamicPayload.submotivoInteraccion ||
+                        dynamicPayload.SubmotivoLlamada ||
+                        row.ResultLevel2 ||
+                        "",
+                    observaciones:
+                        dynamicPayload.observaciones ||
+                        dynamicPayload.Observaciones ||
+                        row.Observaciones ||
+                        "",
+                },
+            });
+        } catch (err) {
+            console.error("Error en /agente/buscar-gestion-outbound:", err);
+            return res.status(500).json({
+                error: "Error buscando gestion outbound",
+                detail: err?.sqlMessage || err?.message || "",
+            });
+        }
+    },
+);
+
+router.post(
+    "/guardar-gestion-outbound",
+    ...agenteMiddlewares,
+    async (req, res) => {
+        try {
+            const agenteActor = getAgentActor(req);
+            const campaignId = String(
+                req.body?.campaignId || req.body?.campaign_id || "",
+            ).trim();
+            const formData =
+                req.body?.formData && typeof req.body.formData === "object"
+                    ? req.body.formData
+                    : {};
+            const fieldsMeta = Array.isArray(req.body?.fieldsMeta)
+                ? req.body.fieldsMeta
+                : [];
+            const identification = String(
+                formData?.identificacion ||
+                    formData?.Identificacion ||
+                    formData?.["Identificación"] ||
+                    "",
+            ).trim();
+
+            if (!campaignId || !identification) {
+                return res.status(400).json({
+                    error: "campaignId e identificacion son requeridos",
+                });
+            }
+
+            const campaignLike = `${campaignId}%`;
+            const [existingRows] = await pool.query(
+                agenteQueries.getClienteByIdentificationAndCampaign,
+                [identification, campaignLike],
+            );
+
+            const existingClient = existingRows[0] || null;
+            const contactId =
+                String(existingClient?.ContactId || "").trim() ||
+                `OUT-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
+            const now = new Date();
+            const startedManagement = now;
+            const tmstmp = now;
+            const level1ToUse = String(
+                formData?.motivoInteraccion || "",
+            ).trim();
+            const level2ToUse = String(
+                formData?.submotivoInteraccion || "",
+            ).trim();
+            const estadoFinalToUse =
+                level2ToUse || level1ToUse || "sin_gestion";
+            const contactName = String(
+                formData?.apellidosNombres ||
+                    formData?.NombreCliente ||
+                    "",
+            ).trim();
+            const contactAddress = String(formData?.celular || "").trim();
+            const interactionId = `OUT-${Date.now()}`;
+            const importId = String(formData?.Origen || "OUTBOUND").trim();
+            const tipoCampania = String(formData?.tipoCampana || "").trim();
+            const observaciones = String(
+                formData?.observaciones || "",
+            ).trim();
+            const fechaAgendamiento = String(
+                formData?.FechaAgenda || "",
+            ).trim();
+            const campos = buildOutboundCampos(formData);
+            const questionEntries = fieldsMeta.map((field) => ({
+                label: field?.label || field?.name || "",
+                value: formData?.[field?.name] ?? "",
+            }));
+            const { preguntas, respuestas } =
+                buildOutboundQuestionPayload(questionEntries);
+
+            let managementResultCode = "";
+            if (campaignId && level1ToUse && level2ToUse) {
+                const [codeRows] = await pool.query(
+                    agenteQueries.getManagementCodeByLevelsWithoutLevel3,
+                    [campaignId, level1ToUse, level2ToUse],
+                );
+                managementResultCode = String(codeRows[0]?.code || "").trim();
+            }
+
+            const payloadJson = JSON.stringify(formData || {});
+
+            if (!existingClient) {
+                await pool.query(
+                    `
+                    INSERT INTO ${encuestaSchema}.clientes
+                    (
+                        VCC, CampaignId, ContactId, ContactName, ContactAddress, InteractionId,
+                        ImportId, LastAgent, ResultLevel1, ResultLevel2, ResultLevel3, ManagementResultCode,
+                        ManagementResultDescription, TmStmp, Intentos,
+                        ID, CODIGO_CAMPANIA, NOMBRE_CAMPANIA, IDENTIFICACION, NOMBRE_CLIENTE,
+                        CAMPO1, CAMPO2, CAMPO3, CAMPO4, CAMPO5, CAMPO6, CAMPO7, CAMPO8, CAMPO9, CAMPO10,
+                        CamposAdicionalesJson, UserShift, Action
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `,
+                    [
+                        "CCK",
+                        campaignId,
+                        contactId,
+                        contactName,
+                        contactAddress,
+                        interactionId,
+                        importId,
+                        agenteActor,
+                        level1ToUse,
+                        level2ToUse,
+                        "",
+                        managementResultCode || estadoFinalToUse,
+                        "",
+                        tmstmp,
+                        1,
+                        identification,
+                        campaignId,
+                        campaignId,
+                        identification,
+                        contactName,
+                        ...campos,
+                        payloadJson,
+                        agenteActor,
+                        "Gestionado",
+                    ],
+                );
+            } else {
+                await pool.query(
+                    `
+                    UPDATE ${encuestaSchema}.clientes
+                    SET ContactId = ?,
+                        ContactName = ?,
+                        ContactAddress = ?,
+                        InteractionId = ?,
+                        ImportId = ?,
+                        LastAgent = ?,
+                        ResultLevel1 = ?,
+                        ResultLevel2 = ?,
+                        ResultLevel3 = '',
+                        ManagementResultCode = ?,
+                        ManagementResultDescription = '',
+                        TmStmp = ?,
+                        Intentos = COALESCE(Intentos, 0) + 1,
+                        NOMBRE_CLIENTE = ?,
+                        CAMPO1 = ?, CAMPO2 = ?, CAMPO3 = ?, CAMPO4 = ?, CAMPO5 = ?,
+                        CAMPO6 = ?, CAMPO7 = ?, CAMPO8 = ?, CAMPO9 = ?, CAMPO10 = ?,
+                        CamposAdicionalesJson = ?,
+                        UserShift = ?,
+                        Action = 'Gestionado'
+                    WHERE ContactId = ?
+                       OR (IDENTIFICACION = ? AND CampaignId LIKE ?)
+                    `,
+                    [
+                        contactId,
+                        contactName,
+                        contactAddress,
+                        interactionId,
+                        importId,
+                        agenteActor,
+                        level1ToUse,
+                        level2ToUse,
+                        managementResultCode || estadoFinalToUse,
+                        tmstmp,
+                        contactName,
+                        ...campos,
+                        payloadJson,
+                        agenteActor,
+                        contactId,
+                        identification,
+                        campaignLike,
+                    ],
+                );
+            }
+
+            const [gestionFinalRows] = await pool.query(
+                agenteQueries.getGestionFinalByContactId,
+                [contactId],
+            );
+
+            if (gestionFinalRows.length === 0) {
+                await pool.query(
+                    agenteQueries.insertGestionFinalFromCliente,
+                    [
+                        contactId,
+                        contactAddress,
+                        interactionId,
+                        agenteActor,
+                        level1ToUse,
+                        level2ToUse,
+                        "",
+                        managementResultCode || estadoFinalToUse,
+                        startedManagement,
+                        tmstmp,
+                        1,
+                        fechaAgendamiento,
+                        contactAddress,
+                        observaciones,
+                        ...preguntas,
+                        ...respuestas,
+                        identification,
+                        contactId,
+                        identification,
+                        campaignLike,
+                    ],
+                );
+            } else {
+                await pool.query(
+                    agenteQueries.updateGestionFinalByContactId,
+                    [
+                        contactAddress,
+                        interactionId,
+                        agenteActor,
+                        level1ToUse,
+                        level2ToUse,
+                        "",
+                        managementResultCode || estadoFinalToUse,
+                        startedManagement,
+                        tmstmp,
+                        1,
+                        fechaAgendamiento,
+                        contactAddress,
+                        observaciones,
+                        ...preguntas,
+                        ...respuestas,
+                        contactId,
+                    ],
+                );
+
+                await pool.query(
+                    `
+                    UPDATE ${encuestaSchema}.gestionfinal
+                    SET ContactName = ?,
+                        CampaignId = ?,
+                        ImportId = ?,
+                        IDENTIFICACION = ?,
+                        NOMBRE_CLIENTE = ?,
+                        CAMPO1 = ?, CAMPO2 = ?, CAMPO3 = ?, CAMPO4 = ?, CAMPO5 = ?,
+                        CAMPO6 = ?, CAMPO7 = ?, CAMPO8 = ?, CAMPO9 = ?, CAMPO10 = ?
+                    WHERE ContactId = ?
+                    `,
+                    [
+                        contactName,
+                        campaignId,
+                        importId,
+                        identification,
+                        contactName,
+                        ...campos,
+                        contactId,
+                    ],
+                );
+
+                await pool.query(
+                    agenteQueries.insertGestionHistoricaFromGestionFinal,
+                    [contactId],
+                );
+            }
+
+            await saveDynamicResponseIfTemplateActive({
+                campaignId,
+                formType: "F3",
+                contactId,
+                agentUser: agenteActor,
+                payload: formData,
+            });
+
+            return res.json({
+                success: true,
+                contactId,
+                message: "Gestion outbound guardada",
+            });
+        } catch (err) {
+            console.error("Error en /agente/guardar-gestion-outbound:", err);
+            return res.status(500).json({
+                error: "Error guardando gestion outbound",
+                detail: err?.sqlMessage || err?.message || "",
+            });
+        }
+    },
+);
 export default router;

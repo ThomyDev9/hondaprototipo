@@ -83,3 +83,20 @@ export const guardarGestion = (payload) =>
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
     });
+
+export const guardarGestionOutbound = (payload) =>
+    request("agente/guardar-gestion-outbound", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+export const fetchGestionOutboundByIdentification = ({
+    campaignId,
+    identification,
+}) =>
+    request(
+        `agente/buscar-gestion-outbound?campaignId=${encodeURIComponent(
+            campaignId,
+        )}&identification=${encodeURIComponent(identification)}`,
+    );

@@ -37,7 +37,7 @@ function normalizeFieldType(type, formType = "F2") {
         return "text";
     }
     const allowed = isF3
-        ? new Set(["text", "select"])
+        ? new Set(["text", "number", "select", "date", "textarea", "checkbox"])
         : new Set(["text", "number", "select", "date", "textarea", "checkbox"]);
     return allowed.has(normalized) ? normalized : "text";
 }

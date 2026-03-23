@@ -1,43 +1,323 @@
-.grabaciones-table {
-    border-collapse: collapse;
-    width: 100%;
-    background: #fff;
-    font-size: 15px;
-    box-shadow: 0 2px 8px #0001;
-    border-radius: 8px;
-    overflow: hidden;
+.grabaciones-page {
+    display: grid;
+    gap: 18px;
 }
+
+.grabaciones-hero {
+    padding: 8px 2px 0;
+}
+
+.grabaciones-eyebrow {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #0f766e;
+}
+
+.grabaciones-title {
+    margin: 0;
+    font-size: 26px;
+    line-height: 1.1;
+    color: #10261f;
+}
+
+.grabaciones-subtitle {
+    max-width: 720px;
+    color: #4b635c;
+    font-size: 14px;
+}
+
+.grabaciones-primary-btn,
+.grabaciones-secondary-btn {
+    border: none;
+    border-radius: 999px;
+    padding: 11px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease,
+        background 0.15s ease;
+}
+
+.grabaciones-primary-btn {
+    color: #fff;
+    background: linear-gradient(135deg, #0f766e 0%, #155e75 100%);
+    box-shadow: 0 12px 24px rgba(15, 118, 110, 0.18);
+}
+
+.grabaciones-secondary-btn {
+    color: #18423a;
+    background: #ffffff;
+    border: 1px solid #cfe3db;
+}
+
+.grabaciones-primary-btn:hover,
+.grabaciones-secondary-btn:hover {
+    transform: translateY(-1px);
+}
+
+.grabaciones-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.grabaciones-stat-card {
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: #fff;
+    border: 1px solid #e2ece8;
+    box-shadow: 0 10px 24px rgba(16, 38, 31, 0.04);
+}
+
+.grabaciones-stat-label {
+    display: block;
+    margin-bottom: 6px;
+    color: #648178;
+    font-size: 12px;
+}
+
+.grabaciones-stat-value {
+    font-size: 24px;
+    line-height: 1;
+    color: #12342b;
+}
+
+.grabaciones-filters-card {
+    padding: 18px;
+    border-radius: 20px;
+    background: #fff;
+    border: 1px solid #e2ece8;
+    box-shadow: 0 12px 26px rgba(16, 38, 31, 0.04);
+}
+
+.grabaciones-filters-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.grabaciones-filters-title {
+    margin: 0;
+    font-size: 16px;
+    color: #17362e;
+}
+
+.grabaciones-filters-subtitle {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #6a827a;
+}
+
+.grabaciones-filters-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.grabaciones-chip-btn {
+    border: 1px solid #cfe3db;
+    background: #f8fcfa;
+    color: #1a4a40;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.grabaciones-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+}
+
+.grabaciones-field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.grabaciones-field-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #5f7a71;
+}
+
+.grabaciones-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid #d5e4de;
+    background: #fbfdfc;
+    color: #17362e;
+    font-size: 13px;
+    outline: none;
+}
+
+.grabaciones-input:focus {
+    border-color: #0f766e;
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.grabaciones-field input[type="date"] {
+    max-width: 180px;
+}
+
+.grabaciones-field input[type="text"] {
+    max-width: 100%;
+}
+
+.grabaciones-error,
+.grabaciones-state-card {
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid #e2ece8;
+    background: #fff;
+}
+
+.grabaciones-error {
+    color: #b91c1c;
+    border-color: #fecaca;
+    background: #fff6f6;
+}
+
+.grabaciones-table-wrapper {
+    max-height: 68vh;
+    overflow: auto;
+    border-radius: 18px;
+    border: 1px solid #dfeae6;
+    background: #fff;
+    box-shadow: 0 14px 28px rgba(16, 38, 31, 0.05);
+}
+
+.grabaciones-table {
+    width: 100%;
+    min-width: 980px;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+}
+
+.grabaciones-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f4f8f6;
+    color: #42625a;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 .grabaciones-table th,
 .grabaciones-table td {
-    border: 1px solid #e5e7eb;
-    padding: 8px 10px;
+    padding: 10px 12px;
     text-align: left;
-    background: #f9fafb;
-    color: #222;
+    border-bottom: 1px solid #e7efec;
+    color: #1d2f29;
     font-size: 12px;
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    vertical-align: top;
+    word-break: break-word;
 }
-.grabaciones-table th {
-    background: #f3f4f6;
+
+.grabaciones-table tbody tr:nth-child(even) td {
+    background: #fcfefd;
 }
+
+.grabaciones-table tbody tr:hover td {
+    background: #f6fbf8;
+}
+
+.grabaciones-agent-main {
+    font-weight: 700;
+    color: #17362e;
+}
+
+.grabaciones-agent-sub {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #70867f;
+}
+
+.grabaciones-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.grabaciones-badge--linked {
+    color: #0f766e;
+    background: #dff7f1;
+}
+
+.grabaciones-badge--fallback {
+    color: #9a6700;
+    background: #fff1c7;
+}
+
+.grabaciones-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .grabaciones-icon-btn {
-    background: none;
     border: none;
     cursor: pointer;
     padding: 0;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 102px;
-    height: 32px;
-    border-radius: 16px;
-    color: #fff;
-    background: #000;
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    background: transparent;
 }
 
 .grabaciones-icon {
     display: block;
+}
+
+@media (max-width: 1200px) {
+    .grabaciones-filters-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grabaciones-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .grabaciones-hero {
+        padding-top: 0;
+    }
+
+    .grabaciones-primary-btn,
+    .grabaciones-secondary-btn {
+        width: 100%;
+    }
+
+    .grabaciones-filters-grid,
+    .grabaciones-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .grabaciones-filters-head {
+        flex-direction: column;
+    }
 }

@@ -1,23 +1,16 @@
-import React, { useContext, useRef } from "react";
-import { AuthContext } from "../../context/AuthContext";
+import React from "react";
 import { formF2Template } from "../../templates/formF2Template";
 import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
 import FormularioDinamico from "../../components/FormularioDinamico";
-import {
-    insertarTrxOut,
-    actualizarTrxOut,
-} from "../../services/trxout.service";
-import { buscarTrxOutPorIdentificacion } from "../../services/buscarTrxOut.service";
 import { fetchOutMaquitaData } from "../../services/outMaquita.service";
+import {
+    fetchGestionOutboundByIdentification,
+    guardarGestionOutbound,
+} from "../../services/dashboard.service";
 import "./OutMaquitaPage.css";
 
 // import { listarNivelesGestion } from "../../services/managementLevels.service";
 export default function OutMaquitaPage() {
-    const { userInfo } = useContext(AuthContext);
-    const startedManagementRef = useRef(null);
-    React.useEffect(() => {
-        startedManagementRef.current = new Date();
-    }, []);
     const [busquedaId, setBusquedaId] = React.useState("");
     const [buscando, setBuscando] = React.useState(false);
     const [registro, setRegistro] = React.useState(null);
@@ -210,10 +203,15 @@ export default function OutMaquitaPage() {
                                 setBuscando(true);
                                 setError("");
                                 try {
-                                    let data =
-                                        await buscarTrxOutPorIdentificacion(
-                                            busquedaId,
+                                    const { ok, json } =
+                                        await fetchGestionOutboundByIdentification(
+                                            {
+                                                campaignId:
+                                                    "Out Maquita Cushunchic",
+                                                identification: busquedaId,
+                                            },
                                         );
+                                    let data = ok ? json?.data : null;
                                     if (!data) {
                                         const all = await fetchOutMaquitaData();
                                         data =
@@ -328,6 +326,24 @@ export default function OutMaquitaPage() {
         ...extraFields,
     ];
 
+    const saveOutboundGestion = async (formData) => {
+        const fieldsMeta = dynamicTemplate.map((field) => ({
+            name: field.name,
+            label: field.label,
+        }));
+        const { ok, json } = await guardarGestionOutbound({
+            campaignId: "Out Maquita Cushunchic",
+            formData,
+            fieldsMeta,
+        });
+
+        if (!ok) {
+            throw new Error(
+                json?.error || "No se pudo guardar la gestion outbound",
+            );
+        }
+    };
+
     return (
         <div className="outmaquita-flex-row">
             <div className="outmaquita-form-panel">
@@ -349,13 +365,16 @@ export default function OutMaquitaPage() {
                             setBuscando(true);
                             setError("");
                             try {
-                                // 1. Buscar en trxout
-                                let data =
-                                    await buscarTrxOutPorIdentificacion(
-                                        busquedaId,
+                                const { ok, json } =
+                                    await fetchGestionOutboundByIdentification(
+                                        {
+                                            campaignId:
+                                                "Out Maquita Cushunchic",
+                                            identification: busquedaId,
+                                        },
                                     );
+                                let data = ok ? json?.data : null;
                                 if (!data) {
-                                    // 2. Si no existe, buscar en Google Sheets
                                     const all = await fetchOutMaquitaData();
                                     data =
                                         all.find(
@@ -407,70 +426,24 @@ export default function OutMaquitaPage() {
                         className="outmaquita-form"
                         onGuardar={async (formData) => {
                             try {
-                                const agent = userInfo?.username || "";
-                                const startedManagement =
-                                    startedManagementRef.current
-                                        ? startedManagementRef.current.toISOString()
-                                        : null;
-                                const tmStmp = new Date().toISOString();
-                                const payload = {
-                                    Agent: agent,
-                                    StartedManagement: startedManagement,
-                                    TmStmp: tmStmp,
-                                    Cooperativa: "Out Maquita Cushunchic",
-                                    TipoCampania: formData.tipoCampana || null,
-                                    Identificacion:
-                                        formData.identificacion || null,
-                                    NombreCliente:
-                                        formData.apellidosNombres || null,
-                                    Celular: formData.celular || null,
-                                    MotivoLlamada:
-                                        formData.motivoInteraccion || null,
-                                    SubmotivoLlamada:
-                                        formData.submotivoInteraccion || null,
-                                    Observaciones:
-                                        formData.observaciones || null,
-                                    AgentShift: "",
-                                    TmStmpShift: "",
-                                };
-                                await insertarTrxOut(payload);
-                                setError("Registro insertado correctamente");
+                                await saveOutboundGestion(formData);
+                                setError("Registro guardado correctamente");
                             } catch (e) {
-                                setError("Error guardando registro");
+                                setError(
+                                    e?.message ||
+                                        "Error guardando gestion outbound",
+                                );
                             }
                         }}
                         onActualizar={async (formData) => {
                             try {
-                                const agent = userInfo?.username || "";
-                                const startedManagement =
-                                    startedManagementRef.current
-                                        ? startedManagementRef.current.toISOString()
-                                        : null;
-                                const tmStmp = new Date().toISOString();
-                                const payload = {
-                                    Agent: agent,
-                                    StartedManagement: startedManagement,
-                                    TmStmp: tmStmp,
-                                    Cooperativa: "Out Maquita Cushunchic",
-                                    TipoCampania: formData.tipoCampana || null,
-                                    Identificacion:
-                                        formData.identificacion || null,
-                                    NombreCliente:
-                                        formData.apellidosNombres || null,
-                                    Celular: formData.celular || null,
-                                    MotivoLlamada:
-                                        formData.motivoInteraccion || null,
-                                    SubmotivoLlamada:
-                                        formData.submotivoInteraccion || null,
-                                    Observaciones:
-                                        formData.observaciones || null,
-                                    AgentShift: "",
-                                    TmStmpShift: "",
-                                };
-                                await actualizarTrxOut(payload);
+                                await saveOutboundGestion(formData);
                                 setError("Registro actualizado correctamente");
                             } catch (e) {
-                                setError("Error actualizando registro");
+                                setError(
+                                    e?.message ||
+                                        "Error actualizando gestion outbound",
+                                );
                             }
                         }}
                         esUpdate={
