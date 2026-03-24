@@ -990,9 +990,14 @@ router.get("/form-templates", ...agenteMiddlewares, async (req, res) => {
             agenteQueries.getActiveTemplateByCampaignAndType,
             ["F3", campaignId],
         );
+        const [f4TemplateRows] = await pool.query(
+            agenteQueries.getActiveTemplateByCampaignAndType,
+            ["F4", campaignId],
+        );
 
         let form2 = null;
         let form3 = null;
+        let form4 = null;
 
         if (f2TemplateRows.length > 0) {
             const f2Template = f2TemplateRows[0];
@@ -1026,10 +1031,27 @@ router.get("/form-templates", ...agenteMiddlewares, async (req, res) => {
             };
         }
 
+        if (f4TemplateRows.length > 0) {
+            const f4Template = f4TemplateRows[0];
+            const [f4FieldRows] = await pool.query(
+                agenteQueries.getTemplateFieldsWithOptions,
+                [f4Template.template_id],
+            );
+
+            form4 = {
+                templateId: f4Template.template_id,
+                templateName: f4Template.template_name,
+                formType: f4Template.form_type,
+                version: Number(f4Template.version || 1),
+                fields: normalizeTemplateRows(f4FieldRows),
+            };
+        }
+
         return res.json({
             campaignId,
             form2,
             form3,
+            form4,
         });
     } catch (err) {
         console.error("Error en /agente/form-templates:", err);
@@ -1781,8 +1803,7 @@ router.post(
                         ...preguntas,
                         ...respuestas,
                         contactId,
-                        identification,
-                        campaignLike,
+                        contactId,
                     ],
                 );
             } else {

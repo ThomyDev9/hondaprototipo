@@ -1,0 +1,133 @@
+.formulario-dinamico {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    padding: 20px;
+    border-radius: 16px;
+    border: 1px solid #d6dde8;
+    background:
+        linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(241, 245, 249, 0.98) 100%);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.formulario-dinamico__field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.formulario-dinamico__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.formulario-dinamico__input,
+.formulario-dinamico__select,
+.formulario-dinamico__textarea {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 11px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.95rem;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        background-color 0.18s ease;
+}
+
+.formulario-dinamico__input:focus,
+.formulario-dinamico__select:focus,
+.formulario-dinamico__textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+    background: #fff;
+}
+
+.formulario-dinamico__textarea {
+    min-height: 96px;
+    resize: vertical;
+}
+
+.formulario-dinamico__checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.formulario-dinamico__checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #2563eb;
+}
+
+.formulario-dinamico__submit {
+    grid-column: 1 / -1;
+    justify-self: start;
+    min-width: 180px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 20px rgba(29, 78, 216, 0.2);
+    transition:
+        transform 0.16s ease,
+        box-shadow 0.16s ease,
+        opacity 0.16s ease;
+}
+
+.formulario-dinamico__submit:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 24px rgba(29, 78, 216, 0.24);
+}
+
+.formulario-dinamico__submit:active {
+    transform: translateY(0);
+}
+
+@media (max-width: 720px) {
+    .formulario-dinamico {
+        grid-template-columns: 1fr;
+        padding: 16px;
+        gap: 14px;
+    }
+
+    .formulario-dinamico__submit {
+        width: 100%;
+        justify-self: stretch;
+    }
+}
+
+@media (max-width: 1100px) {
+    .formulario-dinamico {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+}

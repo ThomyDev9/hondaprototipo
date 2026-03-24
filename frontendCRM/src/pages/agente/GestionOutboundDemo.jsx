@@ -1,32 +1,53 @@
 import { opciones } from "../../utils/selectOptions";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { formF2Template } from "../../templates/formF2Template";
 import FormularioDinamico from "../../components/FormularioDinamico";
 import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
+import {
+    fetchFormTemplates,
+    fetchGestionOutboundByIdentification,
+    guardarGestionOutbound,
+} from "../../services/dashboard.service";
 const API_BASE = import.meta.env.VITE_API_BASE;
 
-export default function GestionOutboundDemo() {
-    const [result, setResult] = useState(null);
+function mapTemplateFieldToFormField(field) {
+    return {
+        name: String(field?.key || "").trim(),
+        label: String(field?.label || field?.key || "").trim(),
+        type: String(field?.type || "text").trim() || "text",
+        required: Boolean(field?.required),
+        placeholder: field?.placeholder || "",
+        maxLength: field?.maxLength || null,
+        options: Array.isArray(field?.options)
+            ? field.options.map((opt) => ({
+                  value: String(opt ?? "").trim(),
+                  label: String(opt ?? "").trim(),
+              }))
+            : [],
+    };
+}
+
+export default function GestionOutboundDemo({ campaignName = "" }) {
     const [template, setTemplate] = useState(formF2Template);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
     const [levels, setLevels] = useState([]);
     const [motivoSeleccionado, setMotivoSeleccionado] = useState("");
-    // Cambia aquí el nombre de la campaña para probar otros outs
-    const nombreCampania = "Out Kullki Wasi";
-
-    // Puedes definir un nombre de formulario más amigable aquí si lo deseas
-    const nombreFormulario = `Gestión Outbound · ${nombreCampania}`;
-
-    // Utilidad para opciones de selects (fuera del componente)
+    const [initialValues, setInitialValues] = useState({});
+    const [isUpdate, setIsUpdate] = useState(false);
+    const nombreCampania = String(campaignName || "Out Kullki Wasi").trim();
+    const nombreFormulario = `Gestion Outbound � ${nombreCampania}`;
+    const lastLookupIdRef = useRef("");
 
     useEffect(() => {
         async function cargarDatos() {
             setLoading(true);
             setError("");
+            setSuccessMessage("");
             try {
-                const [tipos, catalogos] = await Promise.all([
+                const [tipos, catalogos, templatesResp] = await Promise.all([
                     fetchTiposCampaniaOutbound(nombreCampania),
                     fetch(
                         `${API_BASE}/agente/form-catalogos?campaignId=${encodeURIComponent(nombreCampania)}&contactId=`,
@@ -40,6 +61,7 @@ export default function GestionOutboundDemo() {
                             },
                         },
                     ).then((res) => res.json()),
+                    fetchFormTemplates({ campaignId: nombreCampania }),
                 ]);
 
                 const niveles = Array.isArray(catalogos.levels)
@@ -49,20 +71,26 @@ export default function GestionOutboundDemo() {
                 const motivos = Array.from(
                     new Set(niveles.map((n) => n.level1).filter(Boolean)),
                 );
+                const form4Fields = Array.isArray(
+                    templatesResp?.json?.form4?.fields,
+                )
+                    ? templatesResp.json.form4.fields
+                    : [];
 
-                const nuevoTemplate = formF2Template.map((field) => {
+                const baseTemplate = formF2Template.map((field) => {
                     if (field.name === "tipoCampana") {
-                        return { ...field, options: opciones(tipos) };
+                        return {
+                            ...field,
+                            options: opciones(tipos),
+                        };
                     }
                     if (field.name === "motivoInteraccion") {
-                        // onChange se maneja en el render del formulario
                         return {
                             ...field,
                             options: opciones(motivos),
                         };
                     }
                     if (field.name === "submotivoInteraccion") {
-                        // Inicialmente vacío, se actualizará por efecto
                         return {
                             ...field,
                             options: [
@@ -72,10 +100,21 @@ export default function GestionOutboundDemo() {
                     }
                     return field;
                 });
-                setTemplate(nuevoTemplate);
+
+                const additionalTemplate = form4Fields
+                    .map(mapTemplateFieldToFormField)
+                    .filter(
+                        (field) =>
+                            field.name &&
+                            !baseTemplate.some(
+                                (baseField) => baseField.name === field.name,
+                            ),
+                    );
+
+                setTemplate([...baseTemplate, ...additionalTemplate]);
             } catch {
                 setTemplate(formF2Template);
-                setError("No se pudo cargar datos dinámicos");
+                setError("No se pudo cargar datos dinamicos");
             } finally {
                 setLoading(false);
             }
@@ -83,7 +122,6 @@ export default function GestionOutboundDemo() {
         cargarDatos();
     }, [nombreCampania]);
 
-    // Actualizar submotivos cuando cambia el motivo seleccionado
     useEffect(() => {
         if (!levels.length) return;
         const submotivos = motivoSeleccionado
@@ -110,6 +148,126 @@ export default function GestionOutboundDemo() {
         );
     }, [motivoSeleccionado, levels]);
 
+    useEffect(() => {
+        const identification = String(
+            initialValues?.identificacion || "",
+        ).trim();
+
+        if (!identification || identification.length < 5) {
+            lastLookupIdRef.current = "";
+            setIsUpdate(false);
+            return;
+        }
+
+        if (lastLookupIdRef.current === identification) {
+            return;
+        }
+
+        const timeoutId = setTimeout(() => {
+            lastLookupIdRef.current = identification;
+            buscarGestionExistente(identification);
+        }, 500);
+
+        return () => clearTimeout(timeoutId);
+    }, [initialValues?.identificacion]);
+
+    const buscarGestionExistente = async (identificacion) => {
+        const busquedaId = String(identificacion || "").trim();
+        if (!busquedaId) {
+            setInitialValues({});
+            setIsUpdate(false);
+            return;
+        }
+
+        try {
+            setError("");
+            const { ok, json, status } =
+                await fetchGestionOutboundByIdentification({
+                    campaignId: nombreCampania,
+                    identification: busquedaId,
+                });
+
+            if (!ok) {
+                if (status === 404) {
+                    setInitialValues((prev) => ({
+                        ...prev,
+                        identificacion: busquedaId,
+                    }));
+                    setIsUpdate(false);
+                    setSuccessMessage("");
+                    return;
+                }
+                throw new Error(json?.error || "No se pudo buscar la gestion");
+            }
+
+            const data = json?.data || {};
+            setInitialValues({
+                ...data.dynamicPayload,
+                identificacion: data.identification || busquedaId,
+                apellidosNombres:
+                    data.contactName ||
+                    data.dynamicPayload?.apellidosNombres ||
+                    "",
+                celular:
+                    data.contactAddress || data.dynamicPayload?.celular || "",
+                motivoInteraccion:
+                    data.level1 || data.dynamicPayload?.motivoInteraccion || "",
+                submotivoInteraccion:
+                    data.level2 || data.dynamicPayload?.submotivoInteraccion || "",
+                observaciones:
+                    data.observaciones ||
+                    data.dynamicPayload?.observaciones ||
+                    "",
+            });
+            setMotivoSeleccionado(
+                data.level1 || data.dynamicPayload?.motivoInteraccion || "",
+            );
+            setIsUpdate(true);
+            setSuccessMessage("");
+        } catch (err) {
+            console.error(err);
+            setError(err?.message || "No se pudo buscar la gestion");
+        }
+    };
+
+    const saveOutboundGestion = async (formData) => {
+        setError("");
+        setSuccessMessage("");
+        const identification = String(formData?.identificacion || "").trim();
+
+        if (!identification) {
+            setError("La identificacion es obligatoria.");
+            return;
+        }
+
+        const fieldsMeta = template.map((field) => ({
+            name: field.name,
+            label: field.label,
+        }));
+
+        const { ok, json } = await guardarGestionOutbound({
+            campaignId: nombreCampania,
+            formData,
+            fieldsMeta,
+        });
+
+        if (!ok) {
+            throw new Error(
+                json?.error || "No se pudo guardar la gestion outbound",
+            );
+        }
+
+        setSuccessMessage(
+            isUpdate
+                ? "Gestion outbound actualizada correctamente."
+                : "Gestion outbound guardada correctamente.",
+        );
+        setInitialValues({});
+        setIsUpdate(false);
+        setMotivoSeleccionado("");
+        lastLookupIdRef.current = "";
+    };
+
     return (
         <div
             style={{
@@ -122,28 +280,51 @@ export default function GestionOutboundDemo() {
             }}
         >
             <h2>{nombreFormulario}</h2>
-            {loading && <div>Cargando tipos de campaña...</div>}
+            {loading && <div>Cargando tipos de campana...</div>}
             {error && <div style={{ color: "red" }}>{error}</div>}
+            {successMessage && (
+                <div style={{ color: "#166534", marginBottom: 12 }}>
+                    {successMessage}
+                </div>
+            )}
             <FormularioDinamico
                 template={template}
+                initialValues={initialValues}
+                esUpdate={isUpdate}
                 onChangeCampo={(name, value) => {
-                    if (name === "motivoInteraccion")
+                    if (name === "motivoInteraccion") {
                         setMotivoSeleccionado(value);
+                    }
+                    if (name === "identificacion") {
+                        setInitialValues((prev) => ({
+                            ...prev,
+                            identificacion: value,
+                        }));
+                    }
                 }}
-                onSubmit={setResult}
+                onGuardar={async (formData) => {
+                    try {
+                        await saveOutboundGestion(formData);
+                    } catch (err) {
+                        console.error(err);
+                        setError(
+                            err?.message ||
+                                "No se pudo guardar la gestion outbound",
+                        );
+                    }
+                }}
+                onActualizar={async (formData) => {
+                    try {
+                        await saveOutboundGestion(formData);
+                    } catch (err) {
+                        console.error(err);
+                        setError(
+                            err?.message ||
+                                "No se pudo actualizar la gestion outbound",
+                        );
+                    }
+                }}
             />
-            {result && (
-                <pre
-                    style={{
-                        background: "#f3f4f6",
-                        marginTop: 16,
-                        padding: 12,
-                        borderRadius: 6,
-                    }}
-                >
-                    {JSON.stringify(result, null, 2)}
-                </pre>
-            )}
         </div>
     );
 }

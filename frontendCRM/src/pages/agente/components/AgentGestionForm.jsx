@@ -459,9 +459,9 @@ function AgentGestionForm({
             .toLowerCase()
             .replace(/\s+/g, "")
             .trim() || "";
-    const findDynamicFieldValueByLabel = (labelPatterns = []) => {
-        if (!dynamicFormConfig?.rows?.length || !dynamicFormDetail) return "";
-        const fields = dynamicFormConfig.rows.reduce((acc, row) => {
+    const dynamicFormFields = useMemo(() => {
+        if (!dynamicFormConfig?.rows?.length) return [];
+        return dynamicFormConfig.rows.reduce((acc, row) => {
             if (Array.isArray(row)) {
                 return acc.concat(row);
             }
@@ -470,10 +470,14 @@ function AgentGestionForm({
             }
             return acc;
         }, []);
+    }, [dynamicFormConfig]);
+
+    const findDynamicFieldValueByLabel = (labelPatterns = []) => {
+        if (!dynamicFormFields.length || !dynamicFormDetail) return "";
 
         for (const pattern of labelPatterns) {
             const normalizedPattern = normalizeForComparison(pattern);
-            for (const field of fields) {
+            for (const field of dynamicFormFields) {
                 const label = field?.label || field?.key || "";
                 const normalizedLabel = normalizeForComparison(label);
                 if (
@@ -488,6 +492,33 @@ function AgentGestionForm({
                     ) {
                         return String(value).trim();
                     }
+                }
+            }
+        }
+
+        return "";
+    };
+    const findDynamicFieldValueByPlaceholder = (placeholder) => {
+        if (!placeholder || !dynamicFormFields.length || !dynamicFormDetail) {
+            return "";
+        }
+
+        const normalizedPlaceholder = normalizeForComparison(placeholder);
+        if (!normalizedPlaceholder) return "";
+
+        for (const field of dynamicFormFields) {
+            const label = field?.label || "";
+            const key = field?.key || "";
+            const normalizedLabel = normalizeForComparison(label);
+            const normalizedKey = normalizeForComparison(key);
+
+            if (
+                normalizedPlaceholder === normalizedLabel ||
+                normalizedPlaceholder === normalizedKey
+            ) {
+                const value = dynamicFormDetail[key];
+                if (value !== undefined && value !== null && value !== "") {
+                    return String(value).trim();
                 }
             }
         }
@@ -523,9 +554,23 @@ function AgentGestionForm({
     const highlight = (value) =>
         `<strong class="agent-script-highlight">${value}</strong>`;
     const replacePlaceholders = (text) =>
-        text
-            .replace(/\{cliente\}/gi, highlight(clienteNombre))
-            .replace(/\{asesor\}/gi, highlight(asesorNombre));
+        text.replace(/\{([^}]+)\}/g, (match, rawPlaceholder) => {
+            const placeholder = String(rawPlaceholder || "").trim();
+            const normalizedPlaceholder =
+                normalizeForComparison(placeholder);
+
+            if (normalizedPlaceholder === "cliente") {
+                return highlight(clienteNombre);
+            }
+
+            if (normalizedPlaceholder === "asesor") {
+                return highlight(asesorNombre);
+            }
+
+            const dynamicValue =
+                findDynamicFieldValueByPlaceholder(placeholder);
+            return dynamicValue ? highlight(dynamicValue) : match;
+        });
     const scriptEntries = useMemo(
         () =>
             Object.entries(scriptContent)
@@ -538,7 +583,7 @@ function AgentGestionForm({
                     label: scriptLabels[key] || key,
                     text: replacePlaceholders(text.toString()),
                 })),
-        [scriptContent, clienteNombre, asesorNombre],
+        [scriptContent, clienteNombre, asesorNombre, dynamicFormFields, dynamicFormDetail],
     );
     const [activeScriptKey, setActiveScriptKey] = useState(
         () => scriptEntries[0]?.key ?? null,

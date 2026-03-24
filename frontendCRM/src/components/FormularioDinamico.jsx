@@ -1,4 +1,5 @@
 import React from "react";
+import "./FormularioDinamico.css";
 
 export default function FormularioDinamico({
     template,
@@ -10,28 +11,37 @@ export default function FormularioDinamico({
 }) {
     const [form, setForm] = React.useState(() => {
         const initial = {};
-        template.forEach(
-            (f) => (initial[f.name] = initialValues?.[f.name] || ""),
-        );
+        template.forEach((f) => {
+            if (f.type === "checkbox") {
+                initial[f.name] = Boolean(initialValues?.[f.name]);
+                return;
+            }
+            initial[f.name] = initialValues?.[f.name] ?? "";
+        });
         return initial;
     });
 
     React.useEffect(() => {
         const initial = {};
-        template.forEach(
-            (f) => (initial[f.name] = initialValues?.[f.name] || ""),
-        );
+        template.forEach((f) => {
+            if (f.type === "checkbox") {
+                initial[f.name] = Boolean(initialValues?.[f.name]);
+                return;
+            }
+            initial[f.name] = initialValues?.[f.name] ?? "";
+        });
         setForm(initial);
-    }, [initialValues, template]);
+    }, [initialValues]);
 
     const handleChange = (e, customOnChange) => {
-        const { name, value } = e.target;
-        setForm((f) => ({ ...f, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        const resolvedValue = type === "checkbox" ? checked : value;
+        setForm((f) => ({ ...f, [name]: resolvedValue }));
         if (typeof customOnChange === "function") {
             customOnChange(e);
         }
         if (typeof onChangeCampo === "function") {
-            onChangeCampo(name, value);
+            onChangeCampo(name, resolvedValue);
         }
     };
 
@@ -45,10 +55,10 @@ export default function FormularioDinamico({
     };
 
     return (
-        <form className="outmaquita-form">
+        <form className="formulario-dinamico">
             {template.map((field) => (
-                <div key={field.name} className="outmaquita-form-field">
-                    <label className="outmaquita-form-label">
+                <div key={field.name} className="formulario-dinamico__field">
+                    <label className="formulario-dinamico__label">
                         {field.label}
                         {field.required && (
                             <span style={{ color: "red" }}> *</span>
@@ -61,7 +71,27 @@ export default function FormularioDinamico({
                             value={form[field.name]}
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
-                            className="outmaquita-form-input"
+                            className="formulario-dinamico__input"
+                        />
+                    )}
+                    {field.type === "number" && (
+                        <input
+                            type="number"
+                            name={field.name}
+                            value={form[field.name]}
+                            onChange={(e) => handleChange(e, field.onChange)}
+                            required={field.required}
+                            className="formulario-dinamico__input"
+                        />
+                    )}
+                    {field.type === "date" && (
+                        <input
+                            type="date"
+                            name={field.name}
+                            value={form[field.name]}
+                            onChange={(e) => handleChange(e, field.onChange)}
+                            required={field.required}
+                            className="formulario-dinamico__input"
                         />
                     )}
                     {field.type === "select" && (
@@ -70,12 +100,15 @@ export default function FormularioDinamico({
                             value={form[field.name]}
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
-                            className="outmaquita-form-select"
+                            className="formulario-dinamico__select"
                         >
                             <option value="">Seleccione...</option>
                             {field.options.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                    {opt.label}
+                                <option
+                                    key={opt.value ?? opt}
+                                    value={opt.value ?? opt}
+                                >
+                                    {opt.label ?? opt}
                                 </option>
                             ))}
                         </select>
@@ -86,15 +119,28 @@ export default function FormularioDinamico({
                             value={form[field.name]}
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
-                            className="outmaquita-form-textarea"
+                            className="formulario-dinamico__textarea"
                         />
+                    )}
+                    {field.type === "checkbox" && (
+                        <label className="formulario-dinamico__checkbox">
+                            <input
+                                type="checkbox"
+                                name={field.name}
+                                checked={Boolean(form[field.name])}
+                                onChange={(e) => handleChange(e, field.onChange)}
+                            />
+                            <span style={{ marginLeft: 8 }}>
+                                {field.helpText || "Marcar"}
+                            </span>
+                        </label>
                     )}
                 </div>
             ))}
             {esUpdate ? (
                 <button
                     type="button"
-                    className="outmaquita-form-submit"
+                    className="formulario-dinamico__submit"
                     onClick={handleActualizar}
                 >
                     Actualizar
@@ -102,7 +148,7 @@ export default function FormularioDinamico({
             ) : (
                 <button
                     type="button"
-                    className="outmaquita-form-submit"
+                    className="formulario-dinamico__submit"
                     onClick={handleGuardar}
                 >
                     Guardar

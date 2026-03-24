@@ -253,7 +253,16 @@ export default function DashboardAgente({
                                     "out mutualista imbabura",
                                 ].some((l) => label.includes(l))
                             ) {
-                                return <GestionOutboundDemo key={outboundKey} />;
+                                return (
+                                    <GestionOutboundDemo
+                                        key={outboundKey}
+                                        campaignName={
+                                            campaignIdSeleccionada ||
+                                            selectedCampaignId ||
+                                            ""
+                                        }
+                                    />
+                                );
                             }
                             if (label.includes("out maquita cushunchic")) {
                                 return <OutMaquitaPage key={outboundKey} />;

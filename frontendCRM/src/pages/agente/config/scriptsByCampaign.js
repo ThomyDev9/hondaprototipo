@@ -45,6 +45,39 @@ const scriptsByCampaign = {
         objections:
             "1. No desea realizar la encuesta por llamada telefónica → Comprendemos su decisión. Informamos que la encuesta busca mejorar nuestros servicios y su experiencia. Agradecemos su comprensión.\n2. Desconfianza sobre la llamada → Para su tranquilidad, puede comunicarse con nuestro call center 023942468 o visitar la agencia más cercana para mayor información.\n3. Solicitud para volver a llamar → ¿Qué día y horario le conviene para comunicarnos nuevamente?\n4. Contesta una tercera persona → La encuesta solo puede responderla el/la titular de la cuenta.",
     },
+
+    //correcto lucha apertura de cta
+    "cobranza-cacpe-zamora": {
+        greeting:
+            "Script de saludo\nBuenos días, tardes, noches, me comunico con Sr/Sra. {cliente}, mucho gusto le saluda, {asesor} asesor telefónico de Cacpe Zamora Chinchipe.\n Script de Seguridad\n Por su seguridad esta llamada esta siendo grabada y monitoreada en todas sus etapas. ¿Me permite un momento para otorgarle una información importante?",
+        informative: `El motivo de mi llamada es para recordarle que la cuota de su crédito venció hace (mencionar número de días vencidos) por el valor de $ {VALOR}.
+                        Recuerde que es importante que usted realice su pago en la fecha establecida para evitar gastos de cobranzas y de igual manera mantener su calificación crediticia intacta.
+                        Respuesta Si:
+                        1. ¿Coméntenos que día realizará el pago?
+                        2. ¿Porque medio realizará el pago del valor pendiente? (transferencia o depósito en ventanilla)
+                        Respuesta No: 
+                        Le comento que el proceso es automático y mientras tenga valores pendientes, es nuestro deber seguirle informando.`,
+        farewell:
+            "Script de despedida\nAnte cualquier inquietud favor acercarse a la agencia más cercana, estamos para servirle. Que tenga un buen día (tarde, noche)",
+    },
+
+    "san-jorge-cobranza": {
+        greeting: `Script de saludo
+             Buenos días/tardes, ¿me comunico con el señor(a) {cliente}. Mi nombre es {asesor}, asesor de la Cooperativa SAN JORGE
+             ¿Podría brindarme un momento de su tiempo para compartirle una información importante?
+                “Sí” → continuar con el script de seguridad y luego con el mensaje principal.
+                “No” → aplicar el script de despedida:
+                Entiendo, muchas gracias por su tiempo. Que tenga un excelente día.
+                Script de Seguridad
+                Gracias por recibir mi llamada. Para garantizar nuestros niveles de calidad, le informo que esta llamada está siendo grabada y monitoreada.
+                `,
+        informative: `Estimado(a) Sr./Sra./Srta. {cliente},
+                        Nos comunicamos con usted para informarle que mantiene un valor pendiente de pago de $ {TOTAL VENCIDO}, con {DÍAS DE MORA} días de vencimiento.
+                        Le solicitamos realizar el pago en un máximo de 48 horas, para evitar la acumulación de nuevos recargos y posibles afectaciones al historial crediticio. Puede efectuar el pago a través de transferencias, deposito directo o pago en ventanilla.
+                        Cuentas disponibles para transferencia o pago directo: - banco pichincha 2214294345 - banco Rumiñahui 8062997800 RUC 0690069334001 COAC SAN JORGE, remitir el comprobante al whatsapp número 0983780467.
+                        En caso de que ya haya realizado el pago, por favor omita este mensaje y le agradecemos por su puntualidad.`,
+        farewell: `Script de despedida\nAgradecemos mucho su atención. Para mayor información, puede comunicarse con nuestro Call Center al 03 - 2307741 extensión 10 o al 0983780467 o acercarse a la agencia más cercana. Le deseamos un excelente día.`,
+    },
 };
 
 export default scriptsByCampaign;

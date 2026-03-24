@@ -70,6 +70,11 @@ export const fetchFormCatalogos = ({ campaignId, contactId }) =>
         )}&contactId=${encodeURIComponent(contactId)}`,
     );
 
+export const fetchFormTemplates = ({ campaignId }) =>
+    request(
+        `agente/form-templates?campaignId=${encodeURIComponent(campaignId)}`,
+    );
+
 export const changeAgentStatus = ({ estado, registroId }) =>
     request("agente/estado", {
         method: "POST",
