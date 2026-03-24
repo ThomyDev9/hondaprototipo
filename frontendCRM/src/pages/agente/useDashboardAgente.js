@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { esGestionOutbound } from "../../utils/gestionOutbound";
-import { findOptionIgnoreCase } from "./dashboardAgente.helpers";
+import {
+    buildInitialSurveyAnswers,
+    findOptionIgnoreCase,
+} from "./dashboardAgente.helpers";
 import useBaseCards from "./hooks/useBaseCards";
 import usePhoneManagement from "./hooks/usePhoneManagement";
 import useRegistroQueue from "./hooks/useRegistroQueue";
@@ -48,7 +51,7 @@ export default function useDashboardAgenteState({
         levels,
         level1Seleccionado,
         level2Seleccionado,
-        setLevel1Seleccionado,
+        setLevel1Seleccionado: setLevel1SeleccionadoBase,
         setLevel2Seleccionado,
         telefonos,
         estadoTelefonos,
@@ -93,6 +96,27 @@ export default function useDashboardAgenteState({
 
     const surveyFieldsToRender = dynamicSurveyConfig?.fields || [];
 
+    const handleLevel1SelectionChange = useCallback(
+        (value) => {
+            const normalizedLevel1 = String(value || "").trim().toUpperCase();
+            const shouldClearSurvey =
+                normalizedLevel1.startsWith("NU1") ||
+                normalizedLevel1.startsWith("NU2");
+
+            setLevel1SeleccionadoBase(value);
+            setLevel2Seleccionado("");
+            if (shouldClearSurvey) {
+                setSurveyAnswers(buildInitialSurveyAnswers(dynamicSurveyConfig));
+            }
+        },
+        [
+            dynamicSurveyConfig,
+            setLevel1SeleccionadoBase,
+            setLevel2Seleccionado,
+            setSurveyAnswers,
+        ],
+    );
+
     const applyGestionQuickFill = useCallback(
         ({
             level1Target,
@@ -121,15 +145,15 @@ export default function useDashboardAgenteState({
                 findOptionIgnoreCase(estadoTelefonos, estadoTelefonoTarget) ||
                 estadoTelefonoTarget;
 
-            setLevel1Seleccionado(matchedLevel1);
+            handleLevel1SelectionChange(matchedLevel1);
             setLevel2Seleccionado(matchedLevel2);
             setEstadoTelefonoSeleccionado(matchedEstadoTelefono);
             setObservacion(observacionTarget || "");
         },
         [
+            handleLevel1SelectionChange,
             estadoTelefonos,
             levels,
-            setLevel1Seleccionado,
             setLevel2Seleccionado,
             setEstadoTelefonoSeleccionado,
             setObservacion,
@@ -214,7 +238,7 @@ export default function useDashboardAgenteState({
                 }
 
                 if (!ok) {
-                    setError(json?.error || "No se pudo guardar la gestión");
+                    setError(json?.error || "No se pudo guardar la gestiÃ³n");
                     return;
                 }
 
@@ -225,7 +249,7 @@ export default function useDashboardAgenteState({
                 }
             } catch (err) {
                 console.error(err);
-                setError("Error de conexión con el servidor");
+                setError("Error de conexiÃ³n con el servidor");
             }
         },
         [
@@ -301,7 +325,7 @@ export default function useDashboardAgenteState({
         levels,
         level1Seleccionado,
         level2Seleccionado,
-        setLevel1Seleccionado,
+        setLevel1Seleccionado: handleLevel1SelectionChange,
         setLevel2Seleccionado,
         telefonos,
         telefonoSeleccionado,
@@ -331,3 +355,10 @@ export default function useDashboardAgenteState({
         selectBaseCard,
     };
 }
+
+
+
+
+
+
+

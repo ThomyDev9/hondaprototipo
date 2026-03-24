@@ -101,10 +101,13 @@ function AgentGestionForm({
 
     const showDynamicForm =
         dynamicFormConfig && dynamicFormRowsWithValues.length > 0;
-    const showSurvey =
-        dynamicSurveyConfig &&
-        typeof level1Seleccionado === "string" &&
-        level1Seleccionado.trim().toUpperCase().startsWith("CU1");
+    const normalizedLevel1 = String(level1Seleccionado || "")
+        .trim()
+        .toUpperCase();
+    const hideSurveyByLevel1 =
+        normalizedLevel1.startsWith("NU1") ||
+        normalizedLevel1.startsWith("NU2");
+    const showSurvey = dynamicSurveyConfig && !hideSurveyByLevel1;
 
     useEffect(() => {
         const availableTabs = ["gestion"];

@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import "./GrabacionesOutboundPage.css";
 // ...existing code...
 import { PageContainer } from "../../components/common";
-const token = localStorage.getItem("access_token");
+
+const getAuthToken = () => localStorage.getItem("access_token") || "";
 
 function toLocalDateString(value) {
     if (!value) return "";
@@ -32,6 +33,7 @@ export default function GrabacionesOutboundPage() {
 
     useEffect(() => {
         const API_BASE = import.meta.env.VITE_API_BASE;
+        const token = getAuthToken();
         setLoadingGrabaciones(true);
         fetch(`${API_BASE}/supervisor/grabaciones`, {
             headers: {
@@ -65,6 +67,7 @@ export default function GrabacionesOutboundPage() {
     const fetchAudioUrl = async (recordingfile) => {
         if (audioUrls[recordingfile]) return audioUrls[recordingfile];
         const API_BASE = import.meta.env.VITE_API_BASE;
+        const token = getAuthToken();
         try {
             const res = await fetch(
                 `${API_BASE}/supervisor/grabacion-sftp/${recordingfile}`,

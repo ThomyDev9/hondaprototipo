@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { PageContainer } from "../../components/common";
-const token = localStorage.getItem("access_token");
+
+const getAuthToken = () => localStorage.getItem("access_token") || "";
 
 function Card({ label, value, color = "#2563EB" }) {
     const style = {
@@ -36,6 +37,7 @@ export default function DashboardSupervisor() {
     const fetchAudioUrl = async (recordingfile) => {
         if (audioUrls[recordingfile]) return audioUrls[recordingfile];
         const API_BASE = import.meta.env.VITE_API_BASE;
+        const token = getAuthToken();
         try {
             const res = await fetch(
                 `${API_BASE}/supervisor/grabacion-sftp/${recordingfile}`,
@@ -56,6 +58,7 @@ export default function DashboardSupervisor() {
 
     useEffect(() => {
         const API_BASE = import.meta.env.VITE_API_BASE;
+        const token = getAuthToken();
         if (!token) {
             setError("No hay sesión activa");
             return;

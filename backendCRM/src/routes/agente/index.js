@@ -628,7 +628,8 @@ router.post("/guardar-gestion", ...agenteMiddlewares, async (req, res) => {
         const now = new Date();
         const startedManagement = now;
         const tmstmp = now;
-        const intentos = Number(contactRows[0]?.Number || 0);
+        const intentosPrevios = Number(contactRows[0]?.Number || 0);
+        const intentos = intentosPrevios + 1;
 
         const [latestPhoneRows] = await pool.query(
             agenteQueries.getLatestPhoneDataByContactId,
