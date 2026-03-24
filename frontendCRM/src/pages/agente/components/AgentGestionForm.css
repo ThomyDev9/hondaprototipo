@@ -315,6 +315,12 @@
 }
 
 .agent-script-tabs {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.9rem;
     border-radius: 1rem;
     border: 1px solid rgba(59, 130, 246, 0.4);
     background: linear-gradient(
@@ -333,12 +339,15 @@
 }
 
 .agent-script-tabs__nav {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 0.5rem;
+    width: 100%;
 }
 
 .agent-script-tabs__button {
+    width: 100%;
+    min-height: 42px;
     border: 1px solid rgba(15, 23, 42, 0.15);
     background: rgba(255, 255, 255, 0.8);
     color: #0f172a;
@@ -348,6 +357,8 @@
     letter-spacing: 0.15em;
     text-transform: uppercase;
     cursor: pointer;
+    text-align: center;
+    white-space: normal;
     transition:
         border-color 0.2s ease,
         background 0.2s ease;

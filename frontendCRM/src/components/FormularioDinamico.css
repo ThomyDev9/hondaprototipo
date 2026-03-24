@@ -85,23 +85,33 @@
     accent-color: #2563eb;
 }
 
-.formulario-dinamico__submit {
+.formulario-dinamico__actions {
     grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
     justify-self: start;
+}
+
+.formulario-dinamico__submit,
+.formulario-dinamico__cancel {
     min-width: 180px;
     padding: 12px 18px;
     border: 0;
     border-radius: 12px;
-    background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
     color: #fff;
     font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 10px 20px rgba(29, 78, 216, 0.2);
     transition:
         transform 0.16s ease,
         box-shadow 0.16s ease,
         opacity 0.16s ease;
+}
+
+.formulario-dinamico__submit {
+    background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+    box-shadow: 0 10px 20px rgba(29, 78, 216, 0.2);
 }
 
 .formulario-dinamico__submit:hover {
@@ -109,8 +119,19 @@
     box-shadow: 0 14px 24px rgba(29, 78, 216, 0.24);
 }
 
-.formulario-dinamico__submit:active {
+.formulario-dinamico__submit:active,
+.formulario-dinamico__cancel:active {
     transform: translateY(0);
+}
+
+.formulario-dinamico__cancel {
+    background: linear-gradient(135deg, #64748b 0%, #334155 100%);
+    box-shadow: 0 10px 20px rgba(51, 65, 85, 0.18);
+}
+
+.formulario-dinamico__cancel:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 24px rgba(51, 65, 85, 0.22);
 }
 
 @media (max-width: 720px) {
@@ -120,9 +141,13 @@
         gap: 14px;
     }
 
-    .formulario-dinamico__submit {
+    .formulario-dinamico__actions {
         width: 100%;
-        justify-self: stretch;
+    }
+
+    .formulario-dinamico__submit,
+    .formulario-dinamico__cancel {
+        width: 100%;
     }
 }
 

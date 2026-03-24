@@ -38,7 +38,7 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
     const [initialValues, setInitialValues] = useState({});
     const [isUpdate, setIsUpdate] = useState(false);
     const nombreCampania = String(campaignName || "Out Kullki Wasi").trim();
-    const nombreFormulario = `Gestion Outbound · ${nombreCampania}`;
+    const nombreFormulario = `Gestion Outbound ${nombreCampania}`;
     const lastLookupIdRef = useRef("");
 
     useEffect(() => {
@@ -202,25 +202,25 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
 
             const data = json?.data || {};
             setInitialValues({
-                ...data.dynamicPayload,
-                identificacion: data.identification || busquedaId,
+                ...data,
+                identificacion:
+                    data.identificacion || data.Identificacion || busquedaId,
                 apellidosNombres:
-                    data.contactName ||
-                    data.dynamicPayload?.apellidosNombres ||
+                    data.apellidosNombres ||
+                    data.NombreCliente ||
+                    data.NOMBRE_CLIENTE ||
                     "",
-                celular:
-                    data.contactAddress || data.dynamicPayload?.celular || "",
+                celular: data.celular || data.Celular || "",
+                tipoCampana: data.tipoCampana || data.TipoCampania || "",
                 motivoInteraccion:
-                    data.level1 || data.dynamicPayload?.motivoInteraccion || "",
+                    data.motivoInteraccion || data.MotivoLlamada || "",
                 submotivoInteraccion:
-                    data.level2 || data.dynamicPayload?.submotivoInteraccion || "",
+                    data.submotivoInteraccion || data.SubmotivoLlamada || "",
                 observaciones:
-                    data.observaciones ||
-                    data.dynamicPayload?.observaciones ||
-                    "",
+                    data.observaciones || data.Observaciones || "",
             });
             setMotivoSeleccionado(
-                data.level1 || data.dynamicPayload?.motivoInteraccion || "",
+                data.motivoInteraccion || data.MotivoLlamada || "",
             );
             setIsUpdate(true);
             setSuccessMessage("");
@@ -262,6 +262,15 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                 ? "Gestion outbound actualizada correctamente."
                 : "Gestion outbound guardada correctamente.",
         );
+        setInitialValues({});
+        setIsUpdate(false);
+        setMotivoSeleccionado("");
+        lastLookupIdRef.current = "";
+    };
+
+    const handleCancelarGestion = () => {
+        setError("");
+        setSuccessMessage("");
         setInitialValues({});
         setIsUpdate(false);
         setMotivoSeleccionado("");
@@ -321,9 +330,10 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                         setError(
                             err?.message ||
                                 "No se pudo actualizar la gestion outbound",
-                        );
+                            );
                     }
                 }}
+                onCancelar={handleCancelarGestion}
             />
         </div>
     );

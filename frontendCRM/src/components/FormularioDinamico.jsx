@@ -5,6 +5,7 @@ export default function FormularioDinamico({
     template,
     onGuardar,
     onActualizar,
+    onCancelar,
     initialValues,
     esUpdate = false,
     onChangeCampo,
@@ -52,6 +53,10 @@ export default function FormularioDinamico({
     const handleActualizar = (e) => {
         e.preventDefault();
         onActualizar?.(form);
+    };
+    const handleCancelar = (e) => {
+        e.preventDefault();
+        onCancelar?.();
     };
 
     return (
@@ -137,23 +142,22 @@ export default function FormularioDinamico({
                     )}
                 </div>
             ))}
-            {esUpdate ? (
+            <div className="formulario-dinamico__actions">
                 <button
                     type="button"
                     className="formulario-dinamico__submit"
-                    onClick={handleActualizar}
+                    onClick={esUpdate ? handleActualizar : handleGuardar}
                 >
-                    Actualizar
+                    Guardar gestión
                 </button>
-            ) : (
                 <button
                     type="button"
-                    className="formulario-dinamico__submit"
-                    onClick={handleGuardar}
+                    className="formulario-dinamico__cancel"
+                    onClick={handleCancelar}
                 >
-                    Guardar
+                    Cancelar gestión
                 </button>
-            )}
+            </div>
         </form>
     );
 }
