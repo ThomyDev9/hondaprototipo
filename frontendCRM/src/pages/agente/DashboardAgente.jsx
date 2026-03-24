@@ -228,6 +228,7 @@ export default function DashboardAgente({
                             surveyAnswers={surveyAnswers}
                             onSurveyFieldChange={handleSurveyFieldChange}
                             onCancelarGestion={handleCancelarGestion}
+                            user={user}
                         />
                     )}
                     {isAgente &&

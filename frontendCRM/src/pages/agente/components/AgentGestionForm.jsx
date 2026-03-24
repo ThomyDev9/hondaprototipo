@@ -2,7 +2,8 @@
 import PropTypes from "prop-types";
 import Button from "../../../components/common/Button";
 import Tabs from "../../../components/common/Tabs";
-import { useEffect, useRef, useState } from "react";
+import scriptsByCampaign from "../config/scriptsByCampaign";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 function AgentGestionForm({
     registro,
@@ -30,6 +31,7 @@ function AgentGestionForm({
     surveyAnswers,
     onSurveyFieldChange,
     onCancelarGestion,
+    user,
 }) {
     const firstRender = useRef(true);
     const [activeTab, setActiveTab] = useState("gestion");
@@ -439,6 +441,114 @@ function AgentGestionForm({
         </div>
     );
 
+    const sanitizeCampaignKey = (value) =>
+        value?.toString().trim().toLowerCase().replace(/\s+/g, "-");
+    const fallbackKey = sanitizeCampaignKey(dynamicFormConfig?.title);
+    const scriptKey =
+        sanitizeCampaignKey(registro?.campaignId) || fallbackKey || "default";
+    const scriptContent =
+        scriptsByCampaign[scriptKey] || scriptsByCampaign.default;
+    const normalizeForComparison = (value) =>
+        value
+            ?.toString()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/\s+/g, "")
+            .trim() || "";
+    const findDynamicFieldValueByLabel = (labelPatterns = []) => {
+        if (!dynamicFormConfig?.rows?.length || !dynamicFormDetail) return "";
+        const fields = dynamicFormConfig.rows.reduce((acc, row) => {
+            if (Array.isArray(row)) {
+                return acc.concat(row);
+            }
+            if (row) {
+                acc.push(row);
+            }
+            return acc;
+        }, []);
+
+        for (const pattern of labelPatterns) {
+            const normalizedPattern = normalizeForComparison(pattern);
+            for (const field of fields) {
+                const label = field?.label || field?.key || "";
+                const normalizedLabel = normalizeForComparison(label);
+                if (
+                    normalizedPattern &&
+                    normalizedLabel.includes(normalizedPattern)
+                ) {
+                    const value = dynamicFormDetail[field.key];
+                    if (
+                        value !== undefined &&
+                        value !== null &&
+                        value !== ""
+                    ) {
+                        return String(value).trim();
+                    }
+                }
+            }
+        }
+
+        return "";
+    };
+    const scriptLabels = {
+        header: "Guía completa",
+        greeting: "Saludo",
+        security: "Seguridad",
+        arcotel: "Arcotel",
+        informative: "Informativo",
+        farewell: "Despedida",
+        objections: "Manejo de objeciones",
+        additional: "Notas adicionales",
+    };
+    const dynamicClienteNombre = findDynamicFieldValueByLabel([
+        "Nombre completo",
+        "Nombre",
+        "Cliente",
+        "Titular",
+        "Socio",
+    ]);
+    const clienteNombre =
+        dynamicClienteNombre ||
+        registro?.nombre ||
+        registro?.nombreCompleto ||
+        registro?.fullName ||
+        registro?.cliente ||
+        "titular";
+    const asesorNombre =
+        user?.full_name || user?.name || user?.username || "[Tu nombre]";
+    const highlight = (value) =>
+        `<strong class="agent-script-highlight">${value}</strong>`;
+    const replacePlaceholders = (text) =>
+        text
+            .replace(/\{cliente\}/gi, highlight(clienteNombre))
+            .replace(/\{asesor\}/gi, highlight(asesorNombre));
+    const scriptEntries = useMemo(
+        () =>
+            Object.entries(scriptContent)
+                .filter(
+                    ([key, text]) =>
+                        key !== "header" && Boolean(text?.toString().trim()),
+                )
+                .map(([key, text]) => ({
+                    key,
+                    label: scriptLabels[key] || key,
+                    text: replacePlaceholders(text.toString()),
+                })),
+        [scriptContent, clienteNombre, asesorNombre],
+    );
+    const [activeScriptKey, setActiveScriptKey] = useState(
+        () => scriptEntries[0]?.key ?? null,
+    );
+
+    useEffect(() => {
+        setActiveScriptKey((current) =>
+            scriptEntries.some((entry) => entry.key === current)
+                ? current
+                : scriptEntries[0]?.key ?? null,
+        );
+    }, [scriptEntries]);
+
     const tabDefinitions = [
         {
             id: "gestion",
@@ -456,6 +566,39 @@ function AgentGestionForm({
 
     return (
         <form onSubmit={onSubmit} className="agent-gestion-form">
+            {scriptEntries.length > 0 && (
+                <section className="agent-script-tabs">
+                    <div className="agent-script-tabs__header">
+                        <h3>Guiones de campaña</h3>
+                    </div>
+                    <div className="agent-script-tabs__nav">
+                        {scriptEntries.map(({ key, label }) => (
+                            <button
+                                key={key}
+                                type="button"
+                                className={`agent-script-tabs__button ${
+                                    activeScriptKey === key ? "is-active" : ""
+                                }`}
+                                onClick={() => setActiveScriptKey(key)}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+            <div className="agent-script-tabs__content">
+                {scriptEntries
+                    .filter(({ key }) => key === activeScriptKey)
+                    .map(({ key, text }) => (
+                        <p
+                            className="agent-script-card__text"
+                            key={key}
+                            dangerouslySetInnerHTML={{ __html: text }}
+                        />
+                    ))}
+            </div>
+                </section>
+            )}
+
             <div className="agent-tabs-wrapper">
                 <Tabs tabs={tabDefinitions} activeTab={activeTab} onChange={setActiveTab} />
             </div>
@@ -515,4 +658,9 @@ AgentGestionForm.propTypes = {
     surveyFieldsToRender: PropTypes.arrayOf(PropTypes.object).isRequired,
     surveyAnswers: PropTypes.object.isRequired,
     onSurveyFieldChange: PropTypes.func.isRequired,
+    user: PropTypes.shape({
+        full_name: PropTypes.string,
+        name: PropTypes.string,
+        username: PropTypes.string,
+    }),
 };
