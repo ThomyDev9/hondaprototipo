@@ -24,6 +24,10 @@
     width: 100%;
 }
 
+.agent-base-card-layout--single {
+    grid-template-columns: 1fr;
+}
+
 .agent-base-cards-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

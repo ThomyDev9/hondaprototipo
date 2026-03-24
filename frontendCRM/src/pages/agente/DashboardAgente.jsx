@@ -131,6 +131,12 @@ export default function DashboardAgente({
         </article>
     );
 
+    const showRegestionSection =
+        loadingRegestionBaseCards || regestionBaseCards.length > 0;
+    const baseCardLayoutClass = `agent-base-card-layout${
+        showRegestionSection ? "" : " agent-base-card-layout--single"
+    }`;
+
     if (!isAgente) {
         return (
             <PageContainer fullWidth className="agent-page-container">
@@ -153,7 +159,7 @@ export default function DashboardAgente({
         <PageContainer fullWidth className="">
             <section className="">
                     {!registro && isHomeView && (
-                        <div className="agent-base-card-layout">
+                        <div className={baseCardLayoutClass}>
                             <BaseCardSection
                                 title="Bases activas disponibles"
                                 loading={loadingActiveBaseCards}
@@ -162,14 +168,16 @@ export default function DashboardAgente({
                                 renderCard={renderActiveBaseCard}
                                 getKey={getBaseCardKey}
                             />
-                            <BaseCardSection
-                                title="Bases regestion disponibles"
-                                loading={loadingRegestionBaseCards}
-                                cards={regestionBaseCards}
-                                emptyMessage="No hay bases regestion disponibles."
-                                renderCard={renderRegestionBaseCard}
-                                getKey={getBaseCardKey}
-                            />
+                            {showRegestionSection && (
+                                <BaseCardSection
+                                    title="Bases regestion disponibles"
+                                    loading={loadingRegestionBaseCards}
+                                    cards={regestionBaseCards}
+                                    emptyMessage="No hay bases regestion disponibles."
+                                    renderCard={renderRegestionBaseCard}
+                                    getKey={getBaseCardKey}
+                                />
+                            )}
                         </div>
                     )}
 

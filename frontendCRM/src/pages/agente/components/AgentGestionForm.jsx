@@ -34,6 +34,13 @@ function AgentGestionForm({
     const firstRender = useRef(true);
     const [activeTab, setActiveTab] = useState("gestion");
 
+    const getDynamicWidth = (value) => {
+        const text = String(value ?? "");
+        const length = Math.max(text.length, 8);
+        const estimated = Math.round(length * 8.5 + 56);
+        return Math.min(Math.max(estimated, 140), 560);
+    };
+
     useEffect(() => {
         if (firstRender.current) {
             firstRender.current = false;
@@ -281,6 +288,9 @@ function AgentGestionForm({
                                                     Math.ceil(value.length / 60),
                                                 ),
                                             )}
+                                            style={{
+                                                width: `${getDynamicWidth(value)}px`,
+                                            }}
                                         />
                                     ) : (
                                         <input
@@ -288,6 +298,9 @@ function AgentGestionForm({
                                             value={value}
                                             className="agent-input agent-auto-input"
                                             readOnly
+                                            style={{
+                                                width: `${getDynamicWidth(value)}px`,
+                                            }}
                                         />
                                     )}
                                 </div>
@@ -318,6 +331,9 @@ function AgentGestionForm({
                                                         Math.ceil(value.length / 60),
                                                     ),
                                                 )}
+                                                style={{
+                                                    width: `${getDynamicWidth(value)}px`,
+                                                }}
                                             />
                                         ) : (
                                             <input
@@ -325,6 +341,9 @@ function AgentGestionForm({
                                                 value={value}
                                                 className="agent-input agent-auto-input"
                                                 readOnly
+                                                style={{
+                                                    width: `${getDynamicWidth(value)}px`,
+                                                }}
                                             />
                                         )}
                                     </div>
@@ -408,18 +427,25 @@ function AgentGestionForm({
         </section>
     );
 
+    const renderGestionContent = () => (
+        <div className="agent-form-stack">
+            {renderFormulario1()}
+            {showDynamicForm && (
+                <>
+                    <div className="agent-form-stack-divider" aria-hidden="true" />
+                    {renderFormulario2()}
+                </>
+            )}
+        </div>
+    );
+
     const tabDefinitions = [
         {
             id: "gestion",
             label: showDynamicForm
                 ? `F1 · F2 · ${dynamicFormConfig?.title}`
                 : "Formulario 1",
-            content: (
-                <>
-                    {renderFormulario1()}
-                    {showDynamicForm && renderFormulario2()}
-                </>
-            ),
+            content: renderGestionContent(),
         },
         showSurvey && {
             id: "encuesta",
