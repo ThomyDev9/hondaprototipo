@@ -2,6 +2,7 @@
 import PropTypes from "prop-types";
 import Button from "../../../components/common/Button";
 import Tabs from "../../../components/common/Tabs";
+import { getAgentCampaignScript } from "../../../services/campaignScripts.service";
 import scriptsByCampaign from "../config/scriptsByCampaign";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -35,6 +36,59 @@ function AgentGestionForm({
 }) {
     const firstRender = useRef(true);
     const [activeTab, setActiveTab] = useState("gestion");
+    const [dialerFeedback, setDialerFeedback] = useState("");
+    const [remoteScriptContent, setRemoteScriptContent] = useState(null);
+
+    const openDialProtocol = (protocol) => {
+        const phone = String(telefonoSeleccionado || "").trim();
+        if (!phone) return;
+        if (protocol === "sip-server") {
+            window.location.href = `sip:${phone}@172.19.10.40`;
+            return;
+        }
+        if (protocol === "sip") {
+            window.location.href = `sip:${phone}`;
+            return;
+        }
+        window.location.href = `${protocol}:${phone}`;
+    };
+
+    const handleZoiperBridgeDial = async () => {
+        const phone = String(telefonoSeleccionado || "").trim();
+        if (!phone) return;
+
+        try {
+            setDialerFeedback("");
+            const response = await fetch("http://127.0.0.1:49321/dial", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ number: phone }),
+            });
+            const json = await response.json().catch(() => null);
+
+            if (!response.ok || !json?.ok) {
+                throw new Error(
+                    json?.error ||
+                        "El bridge local no respondió correctamente.",
+                );
+            }
+
+            setDialerFeedback(
+                `Dialer local OK. URI: ${json?.sipUri || "N/D"} | PID: ${
+                    json?.pid || "N/D"
+                }`,
+            );
+        } catch (err) {
+            console.error(err);
+            setDialerFeedback(
+                `No se pudo conectar con el dialer local. ${
+                    err?.message || ""
+                } Ejecuta 'npm run zoiper-bridge' y revisa tools/zoiper-bridge.log.`,
+            );
+        }
+    };
 
     const getDynamicWidth = (value) => {
         const text = String(value ?? "");
@@ -88,9 +142,11 @@ function AgentGestionForm({
         let adicionales = {};
         try {
             adicionales = JSON.parse(dynamicFormDetail.CamposAdicionalesJson);
-        } catch {}
+        } catch {
+            adicionales = {};
+        }
         const allFields = Object.entries(adicionales)
-            .filter(([key, val]) => val !== undefined && val !== null && val !== "")
+            .filter(([, val]) => val !== undefined && val !== null && val !== "")
             .map(([key, val]) => ({ key, label: key, value: val }));
         const MAX_COLS = 6;
         extraFields = [];
@@ -163,7 +219,30 @@ function AgentGestionForm({
                             ))}
                         </select>
                         {telefonoSeleccionado && (
-                            <span className="agent-copy-hint">Copiado al portapapeles</span>
+                            <div className="agent-phone-actions">
+                                <span className="agent-copy-hint">
+                                    Copiado al portapapeles
+                                </span>
+                                <button
+                                    type="button"
+                                    className="agent-zoiper-button"
+                                    onClick={handleZoiperBridgeDial}
+                                >
+                                    Marcar en Zoiper
+                                </button>
+                                <button
+                                    type="button"
+                                    className="agent-zoiper-button agent-zoiper-button--alt"
+                                    onClick={() => openDialProtocol("sip-server")}
+                                >
+                                    Probar SIP directo
+                                </button>
+                            </div>
+                        )}
+                        {dialerFeedback && (
+                            <span className="agent-dialer-hint">
+                                {dialerFeedback}
+                            </span>
                         )}
                     </label>
                 </div>
@@ -447,10 +526,52 @@ function AgentGestionForm({
     const sanitizeCampaignKey = (value) =>
         value?.toString().trim().toLowerCase().replace(/\s+/g, "-");
     const fallbackKey = sanitizeCampaignKey(dynamicFormConfig?.title);
+    const resolvedCampaignId =
+        registro?.campaignId || registro?.campaign_id || registro?.Campaign || "";
     const scriptKey =
-        sanitizeCampaignKey(registro?.campaignId) || fallbackKey || "default";
+        sanitizeCampaignKey(resolvedCampaignId) || fallbackKey || "default";
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadRemoteScript = async () => {
+            const campaignId = String(resolvedCampaignId || "").trim();
+            if (!campaignId) {
+                setRemoteScriptContent(null);
+                return;
+            }
+
+            try {
+                const data = await getAgentCampaignScript(campaignId);
+                if (cancelled) return;
+
+                const resolvedScript =
+                    data?.script &&
+                    typeof data.script === "object" &&
+                    !Array.isArray(data.script)
+                        ? data.script
+                        : null;
+
+                setRemoteScriptContent(resolvedScript);
+            } catch (error) {
+                console.error("No se pudo cargar script remoto:", error);
+                if (!cancelled) {
+                    setRemoteScriptContent(null);
+                }
+            }
+        };
+
+        loadRemoteScript();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [resolvedCampaignId]);
+
     const scriptContent =
-        scriptsByCampaign[scriptKey] || scriptsByCampaign.default;
+        remoteScriptContent ||
+        scriptsByCampaign[scriptKey] ||
+        scriptsByCampaign.default;
     const normalizeForComparison = (value) =>
         value
             ?.toString()

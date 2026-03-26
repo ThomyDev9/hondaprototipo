@@ -12,6 +12,21 @@ import {
 } from "../../services/dashboard.service";
 import "./OutHondaPage.css";
 
+function findOptionIgnoreCase(options = [], target) {
+    const normalizedTarget = String(target || "")
+        .trim()
+        .toLowerCase();
+
+    return (
+        options.find(
+            (option) =>
+                String(option || "")
+                    .trim()
+                    .toLowerCase() === normalizedTarget,
+        ) || ""
+    );
+}
+
 export default function OutHondaPage() {
     const [busquedaId, setBusquedaId] = React.useState("");
     const [buscando, setBuscando] = React.useState(false);
@@ -278,6 +293,84 @@ export default function OutHondaPage() {
         },
     ];
 
+    const quickActions = [
+        {
+            id: "no-contesta",
+            label: "No contesta",
+            apply: (currentValues) => {
+                const level1Options = [
+                    ...new Set(levels.map((item) => item.level1).filter(Boolean)),
+                ];
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "no contesta") ||
+                        "no contesta",
+                    observaciones: "No contesta",
+                };
+            },
+        },
+        {
+            id: "grabadora",
+            label: "Grabadora",
+            apply: (currentValues) => {
+                const level1Options = [
+                    ...new Set(levels.map((item) => item.level1).filter(Boolean)),
+                ];
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "grabadora") ||
+                        "grabadora",
+                    observaciones: "Contesta grabadora",
+                };
+            },
+        },
+        {
+            id: "contesta-tercero",
+            label: "Contesta tercero",
+            apply: (currentValues) => {
+                const level1Options = [
+                    ...new Set(levels.map((item) => item.level1).filter(Boolean)),
+                ];
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "contesta tercero") ||
+                        "contesta tercero",
+                    observaciones: "Contesta tercero",
+                };
+            },
+        },
+    ];
+
     // Mover función fuera del render
     function mapRegistroToFormValues(row) {
         if (!row) return {};
@@ -496,6 +589,7 @@ export default function OutHondaPage() {
                                     "WEB",
                             }}
                             template={dynamicTemplate}
+                            quickActions={quickActions}
                             className="outmaquita-form outhonda-form-3col"
                             onGuardar={async (formData) => {
                                 try {

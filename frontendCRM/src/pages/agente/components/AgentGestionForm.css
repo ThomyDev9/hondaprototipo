@@ -314,6 +314,54 @@
     font-size: 0.8rem;
 }
 
+.agent-dialer-hint {
+    display: inline-block;
+    margin-top: 0.3rem;
+    color: #1d4ed8;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.agent-phone-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.35rem;
+}
+
+.agent-zoiper-button {
+    border: 1px solid rgba(37, 99, 235, 0.35);
+    background: rgba(37, 99, 235, 0.1);
+    color: #1d4ed8;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        background 0.18s ease,
+        border-color 0.18s ease,
+        transform 0.18s ease;
+}
+
+.agent-zoiper-button:hover {
+    background: rgba(37, 99, 235, 0.18);
+    border-color: rgba(37, 99, 235, 0.5);
+    transform: translateY(-1px);
+}
+
+.agent-zoiper-button--alt {
+    background: rgba(15, 23, 42, 0.06);
+    border-color: rgba(15, 23, 42, 0.18);
+    color: #0f172a;
+}
+
+.agent-zoiper-button--alt:hover {
+    background: rgba(15, 23, 42, 0.1);
+    border-color: rgba(15, 23, 42, 0.28);
+}
+
 .agent-script-tabs {
     width: 100%;
     box-sizing: border-box;

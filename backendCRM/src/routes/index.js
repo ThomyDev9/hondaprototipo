@@ -37,6 +37,11 @@ export const routeRegistry = [
         module: () => import("./admin/forms.js"),
         description: "Configuración de formularios dinámicos F2/F3",
     },
+    {
+        path: "/admin/scripts",
+        module: () => import("./admin/scripts.js"),
+        description: "Configuración de scripts por subcampaña",
+    },
 
     // Agente Module
     {

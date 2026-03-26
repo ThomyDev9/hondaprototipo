@@ -16,6 +16,7 @@ const MENU_ICONS = {
     "management-levels": "🧭",
     users: "👥",
     settings: "⚙️",
+    scripts: "📚",
     dashboard: "📊",
     agents: "🧑‍💼",
     reports: "📄",
@@ -46,6 +47,7 @@ function Sidebar({
         { label: "Niveles de gestión", key: "management-levels" },
         { label: "Administrar Usuarios", key: "users" },
         { label: "Configuración", key: "settings" },
+        { label: "Scripts", key: "scripts" },
     ];
     const menuSupervisor = [
         { label: "Dashboard", key: "dashboard" },

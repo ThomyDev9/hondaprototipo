@@ -9,6 +9,7 @@ import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
 import ConfiguracionAdmin from "./pages/admin/ConfiguracionAdmin";
 import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
+import ScriptsAdmin from "./pages/admin/ScriptsAdmin";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -21,7 +22,7 @@ function App() {
     const [error, setError] = useState("");
     const { userInfo, setUserInfo } = useContext(AuthContext);
 
-    // 'administrar-bases' | 'campanias' | 'management-levels' | 'users' | 'settings'
+    // 'administrar-bases' | 'campanias' | 'management-levels' | 'users' | 'settings' | 'scripts'
     const [adminPage, setAdminPage] = useState("administrar-bases");
     const [selectedAgentCampaign, setSelectedAgentCampaign] = useState({
         campaignId: "",
@@ -161,6 +162,7 @@ function App() {
                         )}
                         {adminPage === "users" && <UsuariosAdmin />}
                         {adminPage === "settings" && <ConfiguracionAdmin />}
+                        {adminPage === "scripts" && <ScriptsAdmin />}
                     </>
                 )}
 

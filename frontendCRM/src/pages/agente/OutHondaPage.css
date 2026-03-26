@@ -55,3 +55,33 @@
 .outhonda-form-3col .outhonda-form-field {
     grid-column: auto;
 }
+
+.outhonda-form-quick-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.outhonda-form-quick-button {
+    min-width: 160px;
+    padding: 10px 16px;
+    border: 1px solid #c3c7d1;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #1a2540;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        border-color 0.16s ease,
+        box-shadow 0.16s ease,
+        transform 0.16s ease;
+}
+
+.outhonda-form-quick-button:hover {
+    transform: translateY(-1px);
+    border-color: #1a2540;
+    box-shadow: 0 10px 18px #00000014;
+}

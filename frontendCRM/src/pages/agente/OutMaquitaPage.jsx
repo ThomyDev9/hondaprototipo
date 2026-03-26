@@ -10,6 +10,21 @@ import {
 import "./OutMaquitaPage.css";
 
 // import { listarNivelesGestion } from "../../services/managementLevels.service";
+function findOptionIgnoreCase(options = [], target) {
+    const normalizedTarget = String(target || "")
+        .trim()
+        .toLowerCase();
+
+    return (
+        options.find(
+            (option) =>
+                String(option || "")
+                    .trim()
+                    .toLowerCase() === normalizedTarget,
+        ) || ""
+    );
+}
+
 export default function OutMaquitaPage() {
     const [busquedaId, setBusquedaId] = React.useState("");
     const [buscando, setBuscando] = React.useState(false);
@@ -326,6 +341,84 @@ export default function OutMaquitaPage() {
         ...extraFields,
     ];
 
+    const quickActions = [
+        {
+            id: "no-contesta",
+            label: "No contesta",
+            apply: (currentValues) => {
+                const level1Options = [
+                    ...new Set(levels.map((item) => item.level1).filter(Boolean)),
+                ];
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "no contesta") ||
+                        "no contesta",
+                    observaciones: "No contesta",
+                };
+            },
+        },
+        {
+            id: "grabadora",
+            label: "Grabadora",
+            apply: (currentValues) => {
+                const level1Options = [
+                    ...new Set(levels.map((item) => item.level1).filter(Boolean)),
+                ];
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "grabadora") ||
+                        "grabadora",
+                    observaciones: "Contesta grabadora",
+                };
+            },
+        },
+        {
+            id: "contesta-tercero",
+            label: "Contesta tercero",
+            apply: (currentValues) => {
+                const level1Options = [
+                    ...new Set(levels.map((item) => item.level1).filter(Boolean)),
+                ];
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "contesta tercero") ||
+                        "contesta tercero",
+                    observaciones: "Contesta tercero",
+                };
+            },
+        },
+    ];
+
     const saveOutboundGestion = async (formData) => {
         const fieldsMeta = dynamicTemplate.map((field) => ({
             name: field.name,
@@ -423,6 +516,7 @@ export default function OutMaquitaPage() {
                         key={JSON.stringify(initialValues)}
                         template={dynamicTemplate}
                         initialValues={initialValues}
+                        quickActions={quickActions}
                         className="outmaquita-form"
                         onGuardar={async (formData) => {
                             try {

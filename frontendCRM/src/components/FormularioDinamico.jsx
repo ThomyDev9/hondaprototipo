@@ -9,6 +9,7 @@ export default function FormularioDinamico({
     initialValues,
     esUpdate = false,
     onChangeCampo,
+    quickActions = [],
 }) {
     const [form, setForm] = React.useState(() => {
         const initial = {};
@@ -58,9 +59,40 @@ export default function FormularioDinamico({
         e.preventDefault();
         onCancelar?.();
     };
+    const handleQuickAction = (action) => {
+        if (typeof action?.apply !== "function") return;
+
+        setForm((prev) => {
+            const nextValues = action.apply({ ...prev }) || prev;
+
+            if (typeof onChangeCampo === "function") {
+                Object.entries(nextValues).forEach(([name, value]) => {
+                    if (prev[name] !== value) {
+                        onChangeCampo(name, value);
+                    }
+                });
+            }
+
+            return nextValues;
+        });
+    };
 
     return (
         <form className="formulario-dinamico">
+            {quickActions.length > 0 && (
+                <div className="formulario-dinamico__quick-actions">
+                    {quickActions.map((action) => (
+                        <button
+                            key={action.id}
+                            type="button"
+                            className="formulario-dinamico__quick-button"
+                            onClick={() => handleQuickAction(action)}
+                        >
+                            {action.label}
+                        </button>
+                    ))}
+                </div>
+            )}
             {template.map((field) => (
                 <div key={field.name} className="formulario-dinamico__field">
                     <label className="formulario-dinamico__label">
@@ -77,6 +109,7 @@ export default function FormularioDinamico({
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
                             className="formulario-dinamico__input"
+                            readOnly={field.readOnly}
                         />
                     )}
                     {field.type === "number" && (
@@ -125,6 +158,7 @@ export default function FormularioDinamico({
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
                             className="formulario-dinamico__textarea"
+                            readOnly={field.readOnly}
                         />
                     )}
                     {field.type === "checkbox" && (

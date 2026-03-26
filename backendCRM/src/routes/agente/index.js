@@ -1061,6 +1061,83 @@ router.get("/form-templates", ...agenteMiddlewares, async (req, res) => {
     }
 });
 
+router.get("/scripts", ...agenteMiddlewares, async (req, res) => {
+    try {
+        const campaignId = String(req.query?.campaignId || "").trim();
+
+        if (!campaignId) {
+            return res.status(400).json({ error: "campaignId es requerido" });
+        }
+
+        const [menuRows] = await pool.query(
+            `
+            SELECT id, nombre_item
+            FROM menu_items
+            WHERE nombre_item = ?
+            ORDER BY CASE WHEN estado = 'activo' THEN 0 ELSE 1 END, id ASC
+            LIMIT 1
+            `,
+            [campaignId],
+        );
+
+        if (menuRows.length === 0) {
+            return res.json({ data: null });
+        }
+
+        const menuItemId = String(menuRows[0].id || "").trim();
+        const [scriptRows] = await pool.query(
+            `
+            SELECT script_json, updated_by, updated_at
+            FROM sub_campaign_scripts
+            WHERE menu_item_id = ?
+            LIMIT 1
+            `,
+            [menuItemId],
+        );
+
+        if (scriptRows.length === 0) {
+            return res.json({
+                data: {
+                    menuItemId,
+                    campaignId,
+                    script: null,
+                    updatedBy: "",
+                    updatedAt: null,
+                },
+            });
+        }
+
+        let parsedScript = scriptRows[0].script_json;
+        if (typeof parsedScript === "string") {
+            try {
+                parsedScript = JSON.parse(parsedScript);
+            } catch {
+                parsedScript = null;
+            }
+        }
+
+        return res.json({
+            data: {
+                menuItemId,
+                campaignId,
+                script:
+                    parsedScript &&
+                    typeof parsedScript === "object" &&
+                    !Array.isArray(parsedScript)
+                        ? parsedScript
+                        : null,
+                updatedBy: scriptRows[0].updated_by || "",
+                updatedAt: scriptRows[0].updated_at || null,
+            },
+        });
+    } catch (err) {
+        console.error("Error en /agente/scripts:", err);
+        return res
+            .status(500)
+            .json({ error: "Error cargando scripts de campaña" });
+    }
+});
+
 router.get(
     "/ultimo-estado-telefono",
     ...agenteMiddlewares,

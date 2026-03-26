@@ -9,6 +9,8 @@ import {
     fetchGestionOutboundByIdentification,
     guardarGestionOutbound,
 } from "../../services/dashboard.service";
+import { findOptionIgnoreCase } from "./dashboardAgente.helpers";
+import "./GestionOutboundDemo.css";
 const API_BASE = import.meta.env.VITE_API_BASE;
 
 function mapTemplateFieldToFormField(field) {
@@ -277,28 +279,98 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
         lastLookupIdRef.current = "";
     };
 
+    const quickActions = [
+        {
+            id: "no-contesta",
+            label: "No contesta",
+            apply: (currentValues) => {
+                const level1Options = Array.from(
+                    new Set(levels.map((item) => item.level1).filter(Boolean)),
+                );
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "no contesta") ||
+                        "no contesta",
+                    observaciones: "No contesta",
+                };
+            },
+        },
+        {
+            id: "grabadora",
+            label: "Grabadora",
+            apply: (currentValues) => {
+                const level1Options = Array.from(
+                    new Set(levels.map((item) => item.level1).filter(Boolean)),
+                );
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "grabadora") ||
+                        "grabadora",
+                    observaciones: "Contesta grabadora",
+                };
+            },
+        },
+        {
+            id: "contesta-tercero",
+            label: "Contesta tercero",
+            apply: (currentValues) => {
+                const level1Options = Array.from(
+                    new Set(levels.map((item) => item.level1).filter(Boolean)),
+                );
+                const matchedLevel1 =
+                    findOptionIgnoreCase(level1Options, "NU1 Regestionables") ||
+                    "NU1 Regestionables";
+                const level2Options = levels
+                    .filter((item) => item.level1 === matchedLevel1)
+                    .map((item) => item.level2)
+                    .filter(Boolean);
+
+                return {
+                    ...currentValues,
+                    motivoInteraccion: matchedLevel1,
+                    submotivoInteraccion:
+                        findOptionIgnoreCase(level2Options, "contesta tercero") ||
+                        "contesta tercero",
+                    observaciones: "Contesta tercero",
+                };
+            },
+        },
+    ];
+
     return (
-        <div
-            style={{
-                maxWidth: 500,
-                margin: "0 auto",
-                background: "#fff",
-                borderRadius: 8,
-                padding: 24,
-                boxShadow: "0 2px 8px #0001",
-            }}
-        >
-            <h2>{nombreFormulario}</h2>
+        <div className="gestion-outbound-demo">
+            <h2 className="gestion-outbound-demo__title">{nombreFormulario}</h2>
             {loading && <div>Cargando tipos de campana...</div>}
-            {error && <div style={{ color: "red" }}>{error}</div>}
+            {error && <div className="gestion-outbound-demo__error">{error}</div>}
             {successMessage && (
-                <div style={{ color: "#166534", marginBottom: 12 }}>
+                <div className="gestion-outbound-demo__success">
                     {successMessage}
                 </div>
             )}
             <FormularioDinamico
                 template={template}
                 initialValues={initialValues}
+                quickActions={quickActions}
                 esUpdate={isUpdate}
                 onChangeCampo={(name, value) => {
                     if (name === "motivoInteraccion") {

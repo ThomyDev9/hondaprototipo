@@ -7,6 +7,7 @@ export default function FormularioDinamicoReseteable({
     initialValues,
     esUpdate = false,
     levels = [],
+    quickActions = [],
 }) {
     const [form, setForm] = React.useState(() => {
         const initial = {};
@@ -59,9 +60,27 @@ export default function FormularioDinamicoReseteable({
         e.preventDefault();
         onActualizar?.(form);
     };
+    const handleQuickAction = (action) => {
+        if (typeof action?.apply !== "function") return;
+        setForm((prev) => action.apply({ ...prev }) || prev);
+    };
 
     return (
         <form className="outhonda-form outhonda-form-3col">
+            {quickActions.length > 0 && (
+                <div className="outhonda-form-quick-actions">
+                    {quickActions.map((action) => (
+                        <button
+                            key={action.id}
+                            type="button"
+                            className="outhonda-form-quick-button"
+                            onClick={() => handleQuickAction(action)}
+                        >
+                            {action.label}
+                        </button>
+                    ))}
+                </div>
+            )}
             {template.map((field) => {
                 if (typeof field.showIf === "function" && !field.showIf(form)) {
                     return null;
@@ -84,6 +103,7 @@ export default function FormularioDinamicoReseteable({
                                 }
                                 required={field.required}
                                 className="outhonda-form-input"
+                                readOnly={field.readOnly}
                             />
                         )}
                         {field.type === "datetime-local" && (
@@ -96,6 +116,7 @@ export default function FormularioDinamicoReseteable({
                                 }
                                 required={field.required}
                                 className="outhonda-form-input"
+                                readOnly={field.readOnly}
                             />
                         )}
                         {field.type === "select" &&
@@ -143,6 +164,7 @@ export default function FormularioDinamicoReseteable({
                                 }
                                 required={field.required}
                                 className="outhonda-form-textarea"
+                                readOnly={field.readOnly}
                             />
                         )}
                     </div>
