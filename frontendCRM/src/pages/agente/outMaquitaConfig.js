@@ -107,8 +107,8 @@ export function getRrssRegistroIdentification(source) {
             source?.["Numero de Cedula"] ||
             source?.["Número de Cédula"] ||
             source?.["Numero de Cédula"] ||
-            source?.C ||
             source?.D ||
+            source?.C ||
             "",
     ).trim();
 }
@@ -121,3 +121,4 @@ export function getTodayFormatted() {
 
     return `${day}/${month}/${year}`;
 }
+

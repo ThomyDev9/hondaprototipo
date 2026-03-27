@@ -27,6 +27,8 @@ const REGESTION_STATUS_VALUES = [
     "Seguimiento.",
 ];
 const CAMPAIGN_ID = "Out Maquita Cushunchic";
+const GESTION_REQUIRED_KEYS = ["N", "P"];
+const GESTION_EMPTY_KEYS = ["K", "L", "M"];
 
 const MAIL_EXTRA_FIELDS = [
     {
@@ -104,7 +106,7 @@ function buildMailInitialValues(registro) {
             registro?.celular ||
             registro?.Celular ||
             getFirstNonEmptyValue(registro, [
-                "Teléfono Celular",
+                "TelÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©fono Celular",
                 "Telefono Celular",
                 "Celular",
                 "H",
@@ -130,7 +132,7 @@ function buildMailInitialValues(registro) {
         observacionCooperativa: getFirstNonEmptyValue(registro, [
             "Observacion Cooperativa ",
             "Observacion Cooperativa",
-            "Observación Cooperativa",
+            "ObservaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n Cooperativa",
             "L",
         ]),
         fechaContacto: getFirstNonEmptyValue(registro, [
@@ -154,6 +156,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
     const [busquedaId, setBusquedaId] = React.useState("");
     const [buscando, setBuscando] = React.useState(false);
     const [registro, setRegistro] = React.useState(null);
+    const [gestionRows, setGestionRows] = React.useState([]);
     const [regestionRows, setRegestionRows] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState("");
@@ -171,11 +174,26 @@ export default function OutMaquitaMailFlow({ onBack }) {
                   }
                 : {
                       title: "Gestion Leads Mail",
-                      statusKeys: FLOW_STATUS_KEYS,
+                      statusKeys: [],
                       matchMode: "empty",
                       matchValues: [],
                   },
         [activeTab],
+    );
+
+    const hasRequiredGestionData = React.useCallback(
+        (row) =>
+            GESTION_REQUIRED_KEYS.every(
+                (key) =>
+                    String(getFirstNonEmptyValue(row, [key]) || "").trim() !==
+                    "",
+            ) &&
+            GESTION_EMPTY_KEYS.every(
+                (key) =>
+                    String(getFirstNonEmptyValue(row, [key]) || "").trim() ===
+                    "",
+            ),
+        [],
     );
 
     React.useEffect(() => {
@@ -215,13 +233,15 @@ export default function OutMaquitaMailFlow({ onBack }) {
                 if (!mounted) return;
 
                 if (activeTab === "regestion") {
+                    setGestionRows([]);
                     setRegestionRows(data);
                     setRegistro(null);
                     return;
                 }
 
+                setGestionRows(data.filter(hasRequiredGestionData));
                 setRegestionRows([]);
-                setRegistro(data[0] || null);
+                setRegistro(null);
             } catch {
                 if (mounted) {
                     setError("No se pudo obtener datos de Google Sheets");
@@ -238,7 +258,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
         return () => {
             mounted = false;
         };
-    }, [activeTab, loadFlowRows]);
+    }, [activeTab, hasRequiredGestionData, loadFlowRows]);
 
     React.useEffect(() => {
         if (registro) {
@@ -308,7 +328,17 @@ export default function OutMaquitaMailFlow({ onBack }) {
                 }));
                 setRegistro(null);
             } else {
-                setRegistro(siguiente);
+                setGestionRows(
+                    all.filter((item) => {
+                        const itemId = getMailRegistroIdentification(item);
+                        return (
+                            hasRequiredGestionData(item) &&
+                            itemId &&
+                            itemId !== currentId
+                        );
+                    }),
+                );
+                setRegistro(null);
             }
             setPdfUrl(null);
             setBusquedaId("");
@@ -319,7 +349,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
                 );
             }
         },
-        [activeTab, loadFlowRows],
+        [activeTab, hasRequiredGestionData, loadFlowRows],
     );
 
     const dynamicTemplate = React.useMemo(
@@ -465,7 +495,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
 
             setRegistro(null);
             setPdfUrl(null);
-            setError("No se encontró registro para esa identificación.");
+            setError("No se encontrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³ registro para esa identificaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n.");
         } catch {
             setError("Error buscando registro");
         } finally {
@@ -474,6 +504,88 @@ export default function OutMaquitaMailFlow({ onBack }) {
     };
 
     const showRegestionTable = activeTab === "regestion";
+    const showGestionTable = activeTab === "gestion";
+
+    const renderMailTable = (rows, title, emptyMessage, statusKeys) => (
+        <div className="outmaquita-mail__regestion-card">
+            <div className="outmaquita-mail__regestion-head">
+                <h2 className="outmaquita-mail__regestion-title">{title}</h2>
+                <span className="outmaquita-mail__regestion-count">
+                    {rows.length} pendientes
+                </span>
+            </div>
+
+            {rows.length === 0 ? (
+                <div className="outmaquita-mail__empty-state">
+                    {emptyMessage}
+                </div>
+            ) : (
+                <div className="outmaquita-mail__table-wrapper">
+                    <table className="outmaquita-mail__table">
+                        <thead>
+                            <tr>
+                                <th>Identificacion</th>
+                                <th>Cliente</th>
+                                <th>Celular</th>
+                                <th>Observacion</th>
+                                <th>Estado</th>
+                                <th>Accion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row) => {
+                                const rowId = getMailRegistroIdentification(row);
+                                const rowName =
+                                    getFirstNonEmptyValue(row, [
+                                        "Nombres completos",
+                                        "Apellidos y Nombres Completos",
+                                        "C",
+                                    ]) || "";
+                                const rowPhone =
+                                    getFirstNonEmptyValue(row, [
+                                        "Telefono Celular",
+                                        "TelÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©fono Celular",
+                                        "Celular",
+                                        "H",
+                                    ]) || "";
+                                const rowObservation =
+                                    getFirstNonEmptyValue(row, [
+                                        "P",
+                                        "Observacion",
+                                        "Observación",
+                                    ]) || "";
+                                const rowEstado =
+                                    getFirstNonEmptyValue(row, statusKeys) || "";
+
+                                return (
+                                    <tr key={`${rowId}-${row.__rowNumber}`}>
+                                        <td>{rowId}</td>
+                                        <td>{rowName}</td>
+                                        <td>{rowPhone}</td>
+                                        <td>{rowObservation}</td>
+                                        <td>{rowEstado}</td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                className="outmaquita-mail__select-button"
+                                                onClick={() => {
+                                                    setRegistro(row);
+                                                    setSuccessMessage("");
+                                                    setError("");
+                                                }}
+                                            >
+                                                Seleccionar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
 
     if (loading) {
         return (
@@ -503,16 +615,8 @@ export default function OutMaquitaMailFlow({ onBack }) {
                             activeTab={activeTab}
                             onChange={setActiveTab}
                             tabs={[
-                                {
-                                    id: "gestion",
-                                    label: "Gestion",
-                                    content: null,
-                                },
-                                {
-                                    id: "regestion",
-                                    label: "Regestion",
-                                    content: null,
-                                },
+                                { id: "gestion", label: "Gestion", content: null },
+                                { id: "regestion", label: "Regestion", content: null },
                             ]}
                         />
                     </div>
@@ -530,101 +634,13 @@ export default function OutMaquitaMailFlow({ onBack }) {
                     {showRegestionTable ? (
                         <>
                             {!registro ? (
-                                <div className="outmaquita-mail__regestion-card">
-                                    <div className="outmaquita-mail__regestion-head">
-                                        <h2 className="outmaquita-mail__regestion-title">
-                                            Registros para regestion
-                                        </h2>
-                                        <span className="outmaquita-mail__regestion-count">
-                                            {regestionRows.length} pendientes
-                                        </span>
-                                    </div>
-
-                                    {regestionRows.length === 0 ? (
-                                        <div className="outmaquita-mail__empty-state">
-                                            No hay registros disponibles para regestion.
-                                        </div>
-                                    ) : (
-                                        <div className="outmaquita-mail__table-wrapper">
-                                            <table className="outmaquita-mail__table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Identificacion</th>
-                                                        <th>Cliente</th>
-                                                        <th>Celular</th>
-                                                        <th>Estado</th>
-                                                        <th>Accion</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {regestionRows.map((row) => {
-                                                        const rowId =
-                                                            getMailRegistroIdentification(
-                                                                row,
-                                                            );
-                                                        const rowName =
-                                                            getFirstNonEmptyValue(
-                                                                row,
-                                                                [
-                                                                    "Nombres completos",
-                                                                    "Apellidos y Nombres Completos",
-                                                                    "C",
-                                                                ],
-                                                            ) || "";
-                                                        const rowPhone =
-                                                            getFirstNonEmptyValue(
-                                                                row,
-                                                                [
-                                                                    "Telefono Celular",
-                                                                    "Teléfono Celular",
-                                                                    "Celular",
-                                                                    "H",
-                                                                ],
-                                                            ) || "";
-                                                        const rowEstado =
-                                                            getFirstNonEmptyValue(
-                                                                row,
-                                                                REGESTION_STATUS_KEYS,
-                                                            ) || "";
-
-                                                        return (
-                                                            <tr
-                                                                key={`${rowId}-${row.__rowNumber}`}
-                                                            >
-                                                                <td>{rowId}</td>
-                                                                <td>{rowName}</td>
-                                                                <td>{rowPhone}</td>
-                                                                <td>{rowEstado}</td>
-                                                                <td>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="outmaquita-mail__select-button"
-                                                                        onClick={() => {
-                                                                            setRegistro(
-                                                                                row,
-                                                                            );
-                                                                            setSuccessMessage(
-                                                                                "",
-                                                                            );
-                                                                            setError(
-                                                                                "",
-                                                                            );
-                                                                        }}
-                                                                    >
-                                                                        Seleccionar
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : null}
-
-                            {registro ? (
+                                renderMailTable(
+                                    regestionRows,
+                                    "Registros para regestion",
+                                    "No hay registros disponibles para regestion.",
+                                    REGESTION_STATUS_KEYS,
+                                )
+                            ) : (
                                 <div className="outmaquita-mail__selected-panel">
                                     <div className="outmaquita-mail__selected-head">
                                         <h2 className="outmaquita-mail__regestion-title">
@@ -648,16 +664,12 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         onGuardar={async (formData) => {
                                             try {
                                                 setError("");
-                                                await saveOutboundGestion(
-                                                    formData,
-                                                );
+                                                await saveOutboundGestion(formData);
                                                 setSuccessMessage(
                                                     "Registro guardado correctamente",
                                                 );
                                                 await cargarSiguienteRegistro(
-                                                    getRegistroIdentification(
-                                                        formData,
-                                                    ),
+                                                    getRegistroIdentification(formData),
                                                     registro?.__rowNumber || 0,
                                                 );
                                             } catch (saveError) {
@@ -671,16 +683,12 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         onActualizar={async (formData) => {
                                             try {
                                                 setError("");
-                                                await saveOutboundGestion(
-                                                    formData,
-                                                );
+                                                await saveOutboundGestion(formData);
                                                 setSuccessMessage(
                                                     "Registro actualizado correctamente",
                                                 );
                                                 await cargarSiguienteRegistro(
-                                                    getRegistroIdentification(
-                                                        formData,
-                                                    ),
+                                                    getRegistroIdentification(formData),
                                                     registro?.__rowNumber || 0,
                                                 );
                                             } catch (saveError) {
@@ -698,101 +706,86 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         esUpdate={Boolean(identificacion)}
                                     />
                                 </div>
-                            ) : null}
+                            )}
                         </>
-                    ) : !registro ? (
-                        <div className="outmaquita-mail__empty-state">
-                            <div className="outmaquita-mail__search">
-                                <input
-                                    type="text"
-                                    placeholder="Buscar por identificación"
-                                    value={busquedaId}
-                                    onChange={(event) =>
-                                        setBusquedaId(event.target.value)
-                                    }
-                                    maxLength={20}
-                                    className="outmaquita-mail__search-input"
-                                />
-                                <button
-                                    type="button"
-                                    disabled={buscando || !busquedaId}
-                                    className="outmaquita-mail__search-button"
-                                    onClick={buscarRegistro}
-                                >
-                                    {buscando ? "Buscando..." : "Buscar"}
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
+                    ) : showGestionTable ? (
                         <>
-                            <div className="outmaquita-mail__search">
-                                <input
-                                    type="text"
-                                    placeholder="Buscar por identificación"
-                                    value={busquedaId}
-                                    onChange={(event) =>
-                                        setBusquedaId(event.target.value)
-                                    }
-                                    maxLength={20}
-                                    className="outmaquita-mail__search-input"
-                                />
-                                <button
-                                    type="button"
-                                    disabled={buscando || !busquedaId}
-                                    className="outmaquita-mail__search-button"
-                                    onClick={buscarRegistro}
-                                >
-                                    {buscando ? "Buscando..." : "Buscar"}
-                                </button>
-                            </div>
-
-                            <FormularioDinamico
-                                template={dynamicTemplate}
-                                initialValues={initialValues}
-                                quickActions={quickActions}
-                                onGuardar={async (formData) => {
-                                    try {
-                                        setError("");
-                                        await saveOutboundGestion(formData);
-                                        setSuccessMessage(
-                                            "Registro guardado correctamente",
-                                        );
-                                        await cargarSiguienteRegistro(
-                                            getRegistroIdentification(formData),
-                                            registro?.__rowNumber || 0,
-                                        );
-                                    } catch (saveError) {
-                                        setSuccessMessage("");
-                                        setError(
-                                            saveError?.message ||
-                                                "Error guardando gestion outbound",
-                                        );
-                                    }
-                                }}
-                                onActualizar={async (formData) => {
-                                    try {
-                                        setError("");
-                                        await saveOutboundGestion(formData);
-                                        setSuccessMessage(
-                                            "Registro actualizado correctamente",
-                                        );
-                                        await cargarSiguienteRegistro(
-                                            getRegistroIdentification(formData),
-                                            registro?.__rowNumber || 0,
-                                        );
-                                    } catch (saveError) {
-                                        setSuccessMessage("");
-                                        setError(
-                                            saveError?.message ||
-                                                "Error actualizando gestion outbound",
-                                        );
-                                    }
-                                }}
-                                onCancelar={onBack}
-                                esUpdate={Boolean(identificacion)}
-                            />
+                            {!registro ? (
+                                renderMailTable(
+                                    gestionRows,
+                                    "Registros para gestion",
+                                    "No hay registros disponibles para gestion.",
+                                    FLOW_STATUS_KEYS,
+                                )
+                            ) : (
+                                <div className="outmaquita-mail__selected-panel">
+                                    <div className="outmaquita-mail__selected-head">
+                                        <h2 className="outmaquita-mail__regestion-title">
+                                            Formulario de gestion
+                                        </h2>
+                                        <button
+                                            type="button"
+                                            className="outmaquita-mail__search-button"
+                                            onClick={() => {
+                                                setRegistro(null);
+                                                setPdfUrl(null);
+                                            }}
+                                        >
+                                            Volver a tabla
+                                        </button>
+                                    </div>
+                                    <FormularioDinamico
+                                        template={dynamicTemplate}
+                                        initialValues={initialValues}
+                                        quickActions={quickActions}
+                                        onGuardar={async (formData) => {
+                                            try {
+                                                setError("");
+                                                await saveOutboundGestion(formData);
+                                                setSuccessMessage(
+                                                    "Registro guardado correctamente",
+                                                );
+                                                await cargarSiguienteRegistro(
+                                                    getRegistroIdentification(formData),
+                                                    registro?.__rowNumber || 0,
+                                                );
+                                            } catch (saveError) {
+                                                setSuccessMessage("");
+                                                setError(
+                                                    saveError?.message ||
+                                                        "Error guardando gestion outbound",
+                                                );
+                                            }
+                                        }}
+                                        onActualizar={async (formData) => {
+                                            try {
+                                                setError("");
+                                                await saveOutboundGestion(formData);
+                                                setSuccessMessage(
+                                                    "Registro actualizado correctamente",
+                                                );
+                                                await cargarSiguienteRegistro(
+                                                    getRegistroIdentification(formData),
+                                                    registro?.__rowNumber || 0,
+                                                );
+                                            } catch (saveError) {
+                                                setSuccessMessage("");
+                                                setError(
+                                                    saveError?.message ||
+                                                        "Error actualizando gestion outbound",
+                                                );
+                                            }
+                                        }}
+                                        onCancelar={() => {
+                                            setRegistro(null);
+                                            setPdfUrl(null);
+                                        }}
+                                        esUpdate={Boolean(identificacion)}
+                                    />
+                                </div>
+                            )}
                         </>
-                    )}
+                    ) : null}
                 </section>
 
                 <aside className="outmaquita-mail__pdf-panel">
@@ -802,13 +795,13 @@ export default function OutMaquitaMailFlow({ onBack }) {
                             className="outmaquita-mail__pdf-iframe"
                             title="PDF Out Maquita"
                         />
-                    ) : activeTab === "regestion" && !registro ? (
+                    ) : !registro ? (
                         <div className="outmaquita-mail__pdf-empty">
                             Selecciona un registro de la tabla para visualizar el PDF.
                         </div>
                     ) : (
                         <div className="outmaquita-mail__pdf-empty">
-                            No se encontró PDF para la identificación.
+                            No se encontro PDF para la identificacion.
                         </div>
                     )}
                 </aside>
@@ -816,4 +809,3 @@ export default function OutMaquitaMailFlow({ onBack }) {
         </div>
     );
 }
-

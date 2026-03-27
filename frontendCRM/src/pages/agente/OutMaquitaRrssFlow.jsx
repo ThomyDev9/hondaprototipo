@@ -26,6 +26,8 @@ const RRSS_REGESTION_STATUS_VALUES = [
     "Seguimiento",
 ];
 const CAMPAIGN_ID = "Out Maquita Cushunchic";
+const RRSS_GESTION_REQUIRED_KEYS = ["P", "Q", "R"];
+const RRSS_GESTION_EMPTY_KEYS = ["T", "U", "V", "W"];
 
 const RRSS_EXTRA_FIELDS = [
     {
@@ -247,15 +249,32 @@ export default function OutMaquitaRrssFlow({ onBack }) {
     const [busquedaId, setBusquedaId] = React.useState("");
     const [buscando, setBuscando] = React.useState(false);
     const [registro, setRegistro] = React.useState(null);
+    const [gestionRows, setGestionRows] = React.useState([]);
     const [regestionRows, setRegestionRows] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState("");
     const [successMessage, setSuccessMessage] = React.useState("");
+    const [rrssDriveDuplicateMessage, setRrssDriveDuplicateMessage] =
+        React.useState("");
     const [rrssDraft, setRrssDraft] = React.useState({});
     const [rrssDriveDraft, setRrssDriveDraft] = React.useState(
         buildRrssDriveInitialValues(),
     );
     const isRegestionTab = activeTab === "regestion";
+    const hasRequiredGestionData = React.useCallback(
+        (row) =>
+            RRSS_GESTION_REQUIRED_KEYS.every(
+                (key) =>
+                    String(getFirstNonEmptyValue(row, [key]) || "").trim() !==
+                    "",
+            ) &&
+            RRSS_GESTION_EMPTY_KEYS.every(
+                (key) =>
+                    String(getFirstNonEmptyValue(row, [key]) || "").trim() ===
+                    "",
+            ),
+        [],
+    );
     const flowFilter = React.useMemo(
         () =>
             isRegestionTab
@@ -265,7 +284,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                       matchValues: RRSS_REGESTION_STATUS_VALUES,
                   }
                 : {
-                      statusKeys: FLOW_STATUS_KEYS,
+                      statusKeys: [],
                       matchMode: "empty",
                       matchValues: [],
                   },
@@ -308,11 +327,13 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                 if (!mounted) return;
 
                 if (isRegestionTab) {
+                    setGestionRows([]);
                     setRegestionRows(data);
                     setRegistro(null);
                 } else {
+                    setGestionRows(data.filter(hasRequiredGestionData));
                     setRegestionRows([]);
-                    setRegistro(data[0] || null);
+                    setRegistro(null);
                 }
             } catch {
                 if (mounted) {
@@ -330,7 +351,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
         return () => {
             mounted = false;
         };
-    }, [isRegestionTab, loadFlowRows]);
+    }, [hasRequiredGestionData, isRegestionTab, loadFlowRows]);
 
     React.useEffect(() => {
         if (registro) {
@@ -345,6 +366,60 @@ export default function OutMaquitaRrssFlow({ onBack }) {
     React.useEffect(() => {
         setRrssDriveDraft(buildRrssDriveInitialValues());
     }, [registro]);
+
+    React.useEffect(() => {
+        let cancelled = false;
+
+        async function validateDriveDuplicate() {
+            if (activeTab !== "drive") {
+                setRrssDriveDuplicateMessage("");
+                return;
+            }
+
+            const identification = String(
+                rrssDriveDraft?.identificacion ||
+                    rrssDriveDraft?.Identificacion ||
+                    rrssDriveDraft?.identification ||
+                    "",
+            ).trim();
+
+            if (!identification) {
+                setRrssDriveDuplicateMessage("");
+                return;
+            }
+
+            try {
+                const rows = await fetchOutMaquitaFlowData({
+                    gid: FLOW_GID,
+                    statusKeys: [],
+                    matchMode: "empty",
+                    matchValues: [],
+                });
+
+                if (cancelled) return;
+
+                const exists = rows.some(
+                    (row) => String(row?.D || "").trim() === identification,
+                );
+
+                setRrssDriveDuplicateMessage(
+                    exists
+                        ? "Ya existe un registro en Datos Drive con esa cedula."
+                        : "",
+                );
+            } catch {
+                if (!cancelled) {
+                    setRrssDriveDuplicateMessage("");
+                }
+            }
+        }
+
+        validateDriveDuplicate();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, rrssDriveDraft]);
 
     const dynamicTemplate = React.useMemo(
         () => [
@@ -435,7 +510,11 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                 siguiente =
                     all.find((item) => {
                         const itemId = getRrssRegistroIdentification(item);
-                        return itemId && itemId !== currentId;
+                        return (
+                            itemId &&
+                            itemId !== currentId &&
+                            (isRegestionTab || hasRequiredGestionData(item))
+                        );
                     }) || null;
             }
 
@@ -448,7 +527,17 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                 );
                 setRegistro(null);
             } else {
-                setRegistro(siguiente);
+                setGestionRows(
+                    all.filter((item) => {
+                        const itemId = getRrssRegistroIdentification(item);
+                        return (
+                            hasRequiredGestionData(item) &&
+                            itemId &&
+                            itemId !== currentId
+                        );
+                    }),
+                );
+                setRegistro(null);
             }
             setBusquedaId("");
 
@@ -458,7 +547,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                 );
             }
         },
-        [isRegestionTab, loadFlowRows],
+        [hasRequiredGestionData, isRegestionTab, loadFlowRows],
     );
 
     const saveWithTemplate = React.useCallback(
@@ -495,6 +584,10 @@ export default function OutMaquitaRrssFlow({ onBack }) {
             throw new Error(
                 "Numero de Cedula es requerido para enviar datos al Drive",
             );
+        }
+
+        if (rrssDriveDuplicateMessage) {
+            throw new Error(rrssDriveDuplicateMessage);
         }
 
         const { ok, json } = await guardarOutMaquitaRrssDrive({
@@ -691,6 +784,114 @@ export default function OutMaquitaRrssFlow({ onBack }) {
             </div>
         );
 
+    const renderGestionContent = () =>
+        registro ? (
+            <div className="outmaquita-rrss__tab-panel">
+                <div className="outmaquita-rrss__selected-head">
+                    <h2 className="outmaquita-rrss__section-title">
+                        Formulario de gestion
+                    </h2>
+                    <button
+                        type="button"
+                        className="outmaquita-rrss__search-button"
+                        onClick={() => {
+                            setRegistro(null);
+                            setSuccessMessage("");
+                            setError("");
+                        }}
+                    >
+                        Volver a tabla
+                    </button>
+                </div>
+                {renderGestionForm(() => {
+                    setRegistro(null);
+                    setSuccessMessage("");
+                    setError("");
+                })}
+            </div>
+        ) : (
+            <div className="outmaquita-rrss__tab-panel">
+                <div className="outmaquita-rrss__regestion-card">
+                    <div className="outmaquita-rrss__regestion-head">
+                        <h2 className="outmaquita-rrss__section-title">
+                            Registros para gestion
+                        </h2>
+                        <span className="outmaquita-rrss__regestion-count">
+                            {gestionRows.length} pendientes
+                        </span>
+                    </div>
+                    {gestionRows.length === 0 ? (
+                        <div className="outmaquita-rrss__empty-state">
+                            No hay registros disponibles para gestion.
+                        </div>
+                    ) : (
+                        <div className="outmaquita-rrss__table-wrapper">
+                            <table className="outmaquita-rrss__table">
+                                <thead>
+                                    <tr>
+                                        <th>Identificacion</th>
+                                        <th>Cliente</th>
+                                        <th>Celular</th>
+                                        <th>Observacion</th>
+                                        <th>Accion</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {gestionRows.map((row) => {
+                                        const rowId =
+                                            getRrssRegistroIdentification(row);
+                                        const rowName =
+                                            getFirstNonEmptyValue(row, [
+                                                "Apellidos y Nombres Completos ",
+                                                "Apellidos y Nombres Completos",
+                                                "D",
+                                                "C",
+                                            ]) || "";
+                                        const rowPhone =
+                                            getFirstNonEmptyValue(row, [
+                                                "Celular",
+                                                "G",
+                                            ]) || "";
+                                        const rowObservation =
+                                            getFirstNonEmptyValue(row, [
+                                                "P",
+                                                "Observacion AGENTE MAQUITA",
+                                            ]) || "";
+
+                                        return (
+                                            <tr
+                                                key={`${rowId}-${row.__rowNumber}`}
+                                            >
+                                                <td>{rowId}</td>
+                                                <td>{rowName}</td>
+                                                <td>{rowPhone}</td>
+                                                <td>{rowObservation}</td>
+                                                <td>
+                                                    <button
+                                                        type="button"
+                                                        className="outmaquita-rrss__select-button"
+                                                        onClick={() => {
+                                                            setRegistro(row);
+                                                            setSuccessMessage(
+                                                                "",
+                                                            );
+                                                            setError("");
+                                                        }}
+                                                    >
+                                                        Seleccionar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+
     if (loading) {
         return (
             <div className="outmaquita-rrss__status">Cargando registros...</div>
@@ -723,115 +924,87 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                     <div className="outmaquita-rrss__error">{error}</div>
                 ) : null}
 
-                {!isRegestionTab ? (
-                    <div className="outmaquita-rrss__search">
-                        <input
-                            type="text"
-                            placeholder="Buscar por identificación"
-                            value={busquedaId}
-                            onChange={(event) => setBusquedaId(event.target.value)}
-                            maxLength={20}
-                            className="outmaquita-rrss__search-input"
-                        />
-                        <button
-                            type="button"
-                            disabled={buscando || !busquedaId}
-                            className="outmaquita-rrss__search-button"
-                            onClick={buscarRegistro}
-                        >
-                            {buscando ? "Buscando..." : "Buscar"}
-                        </button>
-                    </div>
-                ) : null}
-
-                {!registro && !isRegestionTab ? (
-                    <div className="outmaquita-rrss__empty-state">
-                        No hay registros disponibles para este flujo.
-                    </div>
-                ) : (
-                    <div className="outmaquita-rrss__tabs-card">
-                        <Tabs
-                            activeTab={activeTab}
-                            onChange={setActiveTab}
-                            tabs={[
-                                {
-                                    id: "gestion",
-                                    label: "Gestion",
-                                    content: renderGestionForm(),
-                                },
-                                {
-                                    id: "regestion",
-                                    label: "Regestion",
-                                    content: renderRegestionContent(),
-                                },
-                                {
-                                    id: "drive",
-                                    label: "Datos Drive",
-                                    content: (
-                                        <div className="outmaquita-rrss__tab-panel">
-                                            <FormularioDinamico
-                                                template={RRSS_DRIVE_TEMPLATE}
-                                                initialValues={rrssDriveDraft}
-                                                onChangeCampo={(name, value) =>
-                                                    setRrssDriveDraft(
-                                                        (prev) => ({
-                                                            ...prev,
-                                                            [name]: value,
-                                                        }),
-                                                    )
+                <div className="outmaquita-rrss__tabs-card">
+                    <Tabs
+                        activeTab={activeTab}
+                        onChange={setActiveTab}
+                        tabs={[
+                            {
+                                id: "gestion",
+                                label: "Gestion",
+                                content: renderGestionContent(),
+                            },
+                            {
+                                id: "regestion",
+                                label: "Regestion",
+                                content: renderRegestionContent(),
+                            },
+                            {
+                                id: "drive",
+                                label: "Datos Drive",
+                                content: (
+                                    <div className="outmaquita-rrss__tab-panel">
+                                        {rrssDriveDuplicateMessage ? (
+                                            <div className="outmaquita-rrss__error">
+                                                {rrssDriveDuplicateMessage}
+                                            </div>
+                                        ) : null}
+                                        <FormularioDinamico
+                                            template={RRSS_DRIVE_TEMPLATE}
+                                            initialValues={rrssDriveDraft}
+                                            onChangeCampo={(name, value) =>
+                                                setRrssDriveDraft((prev) => ({
+                                                    ...prev,
+                                                    [name]: value,
+                                                }))
+                                            }
+                                            onGuardar={async (formData) => {
+                                                try {
+                                                    setError("");
+                                                    const merged = {
+                                                        ...rrssDriveDraft,
+                                                        ...formData,
+                                                    };
+                                                    await saveDriveOnly(merged);
+                                                    setSuccessMessage(
+                                                        "Datos del drive guardados correctamente",
+                                                    );
+                                                } catch (saveError) {
+                                                    setSuccessMessage("");
+                                                    setError(
+                                                        saveError?.message ||
+                                                            "Error guardando datos del drive",
+                                                    );
                                                 }
-                                                onGuardar={async (formData) => {
-                                                    try {
-                                                        setError("");
-                                                        const merged = {
-                                                            ...rrssDriveDraft,
-                                                            ...formData,
-                                                        };
-                                                        await saveDriveOnly(
-                                                            merged,
-                                                        );
-                                                        setSuccessMessage(
-                                                            "Datos del drive guardados correctamente",
-                                                        );
-                                                    } catch (saveError) {
-                                                        setSuccessMessage("");
-                                                        setError(
-                                                            saveError?.message ||
-                                                                "Error guardando datos del drive",
-                                                        );
-                                                    }
-                                                }}
-                                                onActualizar={async (formData) => {
-                                                    try {
-                                                        setError("");
-                                                        const merged = {
-                                                            ...rrssDriveDraft,
-                                                            ...formData,
-                                                        };
-                                                        await saveDriveOnly(
-                                                            merged,
-                                                        );
-                                                        setSuccessMessage(
-                                                            "Datos del drive actualizados correctamente",
-                                                        );
-                                                    } catch (saveError) {
-                                                        setSuccessMessage("");
-                                                        setError(
-                                                            saveError?.message ||
-                                                                "Error actualizando datos del drive",
-                                                        );
-                                                    }
-                                                }}
-                                                onCancelar={onBack}
-                                                esUpdate
-                                            />
-                                        </div>
-                                    ),
-                                },
-                            ]}
-                        />
-                    </div>
-                )}
+                                            }}
+                                            onActualizar={async (formData) => {
+                                                try {
+                                                    setError("");
+                                                    const merged = {
+                                                        ...rrssDriveDraft,
+                                                        ...formData,
+                                                    };
+                                                    await saveDriveOnly(merged);
+                                                    setSuccessMessage(
+                                                        "Datos del drive actualizados correctamente",
+                                                    );
+                                                } catch (saveError) {
+                                                    setSuccessMessage("");
+                                                    setError(
+                                                        saveError?.message ||
+                                                            "Error actualizando datos del drive",
+                                                    );
+                                                }
+                                            }}
+                                            onCancelar={onBack}
+                                            esUpdate
+                                        />
+                                    </div>
+                                ),
+                            },
+                        ]}
+                    />
+                </div>
             </div>
         </div>
     );
