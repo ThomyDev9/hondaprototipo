@@ -1,0 +1,99 @@
+.outbound-call-panel {
+    margin-bottom: 16px;
+    padding: 18px;
+    border: 1px solid #d7dfef;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+}
+
+.outbound-call-panel__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.outbound-call-panel__title {
+    margin: 0;
+    font-size: 1rem;
+    color: #10213f;
+}
+
+.outbound-call-panel__hint {
+    color: #475569;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.outbound-call-panel__controls {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    gap: 16px;
+    align-items: end;
+}
+
+.outbound-call-panel__field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #1e293b;
+    font-weight: 600;
+}
+
+.outbound-call-panel__select {
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #fff;
+    padding: 0 14px;
+    font-size: 1rem;
+    color: #0f172a;
+}
+
+.outbound-call-panel__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.outbound-call-panel__button {
+    min-height: 46px;
+    padding: 0 16px;
+    border: 1px solid #0f3c89;
+    border-radius: 999px;
+    background: #0f3c89;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.outbound-call-panel__button--alt {
+    background: #fff;
+    color: #0f3c89;
+}
+
+.outbound-call-panel__feedback,
+.outbound-call-panel__empty {
+    margin-top: 12px;
+    color: #475569;
+    font-size: 0.94rem;
+}
+
+@media (max-width: 768px) {
+    .outbound-call-panel__controls {
+        grid-template-columns: 1fr;
+    }
+
+    .outbound-call-panel__actions {
+        width: 100%;
+    }
+
+    .outbound-call-panel__button {
+        flex: 1 1 220px;
+    }
+}

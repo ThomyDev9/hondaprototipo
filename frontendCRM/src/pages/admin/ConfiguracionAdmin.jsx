@@ -135,10 +135,14 @@ function normalizeEditorFieldType(type, formType) {
         if (normalized === "combo") {
             return "select";
         }
-        if (normalized === "select") {
-            return normalized;
-        }
-        return "text";
+        const allowedTypes = new Set([
+            "text",
+            "number",
+            "date",
+            "textarea",
+            "select",
+        ]);
+        return allowedTypes.has(normalized) ? normalized : "text";
     }
 
     return normalized || "text";
@@ -642,7 +646,7 @@ opcion 3`}
 }
 
 FormularioConfigTab.propTypes = {
-    formType: PropTypes.oneOf(["F2", "F3"]).isRequired,
+    formType: PropTypes.oneOf(["F2", "F3", "F4"]).isRequired,
     editorMode: PropTypes.oneOf(["create", "edit"]).isRequired,
     menuItemId: PropTypes.string.isRequired,
 };

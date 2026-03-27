@@ -7,6 +7,11 @@ import {
     recomputeImportStats,
 } from "../../services/bases.service.js";
 import { linkManagementToRecording } from "../../services/recording-link.service.js";
+import {
+    appendOutMaquitaRrssDriveData,
+    isOutMaquitaCampaign,
+    syncOutMaquitaSheet,
+} from "../../services/outMaquitaSheets.service.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -1699,7 +1704,11 @@ router.post(
             const identification = String(
                 formData?.identificacion ||
                     formData?.Identificacion ||
+                    formData?.identification ||
+                    formData?.["Identificación"] ||
                     formData?.["IdentificaciÃ³n"] ||
+                    formData?.["Número de Cedula"] ||
+                    formData?.["Numero de Cedula"] ||
                     "",
             ).trim();
 
@@ -1737,7 +1746,14 @@ router.post(
             ).trim();
             const contactAddress = String(formData?.celular || "").trim();
             const interactionId = `OUT-${Date.now()}`;
-            const importId = String(formData?.Origen || "OUTBOUND").trim();
+            const importId = String(
+                formData?.Origen ||
+                    (isOutMaquitaCampaign(campaignId)
+                        ? formData?.outboundFlow === "rrss"
+                            ? "OUTBOUND REDES"
+                            : "OUTBOUND MAIL"
+                        : "OUTBOUND"),
+            ).trim();
             const tipoCampania = String(formData?.tipoCampana || "").trim();
             const observaciones = String(
                 formData?.observaciones || "",
@@ -1763,6 +1779,11 @@ router.post(
             }
 
             const payloadJson = JSON.stringify(formData || {});
+
+            const nextIntentos = Math.max(
+                Number(existingClient?.Intentos || 0),
+                0,
+            ) + 1;
 
             if (!existingClient) {
                 await pool.query(
@@ -1793,7 +1814,7 @@ router.post(
                         managementResultCode || estadoFinalToUse,
                         "",
                         tmstmp,
-                        1,
+                        nextIntentos,
                         identification,
                         campaignId,
                         campaignId,
@@ -1872,7 +1893,7 @@ router.post(
                         managementResultCode || estadoFinalToUse,
                         startedManagement,
                         tmstmp,
-                        1,
+                        nextIntentos,
                         fechaAgendamiento,
                         contactAddress,
                         observaciones,
@@ -1896,7 +1917,7 @@ router.post(
                         managementResultCode || estadoFinalToUse,
                         startedManagement,
                         tmstmp,
-                        1,
+                        nextIntentos,
                         fechaAgendamiento,
                         contactAddress,
                         observaciones,
@@ -1943,9 +1964,52 @@ router.post(
                 payload: formData,
             });
 
+            let linkedRecording = null;
+            try {
+                linkedRecording = await linkManagementToRecording({
+                    schemaName: encuestaSchema,
+                    contactId,
+                    gestionRowId: contactId,
+                    interactionId,
+                    campaignId,
+                    agent: agenteActor,
+                    contactAddress,
+                    managementTimestamp: tmstmp,
+                });
+            } catch (linkErr) {
+                console.warn(
+                    "[agente/guardar-gestion-outbound] no se pudo enlazar grabacion",
+                    linkErr?.message || linkErr,
+                );
+            }
+
+            let outMaquitaSheetSync = null;
+            if (isOutMaquitaCampaign(campaignId)) {
+                try {
+                    outMaquitaSheetSync = await syncOutMaquitaSheet(
+                        formData,
+                        agenteActor,
+                    );
+                } catch (sheetError) {
+                    console.error(
+                        "Error sincronizando Out Maquita con Google Sheets:",
+                        sheetError,
+                    );
+                    return res.status(500).json({
+                        error: "Gestion guardada en BD pero fallo la actualizacion del Drive",
+                        detail:
+                            sheetError?.message ||
+                            "No se pudo actualizar Google Sheets",
+                    });
+                }
+            }
+
             return res.json({
                 success: true,
                 contactId,
+                outMaquitaSheetSync,
+                recordingLinked: Boolean(linkedRecording?.recording_path),
+                recordingfile: linkedRecording?.recording_path || null,
                 message: "Gestion outbound guardada",
             });
         } catch (err) {
@@ -1957,4 +2021,51 @@ router.post(
         }
     },
 );
+
+router.post(
+    "/guardar-out-maquita-rrss-drive",
+    ...agenteMiddlewares,
+    async (req, res) => {
+        try {
+            const agenteActor = getAgentActor(req);
+            const campaignId = String(
+                req.body?.campaignId || req.body?.campaign_id || "",
+            ).trim();
+            const formData =
+                req.body?.formData && typeof req.body.formData === "object"
+                    ? req.body.formData
+                    : {};
+
+            if (!isOutMaquitaCampaign(campaignId)) {
+                return res.status(400).json({
+                    error: "campaignId invalido para Out Maquita RRSS",
+                });
+            }
+
+            const driveSync = await appendOutMaquitaRrssDriveData(
+                formData,
+                agenteActor,
+            );
+
+            return res.json({
+                success: true,
+                driveSync,
+                message: "Datos RRSS enviados al Drive",
+            });
+        } catch (err) {
+            console.error(
+                "Error en /agente/guardar-out-maquita-rrss-drive:",
+                err,
+            );
+            return res.status(500).json({
+                error: "Error enviando datos RRSS al Drive",
+                detail: err?.message || "",
+            });
+        }
+    },
+);
 export default router;
+
+
+
+

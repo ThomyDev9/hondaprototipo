@@ -1,8 +1,9 @@
 import { opciones } from "../../utils/selectOptions";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { formF2Template } from "../../templates/formF2Template";
 import FormularioDinamico from "../../components/FormularioDinamico";
+import { getAgentCampaignScript } from "../../services/campaignScripts.service";
 import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
 import {
     fetchFormTemplates,
@@ -39,6 +40,7 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
     const [motivoSeleccionado, setMotivoSeleccionado] = useState("");
     const [initialValues, setInitialValues] = useState({});
     const [isUpdate, setIsUpdate] = useState(false);
+    const [remoteScriptContent, setRemoteScriptContent] = useState(null);
     const nombreCampania = String(campaignName || "Out Kullki Wasi").trim();
     const nombreFormulario = `Gestion Outbound ${nombreCampania}`;
     const lastLookupIdRef = useRef("");
@@ -122,6 +124,46 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
             }
         }
         cargarDatos();
+    }, [nombreCampania]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadRemoteScript = async () => {
+            const campaignId = String(nombreCampania || "").trim();
+            if (!campaignId) {
+                setRemoteScriptContent(null);
+                return;
+            }
+
+            try {
+                const data = await getAgentCampaignScript(campaignId);
+                if (cancelled) return;
+
+                const resolvedScript =
+                    data?.script &&
+                    typeof data.script === "object" &&
+                    !Array.isArray(data.script)
+                        ? data.script
+                        : null;
+
+                setRemoteScriptContent(resolvedScript);
+            } catch (fetchError) {
+                console.error(
+                    "No se pudo cargar script remoto outbound:",
+                    fetchError,
+                );
+                if (!cancelled) {
+                    setRemoteScriptContent(null);
+                }
+            }
+        };
+
+        loadRemoteScript();
+
+        return () => {
+            cancelled = true;
+        };
     }, [nombreCampania]);
 
     useEffect(() => {
@@ -356,6 +398,39 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
             },
         },
     ];
+    const scriptContent = remoteScriptContent;
+    const scriptLabels = {
+        greeting: "Saludo",
+        informative: "Informativo",
+        farewell: "Despedida",
+        objections: "Manejo de objeciones",
+    };
+    const clienteNombre = String(
+        initialValues?.apellidosNombres ||
+            initialValues?.NombreCliente ||
+            initialValues?.NOMBRE_CLIENTE ||
+            "cliente",
+    ).trim();
+    const replacePlaceholders = (text) =>
+        String(text || "")
+            .replace(/\{cliente\}/gi, clienteNombre)
+            .replace(/\{asesor\}/gi, "[Asesor]");
+    const scriptEntries = useMemo(
+        () =>
+            Object.entries(scriptContent || {})
+                .filter(
+                    ([key, value]) =>
+                        ["greeting", "informative", "farewell", "objections"].includes(
+                            key,
+                        ) && Boolean(String(value || "").trim()),
+                )
+                .map(([key, value]) => ({
+                    key,
+                    label: scriptLabels[key] || key,
+                    text: replacePlaceholders(value),
+                })),
+        [scriptContent, clienteNombre],
+    );
 
     return (
         <div className="gestion-outbound-demo">
@@ -366,6 +441,31 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                 <div className="gestion-outbound-demo__success">
                     {successMessage}
                 </div>
+            )}
+            {scriptEntries.length > 0 && (
+                <section className="gestion-outbound-demo__scripts">
+                    <div className="gestion-outbound-demo__script-nav">
+                        {scriptEntries.map(({ key, label }) => (
+                            <span
+                                key={key}
+                                className="gestion-outbound-demo__script-chip"
+                            >
+                                {label}
+                            </span>
+                        ))}
+                    </div>
+                    <div className="gestion-outbound-demo__script-grid">
+                        {scriptEntries.map(({ key, label, text }) => (
+                            <article
+                                key={key}
+                                className="gestion-outbound-demo__script-card"
+                            >
+                                <h3>{label}</h3>
+                                <p>{text}</p>
+                            </article>
+                        ))}
+                    </div>
+                </section>
             )}
             <FormularioDinamico
                 template={template}
@@ -410,3 +510,5 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
         </div>
     );
 }
+
+

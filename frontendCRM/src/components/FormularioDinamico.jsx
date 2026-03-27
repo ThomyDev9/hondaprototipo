@@ -11,6 +11,15 @@ export default function FormularioDinamico({
     onChangeCampo,
     quickActions = [],
 }) {
+    const initialValuesKey = JSON.stringify(initialValues || {});
+    const templateFieldsKey = JSON.stringify(
+        Array.isArray(template)
+            ? template.map((field) => ({
+                  name: field?.name || "",
+                  type: field?.type || "text",
+              }))
+            : [],
+    );
     const [form, setForm] = React.useState(() => {
         const initial = {};
         template.forEach((f) => {
@@ -33,7 +42,27 @@ export default function FormularioDinamico({
             initial[f.name] = initialValues?.[f.name] ?? "";
         });
         setForm(initial);
-    }, [initialValues]);
+    }, [initialValuesKey]);
+
+    React.useEffect(() => {
+        setForm((prev) => {
+            const next = {};
+            template.forEach((f) => {
+                if (Object.prototype.hasOwnProperty.call(prev, f.name)) {
+                    next[f.name] = prev[f.name];
+                    return;
+                }
+
+                if (f.type === "checkbox") {
+                    next[f.name] = Boolean(initialValues?.[f.name]);
+                    return;
+                }
+
+                next[f.name] = initialValues?.[f.name] ?? "";
+            });
+            return next;
+        });
+    }, [templateFieldsKey, initialValuesKey, template]);
 
     const handleChange = (e, customOnChange) => {
         const { name, value, type, checked } = e.target;
@@ -105,7 +134,7 @@ export default function FormularioDinamico({
                         <input
                             type="text"
                             name={field.name}
-                            value={form[field.name]}
+                            value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
                             className="formulario-dinamico__input"
@@ -116,7 +145,7 @@ export default function FormularioDinamico({
                         <input
                             type="number"
                             name={field.name}
-                            value={form[field.name]}
+                            value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
                             className="formulario-dinamico__input"
@@ -126,7 +155,7 @@ export default function FormularioDinamico({
                         <input
                             type="date"
                             name={field.name}
-                            value={form[field.name]}
+                            value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
                             className="formulario-dinamico__input"
@@ -135,7 +164,7 @@ export default function FormularioDinamico({
                     {field.type === "select" && (
                         <select
                             name={field.name}
-                            value={form[field.name]}
+                            value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
                             className="formulario-dinamico__select"
@@ -154,7 +183,7 @@ export default function FormularioDinamico({
                     {field.type === "textarea" && (
                         <textarea
                             name={field.name}
-                            value={form[field.name]}
+                            value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
                             required={field.required}
                             className="formulario-dinamico__textarea"

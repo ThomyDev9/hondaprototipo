@@ -11,7 +11,6 @@ import {
     listScriptSubcampaigns,
     saveAdminCampaignScript,
 } from "../../services/campaignScripts.service";
-import scriptsByCampaign from "../agente/config/scriptsByCampaign";
 import "./ScriptsAdmin.css";
 
 const EMPTY_SCRIPT_TEMPLATE = {
@@ -26,18 +25,6 @@ const SCRIPT_FIELDS = [
         key: "greeting",
         label: "Saludo",
         help: "Inicio de la llamada y presentación del asesor.",
-        rows: 5,
-    },
-    {
-        key: "security",
-        label: "Seguridad",
-        help: "Validación de datos o aviso de seguridad.",
-        rows: 5,
-    },
-    {
-        key: "arcotel",
-        label: "Arcotel",
-        help: "Texto legal o consentimiento de llamada, si aplica.",
         rows: 5,
     },
     {
@@ -58,41 +45,22 @@ const SCRIPT_FIELDS = [
         help: "Respuestas sugeridas ante dudas u objeciones.",
         rows: 8,
     },
-    {
-        key: "additional",
-        label: "Notas adicionales",
-        help: "Indicaciones extra para el asesor.",
-        rows: 5,
-    },
 ];
 
-const ALLOWED_SCRIPT_KEYS = new Set([
-    "greeting",
-    "informative",
-    "farewell",
-    "objections",
-]);
-
-function sanitizeCampaignKey(value) {
-    return String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "-");
-}
 
 function buildPrettyScriptJson(scriptObject) {
     return JSON.stringify(scriptObject, null, 2);
 }
 
-function resolveFallbackScript(subcampaignName) {
-    const campaignKey = sanitizeCampaignKey(subcampaignName);
-    return scriptsByCampaign[campaignKey] || null;
-}
 
 function normalizeScriptShape(rawScript) {
     const nextScript = { ...EMPTY_SCRIPT_TEMPLATE };
 
-    if (!rawScript || typeof rawScript !== "object" || Array.isArray(rawScript)) {
+    if (
+        !rawScript ||
+        typeof rawScript !== "object" ||
+        Array.isArray(rawScript)
+    ) {
         return nextScript;
     }
 
@@ -105,6 +73,7 @@ function normalizeScriptShape(rawScript) {
 
 export default function ScriptsAdmin() {
     const [subcampaignOptions, setSubcampaignOptions] = useState([]);
+    const [selectedCampaignName, setSelectedCampaignName] = useState("");
     const [selectedMenuItemId, setSelectedMenuItemId] = useState("");
     const [scriptForm, setScriptForm] = useState(EMPTY_SCRIPT_TEMPLATE);
     const [scriptJsonText, setScriptJsonText] = useState(
@@ -126,14 +95,14 @@ export default function ScriptsAdmin() {
                     data.map((item) => ({
                         id: String(item.id || ""),
                         label: item.label,
+                        campania: item.campania || "",
                         subcampania: item.subcampania || "",
                     })),
                 );
             } catch (error) {
                 setAlert({
                     type: "error",
-                    message:
-                        error.message || "No se pudo cargar subcampañas",
+                    message: error.message || "No se pudo cargar subcampañas",
                 });
             } finally {
                 setLoadingOptions(false);
@@ -156,21 +125,14 @@ export default function ScriptsAdmin() {
                 setLoadingScript(true);
                 setAlert(null);
                 const data = await getAdminCampaignScript(selectedMenuItemId);
-                const selectedOption = subcampaignOptions.find(
-                    (option) =>
-                        String(option.id) === String(selectedMenuItemId),
-                );
-                const fallbackScript = resolveFallbackScript(
-                    selectedOption?.subcampania,
-                );
                 const resolvedScript = normalizeScriptShape(
-                    data?.script || fallbackScript || EMPTY_SCRIPT_TEMPLATE,
+                    data?.script || EMPTY_SCRIPT_TEMPLATE,
                 );
 
                 setScriptForm(resolvedScript);
                 setScriptJsonText(buildPrettyScriptJson(resolvedScript));
                 setMeta({
-                    source: data?.script ? "db" : fallbackScript ? "fallback" : "empty",
+                    source: data?.script ? "db" : "empty",
                     updatedBy: data?.updatedBy || "",
                     updatedAt: data?.updatedAt || null,
                 });
@@ -194,6 +156,43 @@ export default function ScriptsAdmin() {
             ) || null,
         [selectedMenuItemId, subcampaignOptions],
     );
+
+    const campaignOptions = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    subcampaignOptions
+                        .map((option) => String(option.campania || "").trim())
+                        .filter(Boolean),
+                ),
+            )
+                .sort((a, b) => a.localeCompare(b))
+                .map((campaignName) => ({
+                    id: campaignName,
+                    label: campaignName,
+                })),
+        [subcampaignOptions],
+    );
+
+    const filteredSubcampaignOptions = useMemo(
+        () =>
+            subcampaignOptions
+                .filter(
+                    (option) =>
+                        !selectedCampaignName ||
+                        option.campania === selectedCampaignName,
+                )
+                .map((option) => ({
+                    id: option.id,
+                    label: option.subcampania,
+                })),
+        [selectedCampaignName, subcampaignOptions],
+    );
+
+    const handleCampaignChange = (campaignName) => {
+        setSelectedCampaignName(campaignName);
+        setSelectedMenuItemId("");
+    };
 
     const handleFieldChange = (fieldKey, value) => {
         setScriptForm((prev) => {
@@ -239,8 +238,7 @@ export default function ScriptsAdmin() {
             setScriptJsonText(buildPrettyScriptJson(normalizedScript));
             setAlert({
                 type: "success",
-                message:
-                    response.message || "Script guardado correctamente",
+                message: response.message || "Script guardado correctamente",
             });
             setMeta((prev) => ({
                 source: "db",
@@ -257,18 +255,6 @@ export default function ScriptsAdmin() {
         } finally {
             setSaving(false);
         }
-    };
-
-    const handleUseFallback = () => {
-        const fallbackScript = resolveFallbackScript(selectedOption?.subcampania);
-        const normalizedScript = normalizeScriptShape(
-            fallbackScript || EMPTY_SCRIPT_TEMPLATE,
-        );
-        setScriptForm(normalizedScript);
-        setScriptJsonText(
-            buildPrettyScriptJson(normalizedScript),
-        );
-        setAlert(null);
     };
 
     return (
@@ -295,6 +281,32 @@ export default function ScriptsAdmin() {
                 </div>
 
                 <div className="scripts-admin__panel">
+                    <div className="scripts-admin__selectors">
+                        <Select
+                            label="Campaña"
+                            options={campaignOptions}
+                            value={selectedCampaignName}
+                            onChange={handleCampaignChange}
+                            placeholder={
+                                loadingOptions
+                                    ? "Cargando campañas..."
+                                    : "Selecciona una campaña"
+                            }
+                            disabled={loadingOptions}
+                        />
+                        <Select
+                            label="Subcampaña"
+                            options={filteredSubcampaignOptions}
+                            value={selectedMenuItemId}
+                            onChange={setSelectedMenuItemId}
+                            placeholder={
+                                selectedCampaignName
+                                    ? "Selecciona una subcampaña"
+                                    : "Primero selecciona una campaña"
+                            }
+                            disabled={loadingOptions || !selectedCampaignName}
+                        />
+                    </div>
                     <Select
                         label="Subcampaña"
                         options={subcampaignOptions}
@@ -316,11 +328,7 @@ export default function ScriptsAdmin() {
                             </div>
                             <div>
                                 <strong>Origen actual:</strong>{" "}
-                                {meta?.source === "db"
-                                    ? "Base de datos"
-                                    : meta?.source === "fallback"
-                                      ? "Archivo fallback"
-                                      : "Vacío"}
+                                {meta?.source === "db" ? "Base de datos" : "Vacío"}
                             </div>
                             {meta?.updatedBy && (
                                 <div>
@@ -338,9 +346,7 @@ export default function ScriptsAdmin() {
                     )}
 
                     <div className="scripts-admin__fields">
-                        {SCRIPT_FIELDS.filter((field) =>
-                            ALLOWED_SCRIPT_KEYS.has(field.key),
-                        ).map((field) => (
+                        {SCRIPT_FIELDS.map((field) => (
                             <div
                                 key={field.key}
                                 className="scripts-admin__field-card"
@@ -350,7 +356,7 @@ export default function ScriptsAdmin() {
                                     <p>{field.help}</p>
                                 </div>
                                 <FormField
-                                    label={field.label}
+                                    label=""
                                     type="textarea"
                                     name={field.key}
                                     value={scriptForm[field.key] || ""}
@@ -375,14 +381,6 @@ export default function ScriptsAdmin() {
                     )}
 
                     <div className="scripts-admin__actions">
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={handleUseFallback}
-                            disabled={!selectedMenuItemId || saving}
-                        >
-                            Cargar fallback actual
-                        </Button>
                         <Button
                             type="button"
                             onClick={handleSave}

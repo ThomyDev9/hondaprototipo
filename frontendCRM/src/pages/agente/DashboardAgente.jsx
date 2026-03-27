@@ -200,6 +200,11 @@ export default function DashboardAgente({
                     {registro && !isHomeView && (
                         <AgentGestionForm
                             registro={registro}
+                            campaignId={
+                                campaignIdSeleccionada ||
+                                selectedCampaignId ||
+                                ""
+                            }
                             onSubmit={handleGuardarGestion}
                             levels={levels}
                             level1Seleccionado={level1Seleccionado}

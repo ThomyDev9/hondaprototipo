@@ -29,6 +29,58 @@
     font-weight: 600;
 }
 
+.gestion-outbound-demo__scripts {
+    margin-bottom: 20px;
+    padding: 18px;
+    border: 1px solid #dbe3f0;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+}
+
+.gestion-outbound-demo__script-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.gestion-outbound-demo__script-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1e3a8a;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.gestion-outbound-demo__script-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.gestion-outbound-demo__script-card {
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid #cbd5e1;
+    background: rgba(255, 255, 255, 0.96);
+}
+
+.gestion-outbound-demo__script-card h3 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    color: #10213f;
+}
+
+.gestion-outbound-demo__script-card p {
+    margin: 0;
+    color: #334155;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
 @media (max-width: 768px) {
     .gestion-outbound-demo {
         padding: 16px;
@@ -37,5 +89,9 @@
 
     .gestion-outbound-demo__title {
         font-size: 1.3rem;
+    }
+
+    .gestion-outbound-demo__scripts {
+        padding: 14px;
     }
 }

@@ -1,0 +1,222 @@
+.outmaquita-mail {
+    width: 100%;
+}
+
+.outmaquita-mail__layout {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+    width: 100%;
+    min-height: 72vh;
+}
+
+.outmaquita-mail__form-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 1120px;
+}
+
+.outmaquita-mail__pdf-panel {
+    flex: 0 0 min(38%, 560px);
+    min-width: 320px;
+    height: 72vh;
+    border-radius: 18px;
+    border: 1px solid #d7dfef;
+    background: #f6f8fc;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.outmaquita-mail__pdf-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #fff;
+}
+
+.outmaquita-mail__pdf-empty,
+.outmaquita-mail__status {
+    color: #475569;
+    text-align: center;
+    font-size: 1rem;
+}
+
+.outmaquita-mail__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.outmaquita-mail__title {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #10213f;
+}
+
+.outmaquita-mail__tabs {
+    margin-bottom: 16px;
+}
+
+.outmaquita-mail__tabs .tabs__content {
+    display: none;
+}
+
+.outmaquita-mail__back-button,
+.outmaquita-mail__search-button {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #10213f;
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.outmaquita-mail__search {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.outmaquita-mail__search {
+    display: none;
+}
+
+.outmaquita-mail__search-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 1rem;
+}
+
+.outmaquita-mail__success,
+.outmaquita-mail__error {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.outmaquita-mail__success {
+    background: #ecfdf3;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+}
+
+.outmaquita-mail__error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+}
+
+.outmaquita-mail__empty-state {
+    padding: 24px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 18px;
+    background: #fff;
+}
+
+.outmaquita-mail__regestion-card,
+.outmaquita-mail__selected-panel {
+    margin-bottom: 18px;
+    padding: 18px;
+    border: 1px solid #d7dfef;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+}
+
+.outmaquita-mail__regestion-head,
+.outmaquita-mail__selected-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.outmaquita-mail__regestion-title {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #10213f;
+}
+
+.outmaquita-mail__regestion-count {
+    color: #475569;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.outmaquita-mail__table-wrapper {
+    overflow-x: auto;
+}
+
+.outmaquita-mail__table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.outmaquita-mail__table th,
+.outmaquita-mail__table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    font-size: 0.95rem;
+}
+
+.outmaquita-mail__table th {
+    color: #10213f;
+    font-weight: 800;
+    background: #f8fafc;
+}
+
+.outmaquita-mail__select-button {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #10213f;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.outmaquita-mail__empty-state:empty::before {
+    content: "No hay registros disponibles para este flujo.";
+    color: #475569;
+}
+
+@media (max-width: 1024px) {
+    .outmaquita-mail__layout {
+        flex-direction: column;
+    }
+
+    .outmaquita-mail__form-panel {
+        max-width: none;
+        width: 100%;
+    }
+
+    .outmaquita-mail__pdf-panel {
+        width: 100%;
+        min-width: 0;
+        flex-basis: auto;
+        height: 60vh;
+    }
+}
+
+@media (max-width: 768px) {
+    .outmaquita-mail__header,
+    .outmaquita-mail__search,
+    .outmaquita-mail__regestion-head,
+    .outmaquita-mail__selected-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

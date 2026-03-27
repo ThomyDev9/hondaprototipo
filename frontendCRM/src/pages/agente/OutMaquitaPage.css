@@ -1,132 +1,86 @@
-.outmaquita-form-field {
-    display: flex;
-    flex-direction: column;
-}
-.outmaquita-form-label {
-    font-weight: 600;
-    color: #1a2540;
-}
-.outmaquita-form-input,
-.outmaquita-form-select,
-.outmaquita-form-textarea {
-    width: 100%;
-    border: 1.5px solid #1a2540;
-    border-radius: 8px;
-    font-size: 1.08rem;
-    background: #f9fafb;
-    box-shadow: 0 2px 8px #0001;
-    outline: none;
-    transition: border 0.2s;
-}
-.outmaquita-form-input:focus,
-.outmaquita-form-select:focus,
-.outmaquita-form-textarea:focus {
-    border: 2px solid #2d3a5a;
-}
-.outmaquita-form-submit {
-    grid-column: span 2;
-    background: #1a2540;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 1.15rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-.outmaquita-form-submit:hover {
-    background: #2d3a5a;
-}
-/* Estilos para OutMaquitaPage */
-.outmaquita-flex-row {
-    display: flex;
-    flex-direction: row;
-    gap: 30px;
-    justify-content: center;
-    align-items: flex-start;
+.outmaquita-selector-page {
     min-height: 72vh;
-    height: 72vh;
-    box-sizing: border-box;
-}
-.outmaquita-form-panel {
-    height: 100vh;
-    width: 100%;
-    max-height: 90vh;
-    max-width: 900px;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    overflow-y: auto;
-}
-.outmaquita-title {
-    text-align: center;
-    font-size: 1.5rem;
-    margin-bottom: 0;
-}
-
-.outmaquita-form {
-    width: auto;
-    background: #8e8d8d;
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr; /* tres columnas iguales */
-    gap: 20px 30px; /* espacio entre filas y columnas */
-}
-
-.outmaquita-form input,
-.outmaquita-form select,
-.outmaquita-form textarea {
-    width: 100%;
-
-    border: 1px solid #c3c7d1;
-    border-radius: 8px;
-    font-size: 1.08rem;
-    background: #f9fafb;
-}
-.outmaquita-form textarea {
-    min-height: 60px;
-}
-.outmaquita-form button[type="submit"] {
-    grid-column: span 2;
-    background: #1a2540;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 1.15rem;
-    font-weight: 100;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-.outmaquita-form button[type="submit"]:hover {
-    background: #2d3a5a;
-}
-.outmaquita-pdf-panel {
-    height: 72vh;
-    max-height: 72vh;
-    width: 90%;
-    background: #931818;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 24px;
 }
-.outmaquita-pdf-iframe {
-    width: 100%;
-    height: 100%;
-    min-height: 700px;
-    border: 1px solid #222;
-    border-radius: 12px;
-    box-shadow: 0 4px 24px #0002;
-    background: #fff;
-    margin-top: 90px;
+
+.outmaquita-selector-shell {
+    width: min(980px, 100%);
+    padding: 32px;
+    border-radius: 24px;
+    border: 1px solid #d7dfef;
+    background: linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
 }
-.outmaquita-pdf-empty {
-    color: #888;
-    font-size: 1.2rem;
+
+.outmaquita-selector-title {
+    margin: 0;
     text-align: center;
+    font-size: 1.6rem;
+    color: #10213f;
 }
-.outmaquita-loading,
-.outmaquita-error,
-.outmaquita-nodata {
+
+.outmaquita-selector-subtitle {
+    margin: 10px 0 24px;
+    text-align: center;
+    color: #4b5563;
     font-size: 1rem;
-    color: #1a2540;
-    text-align: center;
+}
+
+.outmaquita-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.outmaquita-selector-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 24px;
+    border: 1px solid #cbd5e1;
+    border-radius: 18px;
+    background: #fff;
+    color: #10213f;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease;
+}
+
+.outmaquita-selector-card:hover {
+    transform: translateY(-2px);
+    border-color: #2563eb;
+    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.12);
+}
+
+.outmaquita-selector-card strong {
+    font-size: 1.2rem;
+}
+
+.outmaquita-selector-card span:last-child {
+    color: #475569;
+    line-height: 1.5;
+}
+
+.outmaquita-selector-card__eyebrow {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #e0ecff;
+    color: #1d4ed8;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+@media (max-width: 768px) {
+    .outmaquita-selector-grid {
+        grid-template-columns: 1fr;
+    }
 }

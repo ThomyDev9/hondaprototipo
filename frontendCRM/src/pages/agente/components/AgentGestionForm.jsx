@@ -1,13 +1,13 @@
-﻿import "./AgentGestionForm.css";
+import "./AgentGestionForm.css";
 import PropTypes from "prop-types";
 import Button from "../../../components/common/Button";
 import Tabs from "../../../components/common/Tabs";
 import { getAgentCampaignScript } from "../../../services/campaignScripts.service";
-import scriptsByCampaign from "../config/scriptsByCampaign";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 function AgentGestionForm({
     registro,
+    campaignId,
     onSubmit,
     levels,
     level1Seleccionado,
@@ -36,59 +36,7 @@ function AgentGestionForm({
 }) {
     const firstRender = useRef(true);
     const [activeTab, setActiveTab] = useState("gestion");
-    const [dialerFeedback, setDialerFeedback] = useState("");
     const [remoteScriptContent, setRemoteScriptContent] = useState(null);
-
-    const openDialProtocol = (protocol) => {
-        const phone = String(telefonoSeleccionado || "").trim();
-        if (!phone) return;
-        if (protocol === "sip-server") {
-            window.location.href = `sip:${phone}@172.19.10.40`;
-            return;
-        }
-        if (protocol === "sip") {
-            window.location.href = `sip:${phone}`;
-            return;
-        }
-        window.location.href = `${protocol}:${phone}`;
-    };
-
-    const handleZoiperBridgeDial = async () => {
-        const phone = String(telefonoSeleccionado || "").trim();
-        if (!phone) return;
-
-        try {
-            setDialerFeedback("");
-            const response = await fetch("http://127.0.0.1:49321/dial", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ number: phone }),
-            });
-            const json = await response.json().catch(() => null);
-
-            if (!response.ok || !json?.ok) {
-                throw new Error(
-                    json?.error ||
-                        "El bridge local no respondió correctamente.",
-                );
-            }
-
-            setDialerFeedback(
-                `Dialer local OK. URI: ${json?.sipUri || "N/D"} | PID: ${
-                    json?.pid || "N/D"
-                }`,
-            );
-        } catch (err) {
-            console.error(err);
-            setDialerFeedback(
-                `No se pudo conectar con el dialer local. ${
-                    err?.message || ""
-                } Ejecuta 'npm run zoiper-bridge' y revisa tools/zoiper-bridge.log.`,
-            );
-        }
-    };
 
     const getDynamicWidth = (value) => {
         const text = String(value ?? "");
@@ -123,12 +71,10 @@ function AgentGestionForm({
     let dynamicFormRowsWithValues = [];
     let getDynamicFormValue = () => "";
     if (dynamicFormConfig && dynamicFormConfig.rows && dynamicFormDetail) {
-        const allFields = dynamicFormConfig.rows
-            .flat()
-            .filter((field) => {
-                const val = dynamicFormDetail[field.key];
-                return val !== undefined && val !== null && val !== "";
-            });
+        const allFields = dynamicFormConfig.rows.flat().filter((field) => {
+            const val = dynamicFormDetail[field.key];
+            return val !== undefined && val !== null && val !== "";
+        });
         const MAX_COLS = 6;
         dynamicFormRowsWithValues = [];
         for (let i = 0; i < allFields.length; i += MAX_COLS) {
@@ -146,7 +92,9 @@ function AgentGestionForm({
             adicionales = {};
         }
         const allFields = Object.entries(adicionales)
-            .filter(([, val]) => val !== undefined && val !== null && val !== "")
+            .filter(
+                ([, val]) => val !== undefined && val !== null && val !== "",
+            )
             .map(([key, val]) => ({ key, label: key, value: val }));
         const MAX_COLS = 6;
         extraFields = [];
@@ -218,32 +166,6 @@ function AgentGestionForm({
                                 </option>
                             ))}
                         </select>
-                        {telefonoSeleccionado && (
-                            <div className="agent-phone-actions">
-                                <span className="agent-copy-hint">
-                                    Copiado al portapapeles
-                                </span>
-                                <button
-                                    type="button"
-                                    className="agent-zoiper-button"
-                                    onClick={handleZoiperBridgeDial}
-                                >
-                                    Marcar en Zoiper
-                                </button>
-                                <button
-                                    type="button"
-                                    className="agent-zoiper-button agent-zoiper-button--alt"
-                                    onClick={() => openDialProtocol("sip-server")}
-                                >
-                                    Probar SIP directo
-                                </button>
-                            </div>
-                        )}
-                        {dialerFeedback && (
-                            <span className="agent-dialer-hint">
-                                {dialerFeedback}
-                            </span>
-                        )}
                     </label>
                 </div>
                 <div className="agent-form-field">
@@ -281,7 +203,10 @@ function AgentGestionForm({
                         >
                             <option value="">Selecciona...</option>
                             {levels
-                                .filter((item) => item.level1 === level1Seleccionado)
+                                .filter(
+                                    (item) =>
+                                        item.level1 === level1Seleccionado,
+                                )
                                 .map((item) => item.level2)
                                 .filter(Boolean)
                                 .map((opt) => (
@@ -297,7 +222,9 @@ function AgentGestionForm({
                         <span>Estados teléfonos</span>
                         <select
                             value={estadoTelefonoSeleccionado || ""}
-                            onChange={(e) => onEstadoTelefonoChange(e.target.value)}
+                            onChange={(e) =>
+                                onEstadoTelefonoChange(e.target.value)
+                            }
                             className="agent-input"
                             required
                         >
@@ -317,7 +244,9 @@ function AgentGestionForm({
                             type="text"
                             placeholder="Ej: Cliente prefiere WhatsApp para confirmación."
                             value={observacion || ""}
-                            onChange={(e) => onObservacionChange(e.target.value)}
+                            onChange={(e) =>
+                                onObservacionChange(e.target.value)
+                            }
                             className="agent-input"
                             required
                         />
@@ -342,7 +271,7 @@ function AgentGestionForm({
         <section className="agent-form-card agent-form-card--secondary">
             <div className="agent-form-header-row">
                 <p className="agent-form-card__title">
-                    Formulario 2 · {dynamicFormConfig?.title}
+                    Formulario 2 – {dynamicFormConfig?.title}
                 </p>
             </div>
             <div className="agent-dynamic-section">
@@ -352,11 +281,16 @@ function AgentGestionForm({
                         className="agent-dynamic-row"
                     >
                         {rowFields.map((field) => {
-                            const value = String(getDynamicFormValue(field.key));
+                            const value = String(
+                                getDynamicFormValue(field.key),
+                            );
                             const isLong =
                                 value.length > 28 || field.label.length > 28;
                             return (
-                                <div key={field.key} className="agent-form-field">
+                                <div
+                                    key={field.key}
+                                    className="agent-form-field"
+                                >
                                     <span className="agent-dynamic-label">
                                         {field.label}
                                     </span>
@@ -369,7 +303,9 @@ function AgentGestionForm({
                                                 8,
                                                 Math.max(
                                                     2,
-                                                    Math.ceil(value.length / 60),
+                                                    Math.ceil(
+                                                        value.length / 60,
+                                                    ),
                                                 ),
                                             )}
                                             style={{
@@ -394,12 +330,18 @@ function AgentGestionForm({
                 ))}
                 {extraFields.length > 0 &&
                     extraFields.map((row, idx) => (
-                        <div key={`extra-row-${idx}`} className="agent-dynamic-row">
+                        <div
+                            key={`extra-row-${idx}`}
+                            className="agent-dynamic-row"
+                        >
                             {row.map((field) => {
                                 const value = String(field.value);
                                 const isLong = value.length > 80;
                                 return (
-                                    <div key={field.key} className="agent-form-field">
+                                    <div
+                                        key={field.key}
+                                        className="agent-form-field"
+                                    >
                                         <span className="agent-dynamic-label">
                                             {field.label}
                                         </span>
@@ -412,7 +354,9 @@ function AgentGestionForm({
                                                     8,
                                                     Math.max(
                                                         2,
-                                                        Math.ceil(value.length / 60),
+                                                        Math.ceil(
+                                                            value.length / 60,
+                                                        ),
                                                     ),
                                                 )}
                                                 style={{
@@ -443,18 +387,24 @@ function AgentGestionForm({
         <section className="agent-form-card agent-form-card--tertiary">
             <div className="agent-form-header-row">
                 <p className="agent-form-card__title">
-                    Formulario 3 · {dynamicSurveyConfig?.title}
+                    Formulario 3 – {dynamicSurveyConfig?.title}
                 </p>
             </div>
             <div className="agent-survey-grid">
                 {surveyFieldsToRender.map((field) => (
                     <div key={field.key} className="agent-survey-item">
                         <div className="agent-survey-field">
-                            <span className="agent-survey-question">{field.label}</span>
+                            <span className="agent-survey-question">
+                                {field.label}
+                            </span>
                             {(() => {
-                                const currentValue = surveyAnswers[field.key] || "";
+                                const currentValue =
+                                    surveyAnswers[field.key] || "";
                                 const handleChange = (e) =>
-                                    onSurveyFieldChange(field.key, e.target.value);
+                                    onSurveyFieldChange(
+                                        field.key,
+                                        e.target.value,
+                                    );
                                 if (field.type === "select") {
                                     return (
                                         <select
@@ -462,9 +412,14 @@ function AgentGestionForm({
                                             value={currentValue}
                                             onChange={handleChange}
                                         >
-                                            <option value="">Selecciona...</option>
+                                            <option value="">
+                                                Selecciona...
+                                            </option>
                                             {field.options?.map((option) => (
-                                                <option key={option} value={option}>
+                                                <option
+                                                    key={option}
+                                                    value={option}
+                                                >
                                                     {option}
                                                 </option>
                                             ))}
@@ -473,9 +428,7 @@ function AgentGestionForm({
                                 }
                                 if (field.type === "label") {
                                     return (
-                                        <div
-                                            className="agent-input agent-survey-input agent-survey-readonly"
-                                        >
+                                        <div className="agent-input agent-survey-input agent-survey-readonly">
                                             {field.label}
                                         </div>
                                     );
@@ -484,16 +437,21 @@ function AgentGestionForm({
                                     return (
                                         <textarea
                                             className="agent-input agent-survey-input"
-                                            maxLength={field.maxLength || undefined}
+                                            maxLength={
+                                                field.maxLength || undefined
+                                            }
                                             value={currentValue}
                                             onChange={handleChange}
                                         />
                                     );
                                 }
                                 let inputType = "text";
-                                if (field.type === "datetime-local") inputType = "datetime-local";
-                                else if (field.type === "date") inputType = "date";
-                                else if (field.type === "number") inputType = "number";
+                                if (field.type === "datetime-local")
+                                    inputType = "datetime-local";
+                                else if (field.type === "date")
+                                    inputType = "date";
+                                else if (field.type === "number")
+                                    inputType = "number";
                                 return (
                                     <input
                                         type={inputType}
@@ -516,45 +474,44 @@ function AgentGestionForm({
             {renderFormulario1()}
             {showDynamicForm && (
                 <>
-                    <div className="agent-form-stack-divider" aria-hidden="true" />
+                    <div
+                        className="agent-form-stack-divider"
+                        aria-hidden="true"
+                    />
                     {renderFormulario2()}
                 </>
             )}
         </div>
     );
-
-    const sanitizeCampaignKey = (value) =>
-        value?.toString().trim().toLowerCase().replace(/\s+/g, "-");
-    const fallbackKey = sanitizeCampaignKey(dynamicFormConfig?.title);
-    const resolvedCampaignId =
-        registro?.campaignId || registro?.campaign_id || registro?.Campaign || "";
-    const scriptKey =
-        sanitizeCampaignKey(resolvedCampaignId) || fallbackKey || "default";
+    const resolvedCampaignId = useMemo(
+        () =>
+            [
+                campaignId,
+                registro?.campaignId,
+                registro?.campaign_id,
+                registro?.Campaign,
+                registro?.campaign,
+            ]
+                .map((value) => String(value || "").trim())
+                .find(Boolean) || "",
+        [campaignId, registro],
+    );
 
     useEffect(() => {
         let cancelled = false;
 
         const loadRemoteScript = async () => {
-            const campaignId = String(resolvedCampaignId || "").trim();
-            if (!campaignId) {
+            if (!resolvedCampaignId) {
                 setRemoteScriptContent(null);
                 return;
             }
 
             try {
-                const data = await getAgentCampaignScript(campaignId);
-                if (cancelled) return;
-
-                const resolvedScript =
-                    data?.script &&
-                    typeof data.script === "object" &&
-                    !Array.isArray(data.script)
-                        ? data.script
-                        : null;
-
-                setRemoteScriptContent(resolvedScript);
-            } catch (error) {
-                console.error("No se pudo cargar script remoto:", error);
+                const data = await getAgentCampaignScript(resolvedCampaignId);
+                if (!cancelled) {
+                    setRemoteScriptContent(data?.script || data || null);
+                }
+            } catch {
                 if (!cancelled) {
                     setRemoteScriptContent(null);
                 }
@@ -568,10 +525,7 @@ function AgentGestionForm({
         };
     }, [resolvedCampaignId]);
 
-    const scriptContent =
-        remoteScriptContent ||
-        scriptsByCampaign[scriptKey] ||
-        scriptsByCampaign.default;
+    const scriptContent = remoteScriptContent;
     const normalizeForComparison = (value) =>
         value
             ?.toString()
@@ -606,11 +560,7 @@ function AgentGestionForm({
                     normalizedLabel.includes(normalizedPattern)
                 ) {
                     const value = dynamicFormDetail[field.key];
-                    if (
-                        value !== undefined &&
-                        value !== null &&
-                        value !== ""
-                    ) {
+                    if (value !== undefined && value !== null && value !== "") {
                         return String(value).trim();
                     }
                 }
@@ -656,6 +606,7 @@ function AgentGestionForm({
         objections: "Manejo de objeciones",
         additional: "Notas adicionales",
     };
+    const allowedScriptKeys = new Set(Object.keys(scriptLabels));
     const dynamicClienteNombre = findDynamicFieldValueByLabel([
         "Nombre completo",
         "Nombre",
@@ -677,8 +628,7 @@ function AgentGestionForm({
     const replacePlaceholders = (text) =>
         text.replace(/\{([^}]+)\}/g, (match, rawPlaceholder) => {
             const placeholder = String(rawPlaceholder || "").trim();
-            const normalizedPlaceholder =
-                normalizeForComparison(placeholder);
+            const normalizedPlaceholder = normalizeForComparison(placeholder);
 
             if (normalizedPlaceholder === "cliente") {
                 return highlight(clienteNombre);
@@ -694,17 +644,26 @@ function AgentGestionForm({
         });
     const scriptEntries = useMemo(
         () =>
-            Object.entries(scriptContent)
+            Object.entries(scriptContent || {})
                 .filter(
                     ([key, text]) =>
-                        key !== "header" && Boolean(text?.toString().trim()),
+                        allowedScriptKeys.has(key) &&
+                        key !== "header" &&
+                        Boolean(text?.toString().trim()),
                 )
                 .map(([key, text]) => ({
                     key,
                     label: scriptLabels[key] || key,
                     text: replacePlaceholders(text.toString()),
                 })),
-        [scriptContent, clienteNombre, asesorNombre, dynamicFormFields, dynamicFormDetail],
+        [
+            scriptContent,
+            clienteNombre,
+            asesorNombre,
+            dynamicFormFields,
+            dynamicFormDetail,
+            allowedScriptKeys,
+        ],
     );
     const [activeScriptKey, setActiveScriptKey] = useState(
         () => scriptEntries[0]?.key ?? null,
@@ -714,7 +673,7 @@ function AgentGestionForm({
         setActiveScriptKey((current) =>
             scriptEntries.some((entry) => entry.key === current)
                 ? current
-                : scriptEntries[0]?.key ?? null,
+                : (scriptEntries[0]?.key ?? null),
         );
     }, [scriptEntries]);
 
@@ -722,13 +681,13 @@ function AgentGestionForm({
         {
             id: "gestion",
             label: showDynamicForm
-                ? `F1 · F2 · ${dynamicFormConfig?.title}`
+                ? `F1 - F2 - ${dynamicFormConfig?.title}`
                 : "Formulario 1",
             content: renderGestionContent(),
         },
         showSurvey && {
             id: "encuesta",
-            label: `Formulario 3 · ${dynamicSurveyConfig?.title}`,
+            label: `Formulario 3 - ${dynamicSurveyConfig?.title}`,
             content: renderFormulario3(),
         },
     ].filter(Boolean);
@@ -754,22 +713,26 @@ function AgentGestionForm({
                             </button>
                         ))}
                     </div>
-            <div className="agent-script-tabs__content">
-                {scriptEntries
-                    .filter(({ key }) => key === activeScriptKey)
-                    .map(({ key, text }) => (
-                        <p
-                            className="agent-script-card__text"
-                            key={key}
-                            dangerouslySetInnerHTML={{ __html: text }}
-                        />
-                    ))}
-            </div>
+                    <div className="agent-script-tabs__content">
+                        {scriptEntries
+                            .filter(({ key }) => key === activeScriptKey)
+                            .map(({ key, text }) => (
+                                <p
+                                    className="agent-script-card__text"
+                                    key={key}
+                                    dangerouslySetInnerHTML={{ __html: text }}
+                                />
+                            ))}
+                    </div>
                 </section>
             )}
 
             <div className="agent-tabs-wrapper">
-                <Tabs tabs={tabDefinitions} activeTab={activeTab} onChange={setActiveTab} />
+                <Tabs
+                    tabs={tabDefinitions}
+                    activeTab={activeTab}
+                    onChange={setActiveTab}
+                />
             </div>
 
             <div className="agent-form-actions">
@@ -792,6 +755,7 @@ export default AgentGestionForm;
 
 AgentGestionForm.propTypes = {
     registro: PropTypes.object,
+    campaignId: PropTypes.string,
     onSubmit: PropTypes.func.isRequired,
     levels: PropTypes.arrayOf(PropTypes.object).isRequired,
     level1Seleccionado: PropTypes.string.isRequired,
@@ -833,3 +797,4 @@ AgentGestionForm.propTypes = {
         username: PropTypes.string,
     }),
 };
+
