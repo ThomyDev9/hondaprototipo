@@ -10,6 +10,7 @@ export default function FormularioDinamico({
     esUpdate = false,
     onChangeCampo,
     quickActions = [],
+    formAutoComplete,
 }) {
     const initialValuesKey = JSON.stringify(initialValues || {});
     const templateFieldsKey = JSON.stringify(
@@ -107,7 +108,7 @@ export default function FormularioDinamico({
     };
 
     return (
-        <form className="formulario-dinamico">
+        <form className="formulario-dinamico" autoComplete={formAutoComplete}>
             {quickActions.length > 0 && (
                 <div className="formulario-dinamico__quick-actions">
                     {quickActions.map((action) => (

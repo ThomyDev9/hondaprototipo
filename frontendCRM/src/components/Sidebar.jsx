@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import AccordionMenu from "./AccordionMenu";
 
@@ -40,6 +40,17 @@ function Sidebar({
     const [collapsed, setCollapsed] = useState(false);
     const [showOutbound, setShowOutbound] = useState(false);
     const effectiveRole = role || "ADMINISTRADOR";
+    const prevAgentPageRef = useRef(agentPage);
+    useEffect(() => {
+        if (
+            effectiveRole === "ASESOR" &&
+            agentPage === "gestion" &&
+            prevAgentPageRef.current !== "gestion"
+        ) {
+            setCollapsed(true);
+        }
+        prevAgentPageRef.current = agentPage;
+    }, [agentPage, effectiveRole]);
 
     const menuAdmin = [
         { label: "Administrar bases", key: "administrar-bases" },
@@ -397,5 +408,4 @@ Sidebar.propTypes = {
     agentStatus: PropTypes.string,
     onChangeAgentStatus: PropTypes.func,
 };
-
 export default Sidebar;

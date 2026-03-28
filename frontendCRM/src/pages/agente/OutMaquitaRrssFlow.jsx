@@ -360,6 +360,12 @@ export default function OutMaquitaRrssFlow({ onBack }) {
     }, [registro]);
 
     React.useEffect(() => {
+        if (!successMessage) return;
+        const timerId = setTimeout(() => setSuccessMessage(""), 2000);
+        return () => clearTimeout(timerId);
+    }, [successMessage]);
+
+    React.useEffect(() => {
         setRrssDraft(buildRrssBaseValues(registro));
     }, [registro]);
 
@@ -572,6 +578,11 @@ export default function OutMaquitaRrssFlow({ onBack }) {
         [],
     );
 
+    const resetDriveForm = React.useCallback(() => {
+        setRrssDriveDraft(buildRrssDriveInitialValues());
+        setRrssDriveDuplicateMessage("");
+    }, []);
+
     const saveDriveOnly = React.useCallback(async (formData) => {
         const identification = String(
             formData?.identificacion ||
@@ -605,7 +616,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                     "No se pudieron enviar los datos al Drive",
             );
         }
-    }, []);
+    }, [rrssDriveDuplicateMessage]);
 
     const renderGestionForm = (cancelHandler = onBack) => (
         <div className="outmaquita-rrss__tab-panel">
@@ -950,6 +961,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                             </div>
                                         ) : null}
                                         <FormularioDinamico
+                                            formAutoComplete="off"
                                             template={RRSS_DRIVE_TEMPLATE}
                                             initialValues={rrssDriveDraft}
                                             onChangeCampo={(name, value) =>
@@ -969,6 +981,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                                     setSuccessMessage(
                                                         "Datos del drive guardados correctamente",
                                                     );
+                                                    resetDriveForm();
                                                 } catch (saveError) {
                                                     setSuccessMessage("");
                                                     setError(
@@ -988,6 +1001,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                                     setSuccessMessage(
                                                         "Datos del drive actualizados correctamente",
                                                     );
+                                                    resetDriveForm();
                                                 } catch (saveError) {
                                                     setSuccessMessage("");
                                                     setError(
