@@ -1,20 +1,10 @@
 import pool from "./db.js";
-import {
-    GET_OUTBOUND_MENU_TREE,
-    GET_OUTBOUND_PARENT_CAMPAIGNS,
-    CHECK_OUTBOUND_CAMPAIGN_EXISTS,
-    INSERT_OUTBOUND_CAMPAIGN,
-    CHECK_OUTBOUND_SUBCAMPAIGN_EXISTS,
-    INSERT_OUTBOUND_SUBCAMPAIGN,
-    GET_OUTBOUND_MENU_TREE_WITH_STATUS,
-    UPDATE_OUTBOUND_MENU_ITEM_STATUS,
-    GET_OUTBOUND_MENU_ITEM_BY_ID,
-    UPDATE_OUTBOUND_CHILDREN_STATUS_BY_PARENT,
-} from "./queries/menu.queries.js";
+import MenuDAO from "./dao/MenuDAO.js";
 
 const OUTBOUND_MENU_CACHE_TTL_MS = 60_000;
 let outboundMenuTreeCache = null;
 let outboundMenuTreeCacheAt = 0;
+const menuDAO = new MenuDAO(pool);
 
 function invalidateOutboundMenuTreeCache() {
     outboundMenuTreeCache = null;
@@ -29,10 +19,8 @@ export async function getOutboundMenuTree() {
         return outboundMenuTreeCache;
     }
 
-    // Usa la consulta del sistema de queries
-    const [rows] = await pool.query(GET_OUTBOUND_MENU_TREE);
+    const rows = await menuDAO.getOutboundMenuTreeRows();
 
-    // Agrupa en árbol
     const tree = [];
     const map = {};
     for (const row of rows) {
@@ -52,24 +40,21 @@ export async function getOutboundMenuTree() {
 }
 
 export async function getOutboundParentCampaigns() {
-    const [rows] = await pool.query(GET_OUTBOUND_PARENT_CAMPAIGNS);
-    return rows;
+    return menuDAO.getOutboundParentCampaigns();
 }
 
 export async function createOutboundCampaign(nombre) {
     const nombreLimpio = String(nombre || "").trim();
     if (!nombreLimpio) {
-        throw new Error("El nombre de la campaña es requerido");
+        throw new Error("El nombre de la campana es requerido");
     }
 
-    const [existing] = await pool.query(CHECK_OUTBOUND_CAMPAIGN_EXISTS, [
-        nombreLimpio,
-    ]);
-    if (existing.length > 0) {
-        throw new Error("La campaña ya existe");
+    const existing = await menuDAO.findActiveCampaignByName(nombreLimpio);
+    if (existing) {
+        throw new Error("La campana ya existe");
     }
 
-    await pool.query(INSERT_OUTBOUND_CAMPAIGN, [nombreLimpio]);
+    await menuDAO.insertOutboundCampaign(nombreLimpio);
     invalidateOutboundMenuTreeCache();
     return { nombre: nombreLimpio };
 }
@@ -82,27 +67,24 @@ export async function createOutboundSubcampaign(parentId, nombre) {
         throw new Error("parentId es requerido");
     }
     if (!nombreLimpio) {
-        throw new Error("El nombre de la subcampaña es requerido");
+        throw new Error("El nombre de la subcampana es requerido");
     }
 
-    const [existing] = await pool.query(CHECK_OUTBOUND_SUBCAMPAIGN_EXISTS, [
+    const existing = await menuDAO.findActiveSubcampaign(
         parentIdLimpio,
         nombreLimpio,
-    ]);
-    if (existing.length > 0) {
-        throw new Error("La subcampaña ya existe para la campaña seleccionada");
+    );
+    if (existing) {
+        throw new Error("La subcampana ya existe para la campana seleccionada");
     }
 
-    await pool.query(INSERT_OUTBOUND_SUBCAMPAIGN, [
-        nombreLimpio,
-        parentIdLimpio,
-    ]);
+    await menuDAO.insertOutboundSubcampaign(nombreLimpio, parentIdLimpio);
     invalidateOutboundMenuTreeCache();
     return { parentId: parentIdLimpio, nombre: nombreLimpio };
 }
 
 export async function getOutboundMenuTreeWithStatus() {
-    const [rows] = await pool.query(GET_OUTBOUND_MENU_TREE_WITH_STATUS);
+    const rows = await menuDAO.getOutboundMenuTreeWithStatusRows();
 
     const tree = [];
     const map = {};
@@ -140,7 +122,7 @@ export async function updateOutboundMenuItemStatus(id, estado) {
         throw new Error("id es requerido");
     }
     if (!["activo", "inactivo"].includes(estadoLimpio)) {
-        throw new Error("estado inválido");
+        throw new Error("estado invalido");
     }
 
     const connection = await pool.getConnection();
@@ -148,29 +130,28 @@ export async function updateOutboundMenuItemStatus(id, estado) {
     try {
         await connection.beginTransaction();
 
-        const [itemRows] = await connection.query(
-            GET_OUTBOUND_MENU_ITEM_BY_ID,
-            [idLimpio],
-        );
-        if (itemRows.length === 0) {
-            throw new Error("No se encontró el ítem a actualizar");
+        const item = await menuDAO.getOutboundMenuItemById(idLimpio, connection);
+        if (!item) {
+            throw new Error("No se encontro el item a actualizar");
         }
 
-        const [result] = await connection.query(
-            UPDATE_OUTBOUND_MENU_ITEM_STATUS,
-            [estadoLimpio, idLimpio],
+        const [result] = await menuDAO.updateOutboundMenuItemStatus(
+            idLimpio,
+            estadoLimpio,
+            connection,
         );
 
         if (!result.affectedRows) {
-            throw new Error("No se encontró el ítem a actualizar");
+            throw new Error("No se encontro el item a actualizar");
         }
 
-        const isParentCampaign = itemRows[0].id_padre === null;
+        const isParentCampaign = item.id_padre === null;
         if (isParentCampaign && estadoLimpio === "inactivo") {
-            await connection.query(UPDATE_OUTBOUND_CHILDREN_STATUS_BY_PARENT, [
-                "inactivo",
+            await menuDAO.updateOutboundChildrenStatus(
                 idLimpio,
-            ]);
+                "inactivo",
+                connection,
+            );
         }
 
         await connection.commit();

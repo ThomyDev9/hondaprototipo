@@ -41,6 +41,36 @@ export class UserDAO extends BaseDAO {
         return rows;
     }
 
+    async getByGroup(groupId) {
+        const [rows] = await this.pool.query(
+            `SELECT u.*, w.Description, w.Id AS IdWorkgroup
+             FROM user u
+             LEFT JOIN workgroup w ON w.Id = u.UserGroup
+             WHERE u.UserGroup = ?
+             ORDER BY u.IdUser DESC`,
+            [groupId],
+        );
+        return rows;
+    }
+
+    async countAll() {
+        const [rows] = await this.pool.query(
+            `SELECT COUNT(*) AS total FROM user`,
+        );
+        return Number(rows[0]?.total || 0);
+    }
+
+    async getActive() {
+        const [rows] = await this.pool.query(
+            `SELECT u.*, w.Description, w.Id AS IdWorkgroup
+             FROM user u
+             LEFT JOIN workgroup w ON w.Id = u.UserGroup
+             WHERE u.State = 1
+             ORDER BY u.IdUser DESC`,
+        );
+        return rows;
+    }
+
     async create(userData) {
         const {
             Id,

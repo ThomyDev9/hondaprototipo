@@ -1,10 +1,11 @@
 import pool from "./db.js";
-import basesQueries from "./queries/bases.queries.js";
+import BasesDAO from "./dao/BasesDAO.js";
 import fs from "node:fs";
 import XLSX from "xlsx";
 import { v4 as uuidv4 } from "uuid";
 
 let campaignImportStatsInfraReady = false;
+const basesDAO = new BasesDAO(pool);
 
 async function ensureCampaignImportStatsInfrastructure(
     connectionOrPool = pool,
@@ -13,7 +14,7 @@ async function ensureCampaignImportStatsInfrastructure(
         return;
     }
 
-    await connectionOrPool.query(basesQueries.ensureCampaignImportStatsTable);
+    await basesDAO.ensureCampaignImportStatsTable(connectionOrPool);
     campaignImportStatsInfraReady = true;
 }
 
@@ -36,169 +37,156 @@ export async function recomputeImportStats(
 
     await ensureCampaignImportStatsInfrastructure(connectionOrPool);
 
-    await connectionOrPool.query(
-        basesQueries.upsertCampaignImportStatsFromContact,
-        [campaign, importRef, String(actor || "system"), campaign, importRef],
+    await basesDAO.upsertCampaignImportStats(
+        campaign,
+        importRef,
+        actor,
+        connectionOrPool,
     );
 }
 
 /**
  * BASES SERVICE
- * Centraliza lógica de negocio para bases de datos
- * Usa sistema de queries centralizado
+ * Centraliza la logica de negocio realmente usada por rutas del modulo bases.
+ * El acceso SQL activo sale de BasesDAO.
  */
 
 export async function obtenerBases() {
     try {
-        const [rows] = await pool.query(basesQueries.getAll);
-        return rows;
+        return await basesDAO.getAllBasesSummary();
     } catch (error) {
         console.error("Error al obtener bases:", error);
         throw error;
     }
 }
 
-export async function obtenerBasePorId(id) {
+function mapBaseSummaryRow(row) {
+    const totalRegistros = Number(row.total_registros || 0);
+    const pendientes = Number(row.pendientes || 0);
+
+    return {
+        id: row.id || null,
+        campaign_id: row.campaign_id,
+        base: row.import_id,
+        estado_base: String(row.base_state) === "1" ? "ACTIVO" : "INACTIVO",
+        registros: totalRegistros,
+        sin_gestionar: pendientes,
+        pendientes_libres: Number(row.pendientes_libres || 0),
+        pendientes_asignados_sin_gestion: Number(
+            row.pendientes_asignados_sin_gestion || 0,
+        ),
+        avance:
+            totalRegistros > 0
+                ? Math.round(100 * (1 - pendientes / totalRegistros))
+                : 0,
+    };
+}
+
+export async function obtenerBasesActivasResumen({
+    campaignId = "",
+    importId = "",
+} = {}) {
     try {
-        const [rows] = await pool.query(basesQueries.getById, [id]);
-        return rows.length > 0 ? rows[0] : null;
+        const rows = await basesDAO.getAllBasesSummary({
+            campaignId: String(campaignId || "").trim(),
+            importId: String(importId || "").trim(),
+        });
+        return rows.map(mapBaseSummaryRow);
     } catch (error) {
-        console.error("Error al obtener base por ID:", error);
+        console.error("Error al obtener resumen de bases activas:", error);
         throw error;
     }
 }
 
-export async function obtenerBasesPorMapeo(mapeoId) {
+export async function obtenerBasesInactivasResumen({
+    campaignId = "",
+    importId = "",
+} = {}) {
     try {
-        const [rows] = await pool.query(basesQueries.getByMappeo, [mapeoId]);
-        return rows;
+        const rows = await basesDAO.getAllInactiveBasesSummary({
+            campaignId: String(campaignId || "").trim(),
+            importId: String(importId || "").trim(),
+        });
+        return rows.map(mapBaseSummaryRow);
     } catch (error) {
-        console.error("Error al obtener bases por mapeo:", error);
-        throw error;
-    }
-}
-
-export async function obtenerBasesPorCampania(campania) {
-    try {
-        const [rows] = await pool.query(basesQueries.getByCampania, [campania]);
-        return rows;
-    } catch (error) {
-        console.error("Error al obtener bases por campaña:", error);
-        throw error;
-    }
-}
-
-export async function buscarBases(searchTerm) {
-    try {
-        const searchPattern = `%${searchTerm}%`;
-        const [rows] = await pool.query(basesQueries.search, [
-            searchPattern,
-            searchPattern,
-        ]);
-        return rows;
-    } catch (error) {
-        console.error("Error al buscar bases:", error);
-        throw error;
-    }
-}
-
-export async function crearBase(baseData) {
-    try {
-        const { nombre, mapeo, campania, estado = 1 } = baseData;
-
-        const [result] = await pool.query(basesQueries.create, [
-            nombre,
-            mapeo,
-            campania,
-            estado,
-        ]);
-
-        return {
-            id: result.insertId,
-            nombre,
-            mapeo,
-            campania,
-            estado,
-        };
-    } catch (error) {
-        console.error("Error al crear base:", error);
-        throw error;
-    }
-}
-
-export async function actualizarBase(id, baseData) {
-    try {
-        const { nombre, mapeo, campania, estado } = baseData;
-
-        await pool.query(basesQueries.update, [
-            nombre,
-            mapeo,
-            campania,
-            estado,
-            id,
-        ]);
-
-        return await obtenerBasePorId(id);
-    } catch (error) {
-        console.error("Error al actualizar base:", error);
-        throw error;
-    }
-}
-
-export async function cambiarEstadoBase(id) {
-    try {
-        await pool.query(basesQueries.updateState, [id]);
-        return await obtenerBasePorId(id);
-    } catch (error) {
-        console.error("Error al cambiar estado de la base:", error);
-        throw error;
-    }
-}
-
-export async function contarBases() {
-    try {
-        const [rows] = await pool.query(basesQueries.count);
-        return rows[0].total || 0;
-    } catch (error) {
-        console.error("Error al contar bases:", error);
-        throw error;
-    }
-}
-
-import agenteQueries from "./queries/agente.queries.js";
-
-export async function obtenerBasesActivas() {
-    try {
-        // Usar la misma consulta que 'ver bases' para obtener el resumen real de bases activas
-        const [rows] = await pool.query(agenteQueries.getActiveBasesSummary);
-        return rows;
-    } catch (error) {
-        console.error("Error al obtener bases activas:", error);
+        console.error("Error al obtener resumen de bases inactivas:", error);
         throw error;
     }
 }
 
 export async function obtenerResumenBases() {
     try {
-        const [rows] = await pool.query(basesQueries.getSummary);
-        return rows;
+        const rows = await basesDAO.getAllBasesSummary();
+        return {
+            total_bases: rows.length,
+            bases_activas: rows.filter((row) => String(row.base_state) === "1").length,
+            bases_inactivas: rows.filter((row) => String(row.base_state || "0") !== "1").length,
+            total_registros: rows.reduce(
+                (acc, row) => acc + Number(row.total_registros || 0),
+                0,
+            ),
+            pendientes: rows.reduce(
+                (acc, row) => acc + Number(row.pendientes || 0),
+                0,
+            ),
+        };
     } catch (error) {
         console.error("Error al obtener resumen de bases:", error);
         throw error;
     }
 }
 
-
+export async function obtenerBasesActivas() {
+    try {
+        return await basesDAO.getActiveAgentBasesSummary();
+    } catch (error) {
+        console.error("Error al obtener bases activas:", error);
+        throw error;
+    }
+}
 
 export async function obtenerImportacionesConEstadoPorCampania(campaignId) {
     try {
-        const [rows] = await pool.query(
-            basesQueries.getImportsByCampaignWithState,
-            [campaignId],
-        );
-        return rows;
+        return await basesDAO.getImportsByCampaignWithState(campaignId);
     } catch (error) {
         console.error("Error al obtener importaciones con estado:", error);
+        throw error;
+    }
+}
+
+export async function obtenerCantidadReciclables(campaignId, importId) {
+    try {
+        return await basesDAO.getReciclablesCount(campaignId, importId);
+    } catch (error) {
+        console.error("Error al obtener cantidad de reciclables:", error);
+        throw error;
+    }
+}
+
+export async function reciclarBase(campaignId, importId, actor) {
+    try {
+        const maxIntentos = 6;
+        const [result] = await basesDAO.recycleBaseContacts(
+            actor,
+            campaignId,
+            importId,
+            maxIntentos,
+        );
+
+        await recomputeImportStats(
+            campaignId,
+            importId,
+            actor || "system",
+            pool,
+        );
+
+        return {
+            base_id: campaignId,
+            import_id: importId,
+            registros_reciclados: result.affectedRows,
+        };
+    } catch (error) {
+        console.error("Error al reciclar base:", error);
         throw error;
     }
 }
@@ -217,69 +205,72 @@ export async function administrarBase(
         const now = new Date();
         const dateNow = now.toISOString().slice(0, 19).replace("T", " ");
 
-        await pool.query(basesQueries.ensureCampaignActiveBaseTable);
-        await pool.query(
-            basesQueries.ensureCampaignActiveBaseTotalRegistrosColumn,
-        );
+        await basesDAO.ensureCampaignActiveBaseInfrastructure();
 
         if (action === "activar") {
-            // Buscar si ya existe un registro en campaign_active_base para esta campaña/importación
-            const [existing] = await pool.query(
-                `SELECT id FROM campaign_active_base WHERE CampaignId = ? AND ImportId = ? LIMIT 1`,
-                [campaignId, importDate],
+            const existing = await basesDAO.getCampaignActiveBaseRecord(
+                campaignId,
+                importDate,
             );
-            if (existing.length > 0) {
-                // Si existe, actualizar el estado
-                await pool.query(
-                    `UPDATE campaign_active_base SET State = '1', UserShift = ?, UpdatedAt = ? WHERE id = ?`,
-                    [username, dateNow, existing[0].id],
+
+            if (existing?.id) {
+                await basesDAO.reactivateCampaignActiveBaseRecord(
+                    existing.id,
+                    username,
+                    dateNow,
                 );
             } else {
-                // Si no existe, insertar nuevo registro
-                // Obtener total de registros para la base
-                const [countRows] = await pool.query(
-                    `SELECT COUNT(*) as total FROM contactimportcontact WHERE Campaign = ? AND LastUpdate = ?`,
-                    [campaignId, importDate],
-                );
-                const totalRegistros = countRows[0]?.total || 0;
-                await pool.query(basesQueries.insertCampaignActiveBase, [
+                const totalRegistros =
+                    await basesDAO.countContactsByCampaignAndImport(
+                        campaignId,
+                        importDate,
+                    );
+
+                await basesDAO.insertCampaignActiveBaseRecord(
                     campaignId,
                     importDate,
                     totalRegistros,
                     username,
-                ]);
+                );
             }
-            await pool.query(basesQueries.activateBase, [
+
+            await basesDAO.activateBaseContacts(
                 username,
                 dateNow,
                 importDate,
                 campaignId,
-            ]);
+            );
+
             await recomputeImportStats(
                 campaignId,
                 importDate,
                 username || "system",
                 pool,
             );
+
             return { message: "Se ha activado base exitosamente!" };
-        } else if (action === "desactivar") {
-            await pool.query(basesQueries.deactivateBase, [
+        }
+
+        if (action === "desactivar") {
+            await basesDAO.deactivateBaseContacts(
                 username,
                 dateNow,
                 importDate,
                 campaignId,
-            ]);
-            // Se espera que el frontend envíe el id de la base a desactivar
+            );
+
             if (!id) throw new Error("Falta id de base a desactivar");
-            await pool.query(basesQueries.clearCampaignActiveBaseById, [
+
+            await basesDAO.clearCampaignActiveBaseById(
                 username,
                 dateNow,
                 id,
-            ]);
+            );
+
             return { message: "Se ha cancelado base exitosamente!" };
-        } else {
-            throw new Error("Acción no válida");
         }
+
+        throw new Error("Accion no valida");
     } catch (error) {
         console.error("Error al administrar base:", error);
         throw error;
@@ -299,23 +290,20 @@ export async function administrarBase(
  * Helper: Validates import metadata (campaign exists, import name not duplicate)
  */
 async function validateImportMetadata(connCCK, campaignId, importName) {
-    const [campaigns] = await connCCK.query(
-        basesQueries.checkCampaignForImport,
-        [campaignId, campaignId],
-    );
+    const campaigns = await basesDAO.checkCampaignForImport(campaignId, connCCK);
 
     if (campaigns.length === 0) {
         throw new Error("Campaña no encontrada");
     }
 
-    const [existingImport] = await connCCK.query(
-        basesQueries.checkImportNameExists,
-        [importName],
+    const existingImport = await basesDAO.checkImportNameExists(
+        importName,
+        connCCK,
     );
 
-    const [existingImportControl] = await connCCK.query(
-        basesQueries.checkImportNameExistsInControl,
-        [importName],
+    const existingImportControl = await basesDAO.checkImportNameExistsInControl(
+        importName,
+        connCCK,
     );
 
     const importExists =
@@ -616,7 +604,7 @@ async function insertContactWithPhones(context) {
 
     const LastManagementResult = "";
 
-    await connCCK.query(basesQueries.insertContactImportContact, [
+    await basesDAO.insertContactImportContact([
         vcc,
         contactId,
         contactName,
@@ -624,9 +612,9 @@ async function insertContactWithPhones(context) {
         campaignId,
         LastManagementResult,
         importName,
-    ]);
+    ], connCCK);
 
-    await connCCK.query(basesQueries.insertClienteBancoPichincha, [
+    await basesDAO.insertClienteBancoPichincha([
         vcc, // VCC
         campaignId, // CampaignId
         contactId, // ContactId
@@ -660,7 +648,7 @@ async function insertContactWithPhones(context) {
         lineaData.CAMPOS_ADICIONALES_JSON || "", // CamposAdicionalesJson
         "", // UserShift (nueva)
         "", // Action (nueva)
-    ]);
+    ], connCCK);
 
     let rawPhoneCount = 0;
     let insertedPhoneCount = 0;
@@ -677,7 +665,7 @@ async function insertContactWithPhones(context) {
 
         if (!telefono) continue;
 
-        await connCCK.query(basesQueries.insertContactPhone, [
+        await basesDAO.insertContactPhone([
             contactId,
             "",
             telefono,
@@ -687,7 +675,7 @@ async function insertContactWithPhones(context) {
             dateNow,
             telefonoKey,
             identification,
-        ]);
+        ], connCCK);
 
         insertedPhoneCount += 1;
     }
@@ -740,9 +728,9 @@ export async function procesarCSV(
             const Name = value.NOMBRE_CLIENTE;
             const Identification = value.IDENTIFICACION;
 
-            const [existing] = await connCCK.query(
-                basesQueries.checkContactDuplicateById,
-                [ID],
+            const existing = await basesDAO.checkContactDuplicateById(
+                ID,
+                connCCK,
             );
 
             if (existing.length > 0) {
@@ -765,7 +753,7 @@ export async function procesarCSV(
             ingresado++;
         }
 
-        await connCCK.query(basesQueries.insertContactImportDetail, [
+        await basesDAO.insertContactImportDetail([
             vcc,
             importName,
             "1",
@@ -776,16 +764,16 @@ export async function procesarCSV(
             "0",
             error,
             duplicado,
-        ]);
+        ], connCCK);
 
-        await connCCK.query(basesQueries.insertContactImport, [
+        await basesDAO.insertContactImport([
             vcc,
             importName,
             importName,
             "1",
             error === 0 ? "COMPLETE" : "INCOMPLETE",
             null,
-        ]);
+        ], connCCK);
 
         await recomputeImportStats(
             campaignId,

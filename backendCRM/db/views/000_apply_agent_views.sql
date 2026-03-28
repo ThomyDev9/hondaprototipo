@@ -1,0 +1,6 @@
+SOURCE 001_vw_agent_active_bases_summary.sql;
+SOURCE 002_vw_agent_regestion_bases_summary.sql;
+SOURCE 003_vw_admin_bases_summary.sql;
+SOURCE 005_vw_active_form_template_by_campaign.sql;
+SOURCE 006_vw_subcampaign_scripts.sql;
+SOURCE 007_vw_campaign_types.sql;

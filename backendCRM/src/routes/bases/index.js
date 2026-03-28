@@ -8,7 +8,6 @@ import {
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 import pool from "../../services/db.js";
-import { recomputeImportStats } from "../../services/bases.service.js";
 import { loadUserRoles } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
@@ -42,47 +41,22 @@ router.get(
     async (req, res) => {
         try {
             const { campaignId, importId } = req.params;
-            console.log("[RECICLABLES-COUNT] Params:", {
-                campaignId,
-                importId,
-            });
+
             if (!campaignId || !importId) {
-                console.warn("[RECICLABLES-COUNT] Faltan parámetros", {
-                    campaignId,
-                    importId,
-                });
                 return res
                     .status(400)
-                    .json({ error: "Faltan parámetros campaignId o importId" });
+                    .json({ error: "Faltan parametros campaignId o importId" });
             }
-            const sql = `SELECT COUNT(*) AS reciclables
-                 FROM contactimportcontact ci
-                 INNER JOIN campaign_import_stats cis
-                     ON ci.Campaign = cis.CampaignId
-                    AND ci.LastUpdate = cis.ImportId
-                 LEFT JOIN campaign_active_base cab
-                     ON cab.CampaignId = cis.CampaignId
-                    AND cab.ImportId = cis.ImportId
-                 WHERE ci.Campaign = ?
-                   AND ci.LastUpdate = ?
-                   AND ci.LastManagementResult IN (60, 61, 62, 63, 64, 34)
-                   AND cis.PendientesReales = 0
-                   AND cis.PendientesLibres = 0
-                   AND cab.State = 1`;
-            console.log("[RECICLABLES-COUNT] SQL:", sql);
-            try {
-                const [rows] = await pool.query(sql, [campaignId, importId]);
-                console.log("[RECICLABLES-COUNT] Result rows:", rows);
-                res.json({ reciclables: rows[0]?.reciclables || 0 });
-            } catch (err) {
-                console.error("[RECICLABLES-COUNT] DB Error:", err);
-                res.status(500).json({
-                    error: "Error obteniendo cantidad de reciclables",
-                });
-            }
+
+            const reciclables = await basesService.obtenerCantidadReciclables(
+                campaignId,
+                importId,
+            );
+
+            return res.json({ reciclables });
         } catch (err) {
             console.error("Error obteniendo cantidad de reciclables:", err);
-            res.status(500).json({
+            return res.status(500).json({
                 error: "Error obteniendo cantidad de reciclables",
             });
         }
@@ -95,41 +69,11 @@ router.get(
     requireRole(["ADMINISTRADOR"]),
     async (req, res) => {
         try {
-            const { default: basesQueries } =
-                await import("../../services/queries/bases.queries.js");
             const { campaignId, importId } = req.query;
-            let sql = basesQueries.getAllBasesSummary;
-            const params = [];
-            // Agregar filtros dinámicos
-            if (campaignId && importId) {
-                sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ? AND import_id = ?`;
-                params.push(campaignId, importId);
-            } else if (campaignId) {
-                sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ?`;
-                params.push(campaignId);
-            } else if (importId) {
-                sql = `SELECT * FROM (${sql}) AS resumen WHERE import_id = ?`;
-                params.push(importId);
-            }
-            const [rows] = await pool.query(sql, params);
-            const data = (rows || []).map((row) => ({
-                id: row.id || null, // id numérico de campaign_active_base si existe
-                campaign_id: row.campaign_id,
-                base: row.import_id,
-                estado_base:
-                    String(row.base_state) === "1" ? "ACTIVO" : "INACTIVO",
-                registros: row.total_registros,
-                sin_gestionar: row.pendientes,
-                pendientes_libres: row.pendientes_libres,
-                pendientes_asignados_sin_gestion:
-                    row.pendientes_asignados_sin_gestion,
-                avance:
-                    row.total_registros > 0
-                        ? Math.round(
-                              100 * (1 - row.pendientes / row.total_registros),
-                          )
-                        : 0,
-            }));
+            const data = await basesService.obtenerBasesActivasResumen({
+                campaignId: String(campaignId || "").trim(),
+                importId: String(importId || "").trim(),
+            });
             res.json({ data });
         } catch (err) {
             console.error("Error en /bases/bases-activas-resumen:", err);
@@ -139,7 +83,6 @@ router.get(
         }
     },
 );
-
 // Resumen de todas las bases inactivas para DashboardAdmin (solo ADMINISTRADOR)
 router.get(
     "/bases-inactivas-resumen",
@@ -147,41 +90,11 @@ router.get(
     requireRole(["ADMINISTRADOR"]),
     async (req, res) => {
         try {
-            const { default: basesQueries } =
-                await import("../../services/queries/bases.queries.js");
             const { campaignId, importId } = req.query;
-            let sql = basesQueries.getAllBasesInactivasSummary;
-            const params = [];
-            // Agregar filtros dinámicos
-            if (campaignId && importId) {
-                sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ? AND import_id = ?`;
-                params.push(campaignId, importId);
-            } else if (campaignId) {
-                sql = `SELECT * FROM (${sql}) AS resumen WHERE campaign_id = ?`;
-                params.push(campaignId);
-            } else if (importId) {
-                sql = `SELECT * FROM (${sql}) AS resumen WHERE import_id = ?`;
-                params.push(importId);
-            }
-            const [rows] = await pool.query(sql, params);
-            const data = (rows || []).map((row) => ({
-                id: row.id || null, // id numérico de campaign_active_base si existe
-                campaign_id: row.campaign_id,
-                base: row.import_id,
-                estado_base:
-                    String(row.base_state) === "1" ? "ACTIVO" : "INACTIVO",
-                registros: row.total_registros,
-                sin_gestionar: row.pendientes,
-                pendientes_libres: row.pendientes_libres,
-                pendientes_asignados_sin_gestion:
-                    row.pendientes_asignados_sin_gestion,
-                avance:
-                    row.total_registros > 0
-                        ? Math.round(
-                              100 * (1 - row.pendientes / row.total_registros),
-                          )
-                        : 0,
-            }));
+            const data = await basesService.obtenerBasesInactivasResumen({
+                campaignId: String(campaignId || "").trim(),
+                importId: String(importId || "").trim(),
+            });
             res.json({ data });
         } catch (err) {
             console.error("Error en /bases/bases-inactivas-resumen:", err);
@@ -191,7 +104,6 @@ router.get(
         }
     },
 );
-
 // Resumen de bases para DashboardAdmin
 router.get(
     "/bases-resumen",
@@ -218,7 +130,6 @@ router.post("/:baseId/reciclar", ...adminMiddlewares, async (req, res) => {
     try {
         const { baseId } = req.params;
         const importId = String(req.body?.importId || "").trim();
-        const MAX_INTENTOS = 6; // regla de negocio: hasta 6 intentos
         const campaignId = baseId;
 
         if (!campaignId) {
@@ -227,43 +138,19 @@ router.post("/:baseId/reciclar", ...adminMiddlewares, async (req, res) => {
 
         if (!importId) {
             return res.status(400).json({
-                error: "Debes seleccionar la base (importación) a reciclar",
+                error: "Debes seleccionar la base (importacion) a reciclar",
             });
         }
 
-        // Cambia Action a 'reciclable' para identificar registros reciclados
-        const [result] = await pool.query(
-            `
-                    UPDATE contactimportcontact
-                    SET LastAgent = 'Pendiente',
-                        Action = 'reciclable',
-                        UserShift = ?,
-                        TmStmpShift = NOW()
-                    WHERE Campaign = ?
-                      AND LastUpdate = ?
-                      AND COALESCE(Number, 0) < ?
-                      AND LastManagementResult IN (60, 61, 62, 63, 64, 34)
-                `,
-            [
-                req.user?.username || String(req.user?.id),
-                campaignId,
-                importId,
-                MAX_INTENTOS,
-            ],
-        );
-
-        await recomputeImportStats(
+        const resultado = await basesService.reciclarBase(
             campaignId,
             importId,
             req.user?.username || String(req.user?.id),
-            pool,
         );
 
         return res.json({
             ok: true,
-            base_id: campaignId,
-            import_id: importId,
-            registros_reciclados: result.affectedRows,
+            ...resultado,
         });
     } catch (err) {
         console.error("Error en /bases/:baseId/reciclar:", err);
@@ -350,36 +237,14 @@ router.post(
 router.get("/importaciones/:campaignId", requireAuth, async (req, res) => {
     try {
         const { campaignId } = req.params;
-        const { action = "desactivar" } = req.query;
-        console.log("📥 Obteniendo importaciones para campaña:", campaignId);
-
         const importaciones =
             await basesService.obtenerImportacionesConEstadoPorCampania(
                 campaignId,
             );
 
-        if (!importaciones) {
-            console.warn("[IMPORTACIONES] Resultado es null o undefined");
-        } else if (!Array.isArray(importaciones)) {
-            console.warn(
-                "[IMPORTACIONES] Resultado no es array:",
-                importaciones,
-            );
-        } else if (importaciones.length === 0) {
-            console.info(
-                "[IMPORTACIONES] No hay importaciones para la campaña",
-            );
-        } else {
-            console.log(
-                "[IMPORTACIONES] Importaciones encontradas:",
-                importaciones.length,
-            );
-            console.log("[IMPORTACIONES] Datos:", importaciones);
-        }
-
-        res.json({ importaciones });
-    } catch (err) {
-        res.status(500).json({ error: "Error obteniendo importaciones" });
+        return res.json({ importaciones });
+    } catch (_err) {
+        return res.status(500).json({ error: "Error obteniendo importaciones" });
     }
 });
 
@@ -427,3 +292,6 @@ router.post(
 );
 
 export default router;
+
+
+

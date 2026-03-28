@@ -111,8 +111,7 @@ export async function verificarCredenciales(idUser) {
 
 export async function obtenerUsuariosPorGrupo(groupId) {
     try {
-        const [rows] = await pool.query(userQueries.getByGroup, [groupId]);
-        return rows;
+        return await userDAO.getByGroup(groupId);
     } catch (error) {
         console.error("Error al obtener usuarios por grupo:", error);
         throw error;
@@ -121,8 +120,7 @@ export async function obtenerUsuariosPorGrupo(groupId) {
 
 export async function contarUsuarios() {
     try {
-        const [rows] = await pool.query(userQueries.count);
-        return rows[0].total || 0;
+        return await userDAO.countAll();
     } catch (error) {
         console.error("Error al contar usuarios:", error);
         throw error;
@@ -131,8 +129,7 @@ export async function contarUsuarios() {
 
 export async function obtenerUsuariosActivos() {
     try {
-        const [rows] = await pool.query(userQueries.getActive);
-        return rows;
+        return await userDAO.getActive();
     } catch (error) {
         console.error("Error al obtener usuarios activos:", error);
         throw error;

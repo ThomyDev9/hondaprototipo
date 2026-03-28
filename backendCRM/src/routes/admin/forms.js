@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../../services/db.js";
+import AdminFormsDAO from "../../services/dao/AdminFormsDAO.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -9,6 +10,7 @@ import {
 const router = express.Router();
 const OUTBOUND_CATEGORY_ID = "544fb0a6-1345-11f1-b790-000c2904c92f";
 const MAX_TEMPLATE_FIELDS = 30;
+const adminFormsDAO = new AdminFormsDAO(pool, OUTBOUND_CATEGORY_ID);
 
 const middlewaresAdmin = [
     requireAuth,
@@ -128,72 +130,21 @@ function findDuplicatedKey(fields) {
 
 async function insertTemplateFields(connection, templateId, fields) {
     for (const field of fields) {
-        const [fieldInsert] = await connection.query(
-            `
-            INSERT INTO form_template_fields (
-                template_id,
-                field_key,
-                label,
-                field_type,
-                is_required,
-                display_order,
-                max_length,
-                is_active,
-                created_at,
-                updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE
-                id = LAST_INSERT_ID(id),
-                label = VALUES(label),
-                field_type = VALUES(field_type),
-                is_required = VALUES(is_required),
-                display_order = VALUES(display_order),
-                max_length = VALUES(max_length),
-                is_active = 1,
-                updated_at = NOW()
-            `,
-            [
-                templateId,
-                field.key,
-                field.label,
-                field.type,
-                field.required ? 1 : 0,
-                field.displayOrder,
-                field.maxLength,
-            ],
+        const fieldId = await adminFormsDAO.upsertTemplateField(
+            templateId,
+            field,
+            connection,
         );
-
-        const fieldId = Number(fieldInsert.insertId);
-
-        await connection.query(
-            `
-            UPDATE form_template_field_options
-            SET is_active = 0
-            WHERE field_id = ?
-            `,
-            [fieldId],
-        );
+        await adminFormsDAO.deactivateFieldOptions(fieldId, connection);
 
         if (field.type === "select" && field.options.length > 0) {
             for (let index = 0; index < field.options.length; index += 1) {
                 const option = field.options[index];
-                await connection.query(
-                    `
-                    INSERT INTO form_template_field_options (
-                        field_id,
-                        option_value,
-                        option_label,
-                        display_order,
-                        is_active
-                    )
-                    VALUES (?, ?, ?, ?, 1)
-                    ON DUPLICATE KEY UPDATE
-                        option_label = VALUES(option_label),
-                        display_order = VALUES(display_order),
-                        is_active = 1
-                    `,
-                    [fieldId, option, option, index + 1],
+                await adminFormsDAO.upsertFieldOption(
+                    fieldId,
+                    option,
+                    index + 1,
+                    connection,
                 );
             }
         }
@@ -280,28 +231,7 @@ router.get("/subcampaigns", ...middlewaresAdmin, async (req, res) => {
             categoriaFilter = ""; // Sin filtro extra para F2/F3
         }
 
-        const [rows] = await pool.query(
-            `
-                        SELECT
-                                s.id,
-                                s.nombre_item AS subcampania,
-                                p.nombre_item AS campania
-                        FROM menu_items s
-                        INNER JOIN menu_items p ON p.id = s.id_padre
-                        ${f2Join}
-                        LEFT JOIN form_template_assignments a
-                            ON a.menu_item_id = s.id
-                         AND a.form_type = ?
-                         AND a.is_active = 1
-                        WHERE s.id_padre IS NOT NULL
-                            AND s.estado = 'activo'
-                            AND p.estado = 'activo'
-                            ${assignmentFilter}
-                            ${categoriaFilter}
-                        ORDER BY p.nombre_item ASC, s.nombre_item ASC
-                        `,
-            [formType],
-        );
+        const rows = await adminFormsDAO.getSubcampaignRows(formType, scope);
 
         const data = rows.map((row) => ({
             id: row.id,
@@ -330,55 +260,14 @@ router.get("/template", ...middlewaresAdmin, async (req, res) => {
             });
         }
 
-        const [templateRows] = await pool.query(
-            `
-            SELECT
-                t.id,
-                t.name,
-                t.form_type,
-                t.version,
-                t.status,
-                a.assigned_at
-            FROM form_template_assignments a
-            INNER JOIN form_templates t ON t.id = a.template_id
-            WHERE a.menu_item_id = ?
-              AND a.form_type = ?
-              AND a.is_active = 1
-            ORDER BY a.assigned_at DESC, t.version DESC
-            LIMIT 1
-            `,
-            [menuItemId, formType],
+        const template = await adminFormsDAO.getAssignedTemplate(
+            menuItemId,
+            formType,
         );
-
-        if (templateRows.length === 0) {
+        if (!template) {
             return res.json({ data: null });
         }
-
-        const template = templateRows[0];
-        const [fieldRows] = await pool.query(
-            `
-            SELECT
-                f.id AS field_id,
-                f.field_key,
-                f.label,
-                f.field_type,
-                f.is_required,
-                f.display_order,
-                f.placeholder,
-                f.max_length,
-                o.option_value,
-                o.option_label,
-                o.display_order AS option_order
-            FROM form_template_fields f
-            LEFT JOIN form_template_field_options o
-              ON o.field_id = f.id
-             AND o.is_active = 1
-            WHERE f.template_id = ?
-              AND f.is_active = 1
-            ORDER BY f.display_order ASC, o.display_order ASC
-            `,
-            [template.id],
-        );
+        const fieldRows = await adminFormsDAO.getTemplateFieldRows(template.id);
 
         return res.json({
             data: {
@@ -431,27 +320,18 @@ router.post("/template", ...middlewaresAdmin, async (req, res) => {
             });
         }
 
-        const [subcampaignRows] = await connection.query(
-            `
-            SELECT nombre_item
-            FROM menu_items
-            WHERE id = ?
-              AND id_categoria = ?
-              AND id_padre IS NOT NULL
-              AND estado = 'activo'
-            LIMIT 1
-            `,
-            [menuItemId, OUTBOUND_CATEGORY_ID],
+        const subcampaign = await adminFormsDAO.getActiveSubcampaignName(
+            menuItemId,
+            connection,
         );
-
-        if (subcampaignRows.length === 0) {
+        if (!subcampaign) {
             return res.status(400).json({
                 error: "La subcampaña seleccionada no es válida o no está activa",
             });
         }
 
         const templateName = String(
-            subcampaignRows[0]?.nombre_item || "",
+            subcampaign?.nombre_item || "",
         ).trim();
         if (!templateName) {
             return res.status(400).json({
@@ -495,19 +375,11 @@ router.post("/template", ...middlewaresAdmin, async (req, res) => {
         }
 
         if (formType === "F3") {
-            const [f2AssignmentRows] = await connection.query(
-                `
-                SELECT id
-                FROM form_template_assignments
-                WHERE menu_item_id = ?
-                  AND form_type = 'F2'
-                  AND is_active = 1
-                LIMIT 1
-                `,
-                [menuItemId],
+            const hasActiveF2 = await adminFormsDAO.hasActiveF2Assignment(
+                menuItemId,
+                connection,
             );
-
-            if (f2AssignmentRows.length === 0) {
+            if (!hasActiveF2) {
                 return res.status(400).json({
                     error: "No se puede crear Formulario 3 sin tener Formulario 2 activo en la subcampaña",
                 });
@@ -516,68 +388,28 @@ router.post("/template", ...middlewaresAdmin, async (req, res) => {
 
         await connection.beginTransaction();
 
-        const [activeAssignmentRows] = await connection.query(
-            `
-            SELECT template_id
-            FROM form_template_assignments
-            WHERE menu_item_id = ?
-              AND form_type = ?
-              AND is_active = 1
-            LIMIT 1
-            `,
-            [menuItemId, formType],
+        const activeAssignment = await adminFormsDAO.getActiveAssignment(
+            menuItemId,
+            formType,
+            connection,
         );
 
         let templateId = null;
         let resolvedVersion = 1;
 
-        if (activeAssignmentRows.length > 0) {
-            templateId = Number(activeAssignmentRows[0].template_id || 0);
-
-            const [templateRows] = await connection.query(
-                `
-                SELECT version
-                FROM form_templates
-                WHERE id = ?
-                LIMIT 1
-                `,
-                [templateId],
+        if (activeAssignment) {
+            templateId = Number(activeAssignment.template_id || 0);
+            resolvedVersion = await adminFormsDAO.getTemplateVersion(
+                templateId,
+                connection,
             );
-
-            resolvedVersion = Number(templateRows[0]?.version || 1);
-
-            await connection.query(
-                `
-                UPDATE form_templates
-                SET name = ?,
-                    status = 'published',
-                    updated_at = NOW()
-                WHERE id = ?
-                `,
-                [templateName, templateId],
+            await adminFormsDAO.updateTemplatePublishedName(
+                templateId,
+                templateName,
+                connection,
             );
-
-            await connection.query(
-                `
-                UPDATE form_template_field_options o
-                INNER JOIN form_template_fields f ON f.id = o.field_id
-                SET o.is_active = 0
-                WHERE f.template_id = ?
-                  AND o.is_active = 1
-                `,
-                [templateId],
-            );
-
-            await connection.query(
-                `
-                UPDATE form_template_fields
-                SET is_active = 0,
-                    updated_at = NOW()
-                WHERE template_id = ?
-                  AND is_active = 1
-                `,
-                [templateId],
-            );
+            await adminFormsDAO.deactivateTemplateOptions(templateId, connection);
+            await adminFormsDAO.deactivateTemplateFields(templateId, connection);
 
             await insertTemplateFields(
                 connection,
@@ -585,49 +417,26 @@ router.post("/template", ...middlewaresAdmin, async (req, res) => {
                 normalizedFields,
             );
 
-            await connection.query(
-                `
-                UPDATE form_template_assignments
-                SET template_id = ?,
-                    assigned_by = ?,
-                    assigned_at = NOW(),
-                    is_active = 1
-                WHERE menu_item_id = ?
-                  AND form_type = ?
-                  AND is_active = 1
-                `,
-                [templateId, assignedBy, menuItemId, formType],
+            await adminFormsDAO.refreshActiveAssignment(
+                menuItemId,
+                formType,
+                templateId,
+                assignedBy,
+                connection,
             );
         } else {
-            const [versionRows] = await connection.query(
-                `
-                SELECT COALESCE(MAX(version), 0) AS maxVersion
-                FROM form_templates
-                WHERE name = ?
-                  AND form_type = ?
-                `,
-                [templateName, formType],
+            resolvedVersion = await adminFormsDAO.getNextTemplateVersion(
+                templateName,
+                formType,
+                connection,
             );
-            resolvedVersion = Number(versionRows[0]?.maxVersion || 0) + 1;
-
-            const [templateInsert] = await connection.query(
-                `
-                INSERT INTO form_templates (
-                    name,
-                    form_type,
-                    status,
-                    version,
-                    description,
-                    created_by,
-                    created_at,
-                    updated_at
-                )
-                VALUES (?, ?, 'published', ?, 'Creada desde configuración admin', ?, NOW(), NOW())
-                `,
-                [templateName, formType, resolvedVersion, assignedBy],
+            templateId = await adminFormsDAO.insertTemplate(
+                templateName,
+                formType,
+                resolvedVersion,
+                assignedBy,
+                connection,
             );
-
-            templateId = templateInsert.insertId;
 
             await insertTemplateFields(
                 connection,
@@ -635,24 +444,12 @@ router.post("/template", ...middlewaresAdmin, async (req, res) => {
                 normalizedFields,
             );
 
-            await connection.query(
-                `
-                INSERT INTO form_template_assignments (
-                    menu_item_id,
-                    form_type,
-                    template_id,
-                    is_active,
-                    assigned_by,
-                    assigned_at
-                )
-                VALUES (?, ?, ?, 1, ?, NOW())
-                ON DUPLICATE KEY UPDATE
-                    template_id = VALUES(template_id),
-                    assigned_by = VALUES(assigned_by),
-                    assigned_at = NOW(),
-                    is_active = 1
-                `,
-                [menuItemId, formType, templateId, assignedBy],
+            await adminFormsDAO.upsertTemplateAssignment(
+                menuItemId,
+                formType,
+                templateId,
+                assignedBy,
+                connection,
             );
         }
 

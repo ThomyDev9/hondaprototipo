@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
-import pool from "./db.js";
-import { isabelPool } from "./db.multi.js";
+import RecordingLinkDAO from "./dao/RecordingLinkDAO.js";
 
 dotenv.config();
 
@@ -8,6 +7,8 @@ let recordingLinkInfraReady = false;
 
 const DEFAULT_ENCUESTA_SCHEMA =
     process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev";
+
+const recordingLinkDAO = new RecordingLinkDAO();
 
 function normalizeValue(value) {
     return String(value || "").trim();
@@ -37,46 +38,7 @@ export function buildRecordingPath(recordingfile, calldate) {
     return `${yyyy}/${mm}/${dd}/${recordingfile}`;
 }
 
-export async function ensureRecordingLinkTable(connectionOrPool = pool) {
-    if (recordingLinkInfraReady) {
-        return;
-    }
-
-    await connectionOrPool.query(`
-        CREATE TABLE IF NOT EXISTS management_recording_link (
-            id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            schema_name VARCHAR(100) NOT NULL,
-            gestion_contact_id VARCHAR(100) NOT NULL,
-            gestion_row_id VARCHAR(100) NULL,
-            interaction_id VARCHAR(128) NULL,
-            campaign_id VARCHAR(150) NULL,
-            agent VARCHAR(100) NULL,
-            contact_address VARCHAR(50) NULL,
-            management_timestamp DATETIME NULL,
-            cdr_uniqueid VARCHAR(64) NULL,
-            cdr_calldate DATETIME NULL,
-            cdr_src VARCHAR(50) NULL,
-            cdr_dst VARCHAR(50) NULL,
-            cdr_disposition VARCHAR(50) NULL,
-            cdr_duration INT NULL,
-            recordingfile VARCHAR(255) NULL,
-            recording_path VARCHAR(255) NULL,
-            linked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                ON UPDATE CURRENT_TIMESTAMP,
-            KEY idx_mrl_contact (schema_name, gestion_contact_id),
-            KEY idx_mrl_interaction (schema_name, interaction_id),
-            KEY idx_mrl_linked_at (linked_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-
-    recordingLinkInfraReady = true;
-}
-
-export async function findBestCdrMatch({
-    phoneNumber,
-    managementTimestamp,
-}) {
+export async function findBestCdrMatch({ phoneNumber, managementTimestamp }) {
     const phone = normalizeValue(phoneNumber);
     if (!phone) {
         return null;
@@ -91,34 +53,15 @@ export async function findBestCdrMatch({
         return null;
     }
 
-    const [rows] = await isabelPool.query(
-        `
-        SELECT
-            uniqueid,
-            calldate,
-            src,
-            dst,
-            disposition,
-            duration,
-            recordingfile
-        FROM cdr
-        WHERE recordingfile IS NOT NULL
-          AND recordingfile <> ''
-          AND dst = ?
-          AND calldate BETWEEN DATE_SUB(?, INTERVAL 6 HOUR)
-                          AND DATE_ADD(?, INTERVAL 10 MINUTE)
-        ORDER BY ABS(TIMESTAMPDIFF(SECOND, calldate, ?)) ASC,
-                 calldate DESC
-        LIMIT 1
-        `,
-        [phone, timestamp, timestamp, timestamp],
-    );
+    const cdr = await recordingLinkDAO.findNearestCdrByPhoneAndDate({
+        phoneNumber: phone,
+        managementTimestamp: timestamp,
+    });
 
-    if (!rows.length) {
+    if (!cdr) {
         return null;
     }
 
-    const cdr = rows[0];
     return {
         ...cdr,
         recording_path: buildRecordingPath(cdr.recordingfile, cdr.calldate),
@@ -142,8 +85,6 @@ export async function linkManagementToRecording({
         return null;
     }
 
-    await ensureRecordingLinkTable(pool);
-
     const cdr = await findBestCdrMatch({
         phoneNumber: normalizedPhone,
         managementTimestamp,
@@ -160,48 +101,25 @@ export async function linkManagementToRecording({
             ? managementTimestamp
             : new Date(managementTimestamp);
 
-    await pool.query(
-        `
-        INSERT INTO management_recording_link (
-            schema_name,
-            gestion_contact_id,
-            gestion_row_id,
-            interaction_id,
-            campaign_id,
-            agent,
-            contact_address,
-            management_timestamp,
-            cdr_uniqueid,
-            cdr_calldate,
-            cdr_src,
-            cdr_dst,
-            cdr_disposition,
-            cdr_duration,
-            recordingfile,
-            recording_path,
-            linked_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-        `,
-        [
-            normalizedSchema,
-            normalizedContactId,
-            normalizeValue(gestionRowId),
-            normalizedInteractionId,
-            normalizeValue(campaignId),
-            normalizeValue(agent),
-            normalizedPhone,
-            normalizedTimestamp,
-            normalizeValue(cdr.uniqueid),
-            cdr.calldate || null,
-            normalizeValue(cdr.src),
-            normalizeValue(cdr.dst),
-            normalizeValue(cdr.disposition),
-            Number(cdr.duration) || 0,
-            normalizeValue(cdr.recordingfile),
-            normalizeValue(cdr.recording_path),
-        ],
-    );
+    await recordingLinkDAO.insertManagementRecordingLink({
+        schemaName: normalizedSchema,
+        contactId: normalizedContactId,
+        gestionRowId: normalizeValue(gestionRowId),
+        interactionId: normalizedInteractionId,
+        campaignId: normalizeValue(campaignId),
+        agent: normalizeValue(agent),
+        contactAddress: normalizedPhone,
+        managementTimestamp: normalizedTimestamp,
+        cdr: {
+            ...cdr,
+            uniqueid: normalizeValue(cdr.uniqueid),
+            src: normalizeValue(cdr.src),
+            dst: normalizeValue(cdr.dst),
+            disposition: normalizeValue(cdr.disposition),
+            recordingfile: normalizeValue(cdr.recordingfile),
+        },
+        recordingPath: normalizeValue(cdr.recording_path),
+    });
 
     return cdr;
 }
@@ -221,8 +139,6 @@ export async function getLinkedRecordingsForManagements(managementRows = []) {
         return new Map();
     }
 
-    await ensureRecordingLinkTable(pool);
-
     const conditions = normalizedRows.map(
         () =>
             "(schema_name = ? AND gestion_contact_id = ? AND (interaction_id = ? OR interaction_id IS NULL OR interaction_id = ''))",
@@ -233,24 +149,8 @@ export async function getLinkedRecordingsForManagements(managementRows = []) {
         row.interactionId,
     ]);
 
-    const [rows] = await pool.query(
-        `
-        SELECT
-            schema_name,
-            gestion_contact_id,
-            interaction_id,
-            cdr_calldate,
-            cdr_src,
-            cdr_dst,
-            cdr_disposition,
-            cdr_duration,
-            recordingfile,
-            recording_path,
-            linked_at
-        FROM management_recording_link
-        WHERE ${conditions.join(" OR ")}
-        ORDER BY linked_at DESC, id DESC
-        `,
+    const rows = await recordingLinkDAO.getLinkedRecordingsByConditions(
+        conditions.join(" OR "),
         params,
     );
 
@@ -294,4 +194,12 @@ export async function getLinkedRecordingsForManagements(managementRows = []) {
     }
 
     return resolved;
+}
+
+export async function ensureRecordingLinkInfrastructure() {
+    if (recordingLinkInfraReady) {
+        return;
+    }
+
+    recordingLinkInfraReady = true;
 }

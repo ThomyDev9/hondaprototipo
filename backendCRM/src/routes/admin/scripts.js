@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../../services/db.js";
+import AdminScriptsDAO from "../../services/dao/AdminScriptsDAO.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -7,6 +8,7 @@ import {
 } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
+const adminScriptsDAO = new AdminScriptsDAO(pool);
 
 const middlewaresAdmin = [
     requireAuth,
@@ -31,20 +33,7 @@ function isValidScriptObject(value) {
 
 router.get("/subcampaigns", ...middlewaresAdmin, async (_req, res) => {
     try {
-        const [rows] = await pool.query(
-            `
-            SELECT
-                s.id,
-                s.nombre_item AS subcampania,
-                p.nombre_item AS campania
-            FROM menu_items s
-            INNER JOIN menu_items p ON p.id = s.id_padre
-            WHERE s.id_padre IS NOT NULL
-              AND s.estado = 'activo'
-              AND p.estado = 'activo'
-            ORDER BY p.nombre_item ASC, s.nombre_item ASC
-            `,
-        );
+        const rows = await adminScriptsDAO.getActiveSubcampaignRows();
 
         return res.json({
             data: rows.map((row) => ({
@@ -69,29 +58,10 @@ router.get("/:menuItemId", ...middlewaresAdmin, async (req, res) => {
             return res.status(400).json({ error: "menuItemId es requerido" });
         }
 
-        const [rows] = await pool.query(
-            `
-            SELECT
-                scs.menu_item_id,
-                scs.script_json,
-                scs.updated_by,
-                scs.updated_at,
-                mi.nombre_item AS subcampania,
-                p.nombre_item AS campania
-            FROM sub_campaign_scripts scs
-            INNER JOIN menu_items mi ON mi.id = scs.menu_item_id
-            LEFT JOIN menu_items p ON p.id = mi.id_padre
-            WHERE scs.menu_item_id = ?
-            LIMIT 1
-            `,
-            [menuItemId],
-        );
-
-        if (rows.length === 0) {
+        const row = await adminScriptsDAO.getSubcampaignScript(menuItemId);
+        if (!row) {
             return res.json({ data: null });
         }
-
-        const row = rows[0];
         return res.json({
             data: {
                 menuItemId: row.menu_item_id,
@@ -127,43 +97,18 @@ router.post("/:menuItemId", ...middlewaresAdmin, async (req, res) => {
             });
         }
 
-        const [menuRows] = await pool.query(
-            `
-            SELECT id
-            FROM menu_items
-            WHERE id = ?
-              AND id_padre IS NOT NULL
-            LIMIT 1
-            `,
-            [menuItemId],
-        );
-
-        if (menuRows.length === 0) {
+        const isValidSubcampaign =
+            await adminScriptsDAO.isValidSubcampaign(menuItemId);
+        if (!isValidSubcampaign) {
             return res.status(400).json({
                 error: "La subcampaña seleccionada no es válida",
             });
         }
 
-        await pool.query(
-            `
-            INSERT INTO sub_campaign_scripts (
-                menu_item_id,
-                script_json,
-                updated_by
-            )
-            VALUES (?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-                script_json = ?,
-                updated_by = ?,
-                updated_at = CURRENT_TIMESTAMP
-            `,
-            [
-                menuItemId,
-                JSON.stringify(script),
-                updatedBy,
-                JSON.stringify(script),
-                updatedBy,
-            ],
+        await adminScriptsDAO.upsertSubcampaignScript(
+            menuItemId,
+            JSON.stringify(script),
+            updatedBy,
         );
 
         return res.status(201).json({
