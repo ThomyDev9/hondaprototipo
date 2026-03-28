@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Select } from "../../components/common";
 import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
+import { filtrarCampaniasGestionOutbound } from "../../utils/gestionOutbound";
 import "./ReciclarBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -137,17 +138,22 @@ export default function ReciclarBases() {
         basePlaceholder = "Seleccione base";
     }
 
-    const campaniaPadreOptions = useMemo(
-        () =>
-            (menuCampanias || [])
-                .map((item) => String(item?.campania || "").trim())
-                .filter(Boolean)
-                .map((nombre) => ({ id: nombre, label: nombre })),
+    const campaniasDisponibles = useMemo(
+        () => filtrarCampaniasGestionOutbound(menuCampanias),
         [menuCampanias],
     );
 
+    const campaniaPadreOptions = useMemo(
+        () =>
+            campaniasDisponibles
+                .map((item) => String(item?.campania || "").trim())
+                .filter(Boolean)
+                .map((nombre) => ({ id: nombre, label: nombre })),
+        [campaniasDisponibles],
+    );
+
     const subcampaniaOptions = useMemo(() => {
-        const selectedParent = (menuCampanias || []).find(
+        const selectedParent = campaniasDisponibles.find(
             (item) => item.campania === campaniaPadreSeleccionada,
         );
 
@@ -155,7 +161,7 @@ export default function ReciclarBases() {
             .map((nombre) => String(nombre || "").trim())
             .filter(Boolean)
             .map((nombre) => ({ id: nombre, label: nombre }));
-    }, [menuCampanias, campaniaPadreSeleccionada]);
+    }, [campaniasDisponibles, campaniaPadreSeleccionada]);
 
     const handleReciclar = async () => {
         if (!subcampaniaSeleccionada) {

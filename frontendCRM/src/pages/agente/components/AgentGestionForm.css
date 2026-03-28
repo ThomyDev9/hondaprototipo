@@ -29,9 +29,9 @@
     width: 100%;
     box-sizing: border-box;
     background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 50%, #dbeafe 100%);
-    border-radius: 1.1rem;
+    border-radius: 0.9rem;
     border: 1px solid rgba(15, 23, 42, 0.6);
-    padding: 0.75rem;
+    padding: 0.5rem;
     box-shadow:
         inset 0 0 0 1px rgba(15, 23, 42, 0.08),
         0 12px 18px rgba(15, 23, 42, 0.12);
@@ -79,7 +79,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.6rem;
+    gap: 0.35rem;
     flex-wrap: wrap;
 }
 
@@ -101,8 +101,8 @@
 
 .agent-form-card__body {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 0.4rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.3rem;
     align-items: stretch;
 }
 
@@ -130,7 +130,7 @@
 
 .agent-form-card--f1 .agent-form-card__body {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.25rem;
     flex-wrap: nowrap;
     align-items: stretch;
     width: 100%;
@@ -138,15 +138,15 @@
 
 .agent-form-card--f1 .agent-form-card__body .agent-form-field {
     flex: 1 0 120px;
-    min-width: 140px;
-    max-width: 220px;
+    min-width: 130px;
+    max-width: 200px;
 }
 
 .agent-form-field {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.35rem 0.4rem;
+    gap: 0.3rem;
+    padding: 0.25rem 0.3rem;
     min-width: 0;
 }
 
@@ -162,7 +162,7 @@
 
 .agent-input {
     width: 100%;
-    padding: 0.55rem 0.6rem;
+    padding: 0.45rem 0.5rem;
     border-radius: 0.85rem;
     border: 1px solid rgba(148, 163, 184, 0.5);
     background: #fff;
@@ -279,7 +279,8 @@
 .agent-form-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 0.75rem;
+    gap: 0.4rem;
+    flex-wrap: wrap;
 }
 
 .agent-primary-button {
@@ -367,9 +368,9 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    padding: 0.9rem;
-    border-radius: 1rem;
+    gap: 0.3rem;
+    padding: 0.4rem;
+    border-radius: 0.8rem;
     border: 1px solid rgba(59, 130, 246, 0.4);
     background: linear-gradient(
         140deg,
@@ -380,29 +381,29 @@
 
 .agent-script-tabs__header h3 {
     margin: 0;
-    font-size: 1rem;
-    letter-spacing: 0.2em;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
     color: #0f172a;
     text-align: center;
 }
 
 .agent-script-tabs__nav {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.25rem;
     width: 100%;
 }
 
 .agent-script-tabs__button {
     width: 100%;
-    min-height: 42px;
+    min-height: 30px;
     border: 1px solid rgba(15, 23, 42, 0.15);
-    background: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.85);
     color: #0f172a;
-    padding: 0.4rem 0.8rem;
+    padding: 0.1rem 0.4rem;
     border-radius: 999px;
-    font-size: 0.75rem;
-    letter-spacing: 0.15em;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     cursor: pointer;
     text-align: center;

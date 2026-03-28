@@ -14,7 +14,7 @@ import {
     changeAgentStatus,
 } from "../../../services/dashboard.service";
 
-const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
 export default function useRegistroQueue({
     selectedCampaignId,

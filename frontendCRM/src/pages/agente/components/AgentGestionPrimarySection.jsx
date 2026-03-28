@@ -20,27 +20,41 @@ export default function AgentGestionPrimarySection({
     onGrabadoraClick,
     onContestaTerceroClick,
 }) {
-    const level1Options = [...new Set(levels.map((item) => item.level1).filter(Boolean))];
+    const level1Options = [
+        ...new Set(levels.map((item) => item.level1).filter(Boolean)),
+    ];
     const level2Options = levels
         .filter((item) => item.level1 === level1Seleccionado)
         .map((item) => item.level2)
         .filter(Boolean);
+    const requiereTelefono = !Boolean(telefonoSeleccionado);
 
     return (
         <section className="agent-form-card agent-form-card--f1">
             <div className="agent-form-card__header">
                 <h4 className="agent-form-card__title">Formulario 1</h4>
                 <div className="agent-quick-actions">
-                    <Button variant="secondary" size="sm" onClick={onNoContestaClick}>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={onNoContestaClick}
+                        disabled={requiereTelefono}
+                    >
                         No contesta
                     </Button>
-                    <Button variant="secondary" size="sm" onClick={onGrabadoraClick}>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={onGrabadoraClick}
+                        disabled={requiereTelefono}
+                    >
                         Grabadora
                     </Button>
                     <Button
                         variant="secondary"
                         size="sm"
                         onClick={onContestaTerceroClick}
+                        disabled={requiereTelefono}
                     >
                         Contesta tercero
                     </Button>
@@ -75,6 +89,7 @@ export default function AgentGestionPrimarySection({
                             onChange={(event) => onLevel1Change(event.target.value)}
                             className="agent-input"
                             required
+                            disabled={requiereTelefono}
                         >
                             <option value="">Selecciona...</option>
                             {level1Options.map((option) => (
@@ -94,6 +109,7 @@ export default function AgentGestionPrimarySection({
                             onChange={(event) => onLevel2Change(event.target.value)}
                             className="agent-input"
                             required
+                            disabled={requiereTelefono}
                         >
                             <option value="">Selecciona...</option>
                             {level2Options.map((option) => (
@@ -115,6 +131,7 @@ export default function AgentGestionPrimarySection({
                             }
                             className="agent-input"
                             required
+                            disabled={requiereTelefono}
                         >
                             <option value="">Selecciona...</option>
                             {estadoTelefonos.map((option) => (
@@ -136,6 +153,7 @@ export default function AgentGestionPrimarySection({
                             onChange={(event) => onObservacionChange(event.target.value)}
                             className="agent-input"
                             required
+                            disabled={requiereTelefono}
                         />
                     </label>
                 </div>

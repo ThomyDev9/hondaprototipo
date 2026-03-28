@@ -1,7 +1,8 @@
 // frontend/src/pages/bases/CargarBases.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Select } from "../../components/common";
 import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
+import { filtrarCampaniasGestionOutbound } from "../../utils/gestionOutbound";
 import "./CargarBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -35,13 +36,18 @@ export default function CargarBases() {
         loadCampanias();
     }, []);
 
-    const campaniaPadreOptions = menuCampanias
+    const campaniasDisponibles = useMemo(
+        () => filtrarCampaniasGestionOutbound(menuCampanias),
+        [menuCampanias],
+    );
+
+    const campaniaPadreOptions = campaniasDisponibles
         .map((item) => item.campania)
         .filter(Boolean)
         .map((nombre) => ({ id: nombre, label: nombre }));
 
     const subcampaniaOptions = (
-        menuCampanias.find((item) => item.campania === campaniaPadre)
+        campaniasDisponibles.find((item) => item.campania === campaniaPadre)
             ?.subcampanias || []
     ).map((nombre) => ({ id: nombre, label: nombre }));
 

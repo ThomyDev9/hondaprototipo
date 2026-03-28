@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Alert, Table, Select } from "../../components/common";
 import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
+import { filtrarCampaniasGestionOutbound } from "../../utils/gestionOutbound";
 import "./DashboardAdmin.css";
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -16,22 +17,27 @@ export default function DashboardAdmin() {
 
     const token = localStorage.getItem("access_token") || "";
 
+    const campaniasDisponibles = useMemo(
+        () => filtrarCampaniasGestionOutbound(menuCampanias),
+        [menuCampanias],
+    );
+
     const campaniaPadreOptions = useMemo(
         () =>
-            menuCampanias
+            campaniasDisponibles
                 .map((item) => item.campania)
                 .filter(Boolean)
                 .map((nombre) => ({ id: nombre, label: nombre })),
-        [menuCampanias],
+        [campaniasDisponibles],
     );
 
     const subcampaniaOptions = useMemo(
         () =>
             (
-                menuCampanias.find((item) => item.campania === campaniaPadre)
+                campaniasDisponibles.find((item) => item.campania === campaniaPadre)
                     ?.subcampanias || []
             ).map((nombre) => ({ id: nombre, label: nombre })),
-        [menuCampanias, campaniaPadre],
+        [campaniasDisponibles, campaniaPadre],
     );
 
     const loadResumen = async (nextCampaignId = campaignId) => {

@@ -384,6 +384,7 @@ export default function NivelesGestionAdmin() {
                             noDataMessage="Aún no agregas Level2 al pool"
                         />
 
+
                         <div className="niveles-gestion-actions">
                             <Button
                                 type="button"
@@ -442,17 +443,19 @@ export default function NivelesGestionAdmin() {
                     />
 
                     <div className="niveles-gestion-wrapper">
-                        <Table
-                            columns={tableColumnsEdit}
-                            data={rows}
-                            keyField="Id"
-                            loading={loadingRows}
-                            noDataMessage={
-                                effectiveCampaignId
-                                    ? "No hay niveles para esta subcampaña"
-                                    : "Selecciona una subcampaña para editar"
-                            }
-                        />
+                        {!editingId && (
+                            <Table
+                                columns={tableColumnsEdit}
+                                data={rows}
+                                keyField="Id"
+                                loading={loadingRows}
+                                noDataMessage={
+                                    effectiveCampaignId
+                                        ? "No hay niveles para esta subcampaña"
+                                        : "Selecciona una subcampaña para editar"
+                                }
+                            />
+                        )}
 
                         {editingId && (
                             <div

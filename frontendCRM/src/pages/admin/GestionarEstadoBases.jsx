@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Select, Alert, Table, Badge } from "../../components/common";
 import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
+import { filtrarCampaniasGestionOutbound } from "../../utils/gestionOutbound";
 import "./GestionarEstadoBases.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -40,13 +41,18 @@ export default function GestionarEstadoBases() {
         }
     };
 
-    const campaniaPadreOptions = menuCampanias
+    const campaniasDisponibles = useMemo(
+        () => filtrarCampaniasGestionOutbound(menuCampanias),
+        [menuCampanias],
+    );
+
+    const campaniaPadreOptions = campaniasDisponibles
         .map((item) => item.campania)
         .filter(Boolean)
         .map((nombre) => ({ id: nombre, label: nombre }));
 
     const subcampaniaOptions = (
-        menuCampanias.find(
+        campaniasDisponibles.find(
             (item) => item.campania === campaniaPadreSeleccionada,
         )?.subcampanias || []
     ).map((nombre) => ({ id: nombre, label: nombre }));
