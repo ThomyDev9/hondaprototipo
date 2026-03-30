@@ -572,7 +572,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
             });
 
             if (!ok) {
-                throw new Error(json?.error || errorMessage);
+                throw new Error(json?.detail || json?.error || errorMessage);
             }
         },
         [],

@@ -453,7 +453,9 @@ export default function OutMaquitaMailFlow({ onBack }) {
 
             if (!ok) {
                 throw new Error(
-                    json?.error || "No se pudo guardar la gestion outbound",
+                    json?.detail ||
+                        json?.error ||
+                        "No se pudo guardar la gestion outbound",
                 );
             }
         },

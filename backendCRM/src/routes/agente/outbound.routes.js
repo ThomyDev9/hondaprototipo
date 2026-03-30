@@ -341,15 +341,29 @@ export function registerOutboundRoutes(
                             agenteActor,
                         );
                     } catch (sheetError) {
+                        const outMaquitaFlow =
+                            String(
+                                formData?.outboundFlow || formData?.flow || "",
+                            )
+                                .trim()
+                                .toLowerCase() === "rrss"
+                                ? "rrss"
+                                : "mail";
+                        const syncTarget =
+                            outMaquitaFlow === "rrss"
+                                ? "estado RRSS en Google Sheets"
+                                : "gestion Mail en Google Sheets";
+
                         console.error(
                             "Error sincronizando Out Maquita con Google Sheets:",
                             sheetError,
                         );
                         return res.status(500).json({
-                            error: "Gestion guardada en BD pero fallo la actualizacion del Drive",
+                            error: `Gestion guardada en BD pero fallo la sincronizacion de ${syncTarget}`,
                             detail:
                                 sheetError?.message ||
                                 "No se pudo actualizar Google Sheets",
+                            syncTarget,
                         });
                     }
                 }
