@@ -1,6 +1,7 @@
-const OUT_MAQUITA_CAMPAIGN = "out maquita cushunchic";
+ï»¿const OUT_MAQUITA_CAMPAIGN = "out maquita cushunchic";
 const OUT_MAQUITA_FLOW_MAIL = "mail";
 const OUT_MAQUITA_FLOW_RRSS = "rrss";
+const WEBHOOK_TIMEOUT_MS = 20000;
 
 function normalizeText(value) {
     return String(value || "")
@@ -19,13 +20,39 @@ function tryParseJson(rawText = "") {
 }
 
 async function postWebhookPayload(webhookUrl, payload) {
-    const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+
+    let response;
+
+    try {
+        response = await fetch(webhookUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+        });
+    } catch (error) {
+        const causeCode = error?.cause?.code || "";
+        const isTimeout =
+            error?.name === "AbortError" ||
+            causeCode === "UND_ERR_CONNECT_TIMEOUT";
+
+        if (isTimeout) {
+            throw new Error(
+                `Timeout conectando con el webhook de Google Sheets (${WEBHOOK_TIMEOUT_MS}ms)`,
+            );
+        }
+
+        throw new Error(
+            error?.message ||
+                "No se pudo conectar con el webhook de Google Sheets",
+        );
+    } finally {
+        clearTimeout(timeoutId);
+    }
 
     const rawText = await response.text();
     const json = tryParseJson(rawText);
@@ -67,8 +94,8 @@ export function buildOutMaquitaMailPayload(formData = {}, actor = "") {
         identification: String(
             formData?.identificacion ||
                 formData?.Identificacion ||
-                formData?.["Nº de cédula"] ||
-                formData?.["N° de cédula"] ||
+                formData?.["NÂº de cÃ©dula"] ||
+                formData?.["NÂ° de cÃ©dula"] ||
                 "",
         ).trim(),
         motivoInteraccion: String(formData?.motivoInteraccion || "").trim(),
@@ -88,7 +115,7 @@ export function buildOutMaquitaRrssGestionPayload(formData = {}, actor = "") {
             formData?.identificacion ||
                 formData?.Identificacion ||
                 formData?.identification ||
-                formData?.["Número de Cedula"] ||
+                formData?.["NÃºmero de Cedula"] ||
                 formData?.["Numero de Cedula"] ||
                 "",
         ).trim(),

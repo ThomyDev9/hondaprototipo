@@ -19,7 +19,7 @@ import {
 import "./OutMaquitaRrssFlow.css";
 
 const FLOW_GID = "463742430";
-const FLOW_STATUS_KEYS = ["Estado", "Estado ", "S"];
+const FLOW_STATUS_KEYS = ["Estado", "Estado ", "T", "S"];
 const RRSS_REGESTION_STATUS_VALUES = [
     "No contesta",
     "Volver a llamar",
@@ -498,7 +498,17 @@ export default function OutMaquitaRrssFlow({ onBack }) {
 
     const cargarSiguienteRegistro = React.useCallback(
         async (currentIdentification = "", currentRowNumber = 0) => {
-            const all = await loadFlowRows();
+            let all = [];
+            try {
+                all = await loadFlowRows();
+            } catch {
+                setBusquedaId("");
+                setRegistro(null);
+                setError(
+                    "La gestion se guardo, pero no se pudo refrescar la lista de Google Sheets.",
+                );
+                return;
+            }
 
             const currentId = String(currentIdentification || "").trim();
             const currentRow = Number(currentRowNumber || 0);
@@ -647,6 +657,13 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                             registro?.__rowNumber || 0,
                         );
                     } catch (saveError) {
+                        if (
+                            String(saveError?.message || "").includes(
+                                "no se pudo refrescar la lista de Google Sheets",
+                            )
+                        ) {
+                            return;
+                        }
                         setSuccessMessage("");
                         setError(
                             saveError?.message ||
@@ -674,6 +691,13 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                             registro?.__rowNumber || 0,
                         );
                     } catch (saveError) {
+                        if (
+                            String(saveError?.message || "").includes(
+                                "no se pudo refrescar la lista de Google Sheets",
+                            )
+                        ) {
+                            return;
+                        }
                         setSuccessMessage("");
                         setError(
                             saveError?.message ||

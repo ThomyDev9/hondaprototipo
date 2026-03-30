@@ -2,7 +2,8 @@ export const OUT_MAQUITA_FLOW_OPTIONS = [
     {
         id: "mail",
         title: "Gestion Leads Mail",
-        description: "Trabaja los registros que llegan desde el flujo de correo.",
+        description:
+            "Trabaja los registros que llegan desde el flujo de correo.",
     },
     {
         id: "rrss",
@@ -46,6 +47,7 @@ export const OUT_MAQUITA_RRSS_MOTIVOS = [
     "Volver a llamar",
     "Inubicable",
     "Seguimiento",
+    "No aplica",
 ];
 
 export const OUT_MAQUITA_RRSS_SUBMOTIVOS = [
@@ -59,7 +61,11 @@ export const OUT_MAQUITA_RRSS_SUBMOTIVOS = [
 export function getFirstNonEmptyValue(source, keys = []) {
     for (const key of keys) {
         const value = source?.[key];
-        if (value !== undefined && value !== null && String(value).trim() !== "") {
+        if (
+            value !== undefined &&
+            value !== null &&
+            String(value).trim() !== ""
+        ) {
             return value;
         }
     }
@@ -71,12 +77,12 @@ export function getRegistroIdentification(source) {
     return String(
         source?.identificacion ||
             source?.Identificacion ||
-            source?.["Número de Cedula"] ||
+            source?.["Nï¿½mero de Cedula"] ||
             source?.["Numero de Cedula"] ||
-            source?.["Número de Cédula"] ||
-            source?.["Numero de Cédula"] ||
-            source?.["Nº de cédula"] ||
-            source?.["N° de cédula"] ||
+            source?.["Nï¿½mero de Cï¿½dula"] ||
+            source?.["Numero de Cï¿½dula"] ||
+            source?.["Nï¿½ de cï¿½dula"] ||
+            source?.["Nï¿½ de cï¿½dula"] ||
             source?.cedula ||
             source?.Cedula ||
             source?.C ||
@@ -89,9 +95,9 @@ export function getMailRegistroIdentification(source) {
     return String(
         source?.identificacion ||
             source?.Identificacion ||
-            source?.["Nº de cédula"] ||
-            source?.["N° de cédula"] ||
-            source?.["Número de Cedula"] ||
+            source?.["Nï¿½ de cï¿½dula"] ||
+            source?.["Nï¿½ de cï¿½dula"] ||
+            source?.["Nï¿½mero de Cedula"] ||
             source?.["Numero de Cedula"] ||
             source?.D ||
             source?.C ||
@@ -103,10 +109,10 @@ export function getRrssRegistroIdentification(source) {
     return String(
         source?.identificacion ||
             source?.Identificacion ||
-            source?.["Número de Cedula"] ||
+            source?.["Nï¿½mero de Cedula"] ||
             source?.["Numero de Cedula"] ||
-            source?.["Número de Cédula"] ||
-            source?.["Numero de Cédula"] ||
+            source?.["Nï¿½mero de Cï¿½dula"] ||
+            source?.["Numero de Cï¿½dula"] ||
             source?.D ||
             source?.C ||
             "",
@@ -121,4 +127,3 @@ export function getTodayFormatted() {
 
     return `${day}/${month}/${year}`;
 }
-

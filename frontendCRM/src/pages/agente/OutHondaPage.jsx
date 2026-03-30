@@ -4,10 +4,8 @@ import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service
 import FormularioDinamicoReseteable from "../../components/FormularioDinamicoReseteable";
 import {
     fetchSheetAsJson,
-    fetchDatosWebSheet,
 } from "../../services/webSheet.service";
 import {
-    fetchGestionOutboundByIdentification,
     guardarGestionOutbound,
 } from "../../services/dashboard.service";
 import "./OutHondaPage.css";
@@ -28,8 +26,7 @@ function findOptionIgnoreCase(options = [], target) {
 }
 
 export default function OutHondaPage() {
-    const [busquedaId, setBusquedaId] = React.useState("");
-    const [buscando, setBuscando] = React.useState(false);
+    const DEFAULT_HONDA_ORIGEN = "BaseLeadsHonda2026";
     const [registro, setRegistro] = React.useState(null);
     const [loading, setLoading] = React.useState(false);
     const [error, setError] = React.useState("");
@@ -141,9 +138,11 @@ export default function OutHondaPage() {
         setSubmotivos([...new Set(level2s)]);
     }, [selectedMotivo, levels]);
 
+    const [allRows, setAllRows] = useState([]);
     const [noGestionados, setNoGestionados] = useState([]);
     const [gestionados, setGestionados] = useState([]);
     const [filtroTabla, setFiltroTabla] = useState("no-gestionados");
+    const [filtroOrigen, setFiltroOrigen] = useState(DEFAULT_HONDA_ORIGEN);
     // Al cargar, traer registros no gestionados de Google Sheets
     useEffect(() => {
         setLoading(true);
@@ -151,9 +150,7 @@ export default function OutHondaPage() {
         fetchSheetAsJson()
             .then((data) => {
                 // Filtrar por Origen === 'BaseLeadsHonda2026'
-                const filtrados = data.filter(
-                    (row) => row.Origen === "BaseLeadsHonda2026",
-                );
+                const sortedRows = [...data];
                 // Ordenar por Fecha (columna J) descendente
                 function parseFecha(fechaStr) {
                     if (!fechaStr) return 0;
@@ -163,28 +160,58 @@ export default function OutHondaPage() {
                         `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`,
                     );
                 }
-                filtrados.sort((a, b) => {
+                sortedRows.sort((a, b) => {
                     const fechaA = parseFecha(a.Fecha || a.J);
                     const fechaB = parseFecha(b.Fecha || b.J);
                     return fechaB - fechaA;
                 });
-                const noGest = filtrados.filter(
-                    (row) => !row.Gestionado || row.Gestionado === "#N/A",
-                );
-                // Excluir gestionados con Agendado === 'SGC'
-                const gest = filtrados.filter(
-                    (row) =>
-                        row.Gestionado &&
-                        row.Gestionado !== "#N/A" &&
-                        row.Agendado !== "SGC",
-                );
-                setNoGestionados(noGest);
-                setGestionados(gest);
+                setAllRows(sortedRows);
                 setRegistro(null); // No seleccionar registro automáticamente
             })
             .catch(() => setError("Error cargando registros"))
             .finally(() => setLoading(false));
     }, []);
+
+    useEffect(() => {
+        const filtrados = allRows.filter((row) => {
+            if (!filtroOrigen) return true;
+            return String(row.Origen || "").trim() === filtroOrigen;
+        });
+
+        const noGest = filtrados.filter(
+            (row) => !row.Gestionado || row.Gestionado === "#N/A",
+        );
+        const gest = filtrados.filter(
+            (row) =>
+                row.Gestionado &&
+                row.Gestionado !== "#N/A" &&
+                row.Agendado !== "SGC",
+        );
+
+        setNoGestionados(noGest);
+        setGestionados(gest);
+    }, [allRows, filtroOrigen]);
+
+    const origenOptions = React.useMemo(() => {
+        const uniqueOrigins = [
+            ...new Set(
+                allRows
+                    .map((row) => String(row.Origen || "").trim())
+                    .filter(Boolean),
+            ),
+        ];
+
+        if (uniqueOrigins.includes(DEFAULT_HONDA_ORIGEN)) {
+            return [
+                DEFAULT_HONDA_ORIGEN,
+                ...uniqueOrigins.filter(
+                    (origin) => origin !== DEFAULT_HONDA_ORIGEN,
+                ),
+            ];
+        }
+
+        return uniqueOrigins;
+    }, [allRows]);
 
     if (loading) return null;
 
@@ -444,56 +471,6 @@ export default function OutHondaPage() {
         <div className="">
             <div className="outmaquita-form-panel">
                 <h1 className="">Out Honda</h1>
-                <div>
-                    <input
-                        type="text"
-                        placeholder="Buscar por identificación"
-                        value={busquedaId}
-                        onChange={(e) => setBusquedaId(e.target.value)}
-                        maxLength={20}
-                        style={{ flex: 1, padding: 6 }}
-                    />
-                    <button
-                        type="button"
-                        disabled={buscando || !busquedaId}
-                        onClick={async () => {
-                            setBuscando(true);
-                            setError("");
-                            try {
-                                const { ok, json } =
-                                    await fetchGestionOutboundByIdentification({
-                                        campaignId: "Out Honda",
-                                        identification: busquedaId,
-                                    });
-                                const data =
-                                    (ok ? json?.data : null) ||
-                                    (await fetchDatosWebSheet(busquedaId));
-                                if (data) {
-                                    setRegistro(data);
-                                    setTimeout(() => {
-                                        setSelectedMotivo(
-                                            data.motivoInteraccion ||
-                                                data.MotivoLlamada ||
-                                                "",
-                                        );
-                                    }, 0);
-                                } else {
-                                    setRegistro(null);
-                                    setSelectedMotivo("");
-                                    setError(
-                                        "No se encontró registro para esa identificación.",
-                                    );
-                                }
-                            } catch {
-                                setError("Error buscando registro");
-                            } finally {
-                                setBuscando(false);
-                            }
-                        }}
-                    >
-                        {buscando ? "Buscando..." : "Buscar"}
-                    </button>
-                </div>
                 {error && <div className="outmaquita-error">{error}</div>}
                 <div className="outmaquita-form-wrapper">
                     <div>
@@ -509,11 +486,26 @@ export default function OutHondaPage() {
                             <option value="gestionados">Gestionados</option>
                         </select>
                     </div>
+                    <div>
+                        <label htmlFor="filtroOrigen">Hoja / Origen:</label>
+                        <select
+                            id="filtroOrigen"
+                            value={filtroOrigen}
+                            onChange={(e) => setFiltroOrigen(e.target.value)}
+                        >
+                            {origenOptions.map((origin) => (
+                                <option key={origin} value={origin}>
+                                    {origin}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                     {loading && <div>Cargando...</div>}
                     {error && <div style={{ color: "red" }}>{error}</div>}
                     {/* Mostrar la tabla solo si NO hay registro seleccionado */}
                     {!registro && (
-                        <table
+                        <div className="outhonda-table-wrapper">
+                            <table
                             border="1"
                             style={{
                                 marginBottom: 10,
@@ -568,7 +560,8 @@ export default function OutHondaPage() {
                                     );
                                 })}
                             </tbody>
-                        </table>
+                            </table>
+                        </div>
                     )}
                     {/* Mostrar el formulario solo si hay registro seleccionado */}
                     {registro && !resumenExcel && (
@@ -727,6 +720,7 @@ export default function OutHondaPage() {
         </div>
     );
 }
+
 
 
 
