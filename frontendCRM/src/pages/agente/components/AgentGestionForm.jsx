@@ -22,6 +22,14 @@ const INBOUND_FIXED_FIELDS_ROW = [
         type: "select",
         options: ["Titular", "Tercera persona"],
     },
+
+    {
+        key: "__inbound_tipo_identificacion",
+        label: "Tipo de identificación",
+        type: "select",
+        options: ["Cédula", "Ruc", "Pasaporte"],
+    },
+
     {
         key: "__inbound_tipo_canal",
         label: "Tipo de canal",
@@ -37,11 +45,14 @@ const INBOUND_FIXED_FIELDS_ROW = [
 ];
 
 function buildUniqueOptions(values = []) {
-    return [...new Set(values.map((item) => String(item || "").trim()).filter(Boolean))]
-        .map((item) => ({
-            value: item,
-            label: item,
-        }));
+    return [
+        ...new Set(
+            values.map((item) => String(item || "").trim()).filter(Boolean),
+        ),
+    ].map((item) => ({
+        value: item,
+        label: item,
+    }));
 }
 
 function AgentGestionForm({
@@ -289,7 +300,8 @@ function AgentGestionForm({
                         </p>
                     </div>
                     <p className="agent-info-text">
-                        No se encontrÃ³ un Formulario 2 activo para esta opciÃ³n.
+                        No se encontrÃ³ un Formulario 2 activo para esta
+                        opciÃ³n.
                     </p>
                 </section>
             )}
@@ -406,4 +418,3 @@ AgentGestionForm.propTypes = {
         username: PropTypes.string,
     }),
 };
-

@@ -19,6 +19,7 @@ const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 const INBOUND_SPECIAL_FIELDS = [
     "__inbound_tipo_cliente",
+    "__inbound_tipo_identificacion",
     "__inbound_tipo_canal",
     "__inbound_relacion",
     "__inbound_nombre_cliente",
@@ -171,10 +172,11 @@ export default function useRegistroQueue({
             contactId = "",
             detail = null,
         }) => {
+            const currentAnswers = { ...(dynamicFormAnswersRef.current || {}) };
             const preservedInboundValues = Object.fromEntries(
                 INBOUND_SPECIAL_FIELDS.map((key) => [
                     key,
-                    String(dynamicFormAnswersRef.current?.[key] || ""),
+                    String(currentAnswers?.[key] || ""),
                 ]),
             );
             let nextDynamicConfig = null;
@@ -215,14 +217,22 @@ export default function useRegistroQueue({
             const initialFormAnswers = {};
             for (const row of nextDynamicConfig?.rows || []) {
                 for (const field of row || []) {
-                    initialFormAnswers[field.key] =
+                    const detailValue =
                         detail?.[field.key] !== undefined &&
                         detail?.[field.key] !== null
                             ? String(detail[field.key])
                             : "";
+                    const currentValue =
+                        currentAnswers?.[field.key] !== undefined &&
+                        currentAnswers?.[field.key] !== null
+                            ? String(currentAnswers[field.key])
+                            : "";
+
+                    initialFormAnswers[field.key] = detailValue || currentValue;
                 }
             }
             setDynamicFormAnswers({
+                ...currentAnswers,
                 ...preservedInboundValues,
                 ...initialFormAnswers,
             });

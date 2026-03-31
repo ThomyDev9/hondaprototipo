@@ -1,5 +1,47 @@
-// Rutas para gestión inbound (nuevo endpoint, no afecta outbound)
+// Rutas para gestion inbound (nuevo endpoint, no afecta outbound)
 import express from "express";
+
+function normalizeLookupKey(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .toLowerCase()
+        .trim();
+}
+
+function getFirstFormValueByKeys(source = {}, candidateKeys = []) {
+    const entries = Object.entries(source || {});
+
+    for (const candidateKey of candidateKeys) {
+        const directValue = source?.[candidateKey];
+        if (
+            directValue !== undefined &&
+            directValue !== null &&
+            String(directValue).trim() !== ""
+        ) {
+            return String(directValue).trim();
+        }
+    }
+
+    const normalizedCandidates = candidateKeys.map(normalizeLookupKey);
+
+    for (const [key, value] of entries) {
+        if (
+            value === undefined ||
+            value === null ||
+            String(value).trim() === ""
+        ) {
+            continue;
+        }
+
+        if (normalizedCandidates.includes(normalizeLookupKey(key))) {
+            return String(value).trim();
+        }
+    }
+
+    return "";
+}
 
 export function registerInboundRoutes(
     router,
@@ -30,16 +72,16 @@ export function registerInboundRoutes(
                 const fieldsMeta = Array.isArray(req.body?.fieldsMeta)
                     ? req.body.fieldsMeta
                     : [];
-                const identification = String(
-                    formData?.identificacion ||
-                        formData?.Identificacion ||
-                        formData?.identification ||
-                        formData?.["Identificación"] ||
-                        formData?.["IdentificaciÃ³n"] ||
-                        formData?.["Número de Cedula"] ||
-                        formData?.["Numero de Cedula"] ||
-                        "",
-                ).trim();
+                const identification = getFirstFormValueByKeys(formData, [
+                    "identificacion",
+                    "Identificacion",
+                    "Identificaci�n",
+                    "identification",
+                    "numeroCedula",
+                    "NumeroCedula",
+                    "numeroDeCedula",
+                    "cedula",
+                ]);
 
                 if (!campaignId || !identification) {
                     return res.status(400).json({
@@ -67,10 +109,21 @@ export function registerInboundRoutes(
                 ).trim();
                 const estadoFinalToUse =
                     level2ToUse || level1ToUse || "sin_gestion";
-                const contactName = String(
-                    formData?.apellidosNombres || formData?.NombreCliente || "",
-                ).trim();
-                const contactAddress = String(formData?.celular || "").trim();
+                const contactName = getFirstFormValueByKeys(formData, [
+                    "apellidosNombres",
+                    "ApellidosNombres",
+                    "apellidosNombre",
+                    "nombreCompleto",
+                    "nombresApellidos",
+                    "NombreCliente",
+                ]);
+                const contactAddress = getFirstFormValueByKeys(formData, [
+                    "celular",
+                    "Celular",
+                    "telefono",
+                    "telefonoCelular",
+                    "movil",
+                ]);
                 const interactionId = `INB-${Date.now()}`;
                 const importId = String(formData?.Origen || "INBOUND").trim();
                 const observaciones = String(

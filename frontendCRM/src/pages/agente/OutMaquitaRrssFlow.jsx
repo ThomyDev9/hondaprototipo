@@ -31,6 +31,12 @@ const RRSS_GESTION_EMPTY_KEYS = ["T", "U", "V", "W"];
 
 const RRSS_EXTRA_FIELDS = [
     {
+        name: "Autoriza Buró si / no",
+        label: "Autoriza Buró si / no",
+        type: "text",
+        required: false,
+    },
+    {
         name: "ciudad",
         label: "CIUDAD",
         type: "text",
@@ -112,6 +118,16 @@ const RRSS_DRIVE_TEMPLATE = [
         required: false,
     },
     {
+        name: "autorizaBuro",
+        label: "Autoriza Buro si / no",
+        type: "select",
+        required: false,
+        options: [
+            { value: "SI", label: "SI" },
+            { value: "NO", label: "NO" },
+        ],
+    },
+    {
         name: "ciudad",
         label: "CIUDAD",
         type: "text",
@@ -177,7 +193,6 @@ function buildRrssBaseValues(registro) {
                 "Apellidos y Nombres Completos ",
                 "Apellidos y Nombres Completos",
                 "D",
-                "C",
             ]) ||
             "",
         tipoCampana: registro?.tipoCampana || registro?.TipoCampania || "",
@@ -187,6 +202,13 @@ function buildRrssBaseValues(registro) {
         submotivoInteraccion:
             registro?.submotivoInteraccion || registro?.SubmotivoLlamada || "",
         observaciones: registro?.observaciones || registro?.Observaciones || "",
+        autorizaBuro: getFirstNonEmptyValue(registro, [
+            "Autoriza Buró si / no",
+            "Autoriza Buro si / no",
+            "Autoriza Buró",
+            "Autoriza Buro",
+            "C",
+        ]),
         ciudad: getFirstNonEmptyValue(registro, ["CIUDAD", "F"]),
         montoSolicitadoRrss: getFirstNonEmptyValue(registro, [
             "Monto solicitado:",
@@ -231,6 +253,7 @@ function buildRrssDriveInitialValues() {
         identificacion: "",
         apellidosNombres: "",
         estadoCivil: "",
+        autorizaBuro: "",
         ciudad: "",
         celular: "",
         montoSolicitadoRrss: "",
@@ -465,7 +488,14 @@ export default function OutMaquitaRrssFlow({ onBack }) {
 
                 return field;
             }),
-            ...RRSS_EXTRA_FIELDS,
+            {
+                name: "autorizaBuro",
+                label: "Autoriza Buro si / no",
+                type: "text",
+                required: false,
+                readOnly: true,
+            },
+            ...RRSS_EXTRA_FIELDS.slice(1),
         ],
         [tiposCampania],
     );
@@ -593,40 +623,43 @@ export default function OutMaquitaRrssFlow({ onBack }) {
         setRrssDriveDuplicateMessage("");
     }, []);
 
-    const saveDriveOnly = React.useCallback(async (formData) => {
-        const identification = String(
-            formData?.identificacion ||
-                formData?.Identificacion ||
-                formData?.identification ||
-                "",
-        ).trim();
+    const saveDriveOnly = React.useCallback(
+        async (formData) => {
+            const identification = String(
+                formData?.identificacion ||
+                    formData?.Identificacion ||
+                    formData?.identification ||
+                    "",
+            ).trim();
 
-        if (!identification) {
-            throw new Error(
-                "Numero de Cedula es requerido para enviar datos al Drive",
-            );
-        }
+            if (!identification) {
+                throw new Error(
+                    "Numero de Cedula es requerido para enviar datos al Drive",
+                );
+            }
 
-        if (rrssDriveDuplicateMessage) {
-            throw new Error(rrssDriveDuplicateMessage);
-        }
+            if (rrssDriveDuplicateMessage) {
+                throw new Error(rrssDriveDuplicateMessage);
+            }
 
-        const { ok, json } = await guardarOutMaquitaRrssDrive({
-            campaignId: CAMPAIGN_ID,
-            formData: {
-                ...formData,
-                outboundFlow: "rrss",
-            },
-        });
+            const { ok, json } = await guardarOutMaquitaRrssDrive({
+                campaignId: CAMPAIGN_ID,
+                formData: {
+                    ...formData,
+                    outboundFlow: "rrss",
+                },
+            });
 
-        if (!ok) {
-            throw new Error(
-                json?.detail ||
-                    json?.error ||
-                    "No se pudieron enviar los datos al Drive",
-            );
-        }
-    }, [rrssDriveDuplicateMessage]);
+            if (!ok) {
+                throw new Error(
+                    json?.detail ||
+                        json?.error ||
+                        "No se pudieron enviar los datos al Drive",
+                );
+            }
+        },
+        [rrssDriveDuplicateMessage],
+    );
 
     const renderGestionForm = (cancelHandler = onBack) => (
         <div className="outmaquita-rrss__tab-panel">
@@ -683,9 +716,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                             dynamicTemplate,
                             "No se pudo actualizar la gestion outbound",
                         );
-                        setSuccessMessage(
-                            "Registro actualizado correctamente",
-                        );
+                        setSuccessMessage("Registro actualizado correctamente");
                         await cargarSiguienteRegistro(
                             getRegistroIdentification(merged),
                             registro?.__rowNumber || 0,
@@ -757,6 +788,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                 <thead>
                                     <tr>
                                         <th>Identificacion</th>
+                                        <th>Autoriza Buro</th>
                                         <th>Cliente</th>
                                         <th>Celular</th>
                                         <th>Estado</th>
@@ -772,6 +804,13 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                                 "Apellidos y Nombres Completos ",
                                                 "Apellidos y Nombres Completos",
                                                 "D",
+                                            ]) || "";
+                                        const rowAutorizaBuro =
+                                            getFirstNonEmptyValue(row, [
+                                                "Autoriza Buró si / no",
+                                                "Autoriza Buro si / no",
+                                                "Autoriza Buró",
+                                                "Autoriza Buro",
                                                 "C",
                                             ]) || "";
                                         const rowPhone =
@@ -790,6 +829,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                                 key={`${rowId}-${row.__rowNumber}`}
                                             >
                                                 <td>{rowId}</td>
+                                                <td>{rowAutorizaBuro}</td>
                                                 <td>{rowName}</td>
                                                 <td>{rowPhone}</td>
                                                 <td>{rowEstado}</td>
@@ -865,6 +905,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                 <thead>
                                     <tr>
                                         <th>Identificacion</th>
+                                        <th>Autoriza Buro</th>
                                         <th>Cliente</th>
                                         <th>Celular</th>
                                         <th>Observacion</th>
@@ -880,6 +921,13 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                                 "Apellidos y Nombres Completos ",
                                                 "Apellidos y Nombres Completos",
                                                 "D",
+                                            ]) || "";
+                                        const rowAutorizaBuro =
+                                            getFirstNonEmptyValue(row, [
+                                                "Autoriza Buró si / no",
+                                                "Autoriza Buro si / no",
+                                                "Autoriza Buró",
+                                                "Autoriza Buro",
                                                 "C",
                                             ]) || "";
                                         const rowPhone =
@@ -898,6 +946,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                                 key={`${rowId}-${row.__rowNumber}`}
                                             >
                                                 <td>{rowId}</td>
+                                                <td>{rowAutorizaBuro}</td>
                                                 <td>{rowName}</td>
                                                 <td>{rowPhone}</td>
                                                 <td>{rowObservation}</td>

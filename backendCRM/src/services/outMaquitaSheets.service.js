@@ -155,6 +155,12 @@ export function buildOutMaquitaRrssDrivePayload(formData = {}, actor = "") {
         ).trim(),
         apellidosNombres: String(formData?.apellidosNombres || "").trim(),
         estadoCivil: String(formData?.estadoCivil || "").trim(),
+        autorizaBuro: String(
+            formData?.autorizaBuro ||
+                formData?.["Autoriza Buró si / no"] ||
+                formData?.["Autoriza Buro si / no"] ||
+                "",
+        ).trim(),
         ciudad: String(formData?.ciudad || "").trim(),
         celular: String(formData?.celular || "").trim(),
         montoSolicitado: String(

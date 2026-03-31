@@ -85,8 +85,8 @@ export function getRegistroIdentification(source) {
             source?.["N� de c�dula"] ||
             source?.cedula ||
             source?.Cedula ||
-            source?.C ||
             source?.D ||
+            source?.C ||
             "",
     ).trim();
 }
@@ -114,7 +114,6 @@ export function getRrssRegistroIdentification(source) {
             source?.["N�mero de C�dula"] ||
             source?.["Numero de C�dula"] ||
             source?.D ||
-            source?.C ||
             "",
     ).trim();
 }
