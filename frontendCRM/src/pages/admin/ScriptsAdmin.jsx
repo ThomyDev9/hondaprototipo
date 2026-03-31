@@ -11,6 +11,10 @@ import {
     listScriptSubcampaigns,
     saveAdminCampaignScript,
 } from "../../services/campaignScripts.service";
+import {
+    DEFAULT_MENU_CATEGORY_ID,
+    listarCategoriasMenu,
+} from "../../services/campaign.service";
 import "./ScriptsAdmin.css";
 
 const EMPTY_SCRIPT_TEMPLATE = {
@@ -72,6 +76,8 @@ function normalizeScriptShape(rawScript) {
 }
 
 export default function ScriptsAdmin() {
+    const [categoryId, setCategoryId] = useState(DEFAULT_MENU_CATEGORY_ID);
+    const [categoryOptions, setCategoryOptions] = useState([]);
     const [subcampaignOptions, setSubcampaignOptions] = useState([]);
     const [selectedCampaignName, setSelectedCampaignName] = useState("");
     const [selectedMenuItemId, setSelectedMenuItemId] = useState("");
@@ -86,11 +92,39 @@ export default function ScriptsAdmin() {
     const [meta, setMeta] = useState(null);
 
     useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const rows = await listarCategoriasMenu();
+                const options = rows
+                    .filter((item) => item.id && item.nombre)
+                    .map((item) => ({
+                        id: item.id,
+                        label: item.nombre,
+                    }));
+                setCategoryOptions(options);
+                if (!options.some((item) => item.id === categoryId)) {
+                    setCategoryId(
+                        String(options[0]?.id || DEFAULT_MENU_CATEGORY_ID),
+                    );
+                }
+            } catch (error) {
+                setAlert({
+                    type: "error",
+                    message:
+                        error.message || "No se pudieron cargar categorias",
+                });
+            }
+        };
+
+        loadCategories();
+    }, []);
+
+    useEffect(() => {
         const loadSubcampaigns = async () => {
             try {
                 setLoadingOptions(true);
                 setAlert(null);
-                const data = await listScriptSubcampaigns();
+                const data = await listScriptSubcampaigns(categoryId);
                 setSubcampaignOptions(
                     data.map((item) => ({
                         id: String(item.id || ""),
@@ -110,7 +144,7 @@ export default function ScriptsAdmin() {
         };
 
         loadSubcampaigns();
-    }, []);
+    }, [categoryId]);
 
     useEffect(() => {
         const loadScript = async () => {
@@ -232,6 +266,7 @@ export default function ScriptsAdmin() {
             const response = await saveAdminCampaignScript(
                 selectedMenuItemId,
                 normalizedScript,
+                categoryId,
             );
 
             setScriptForm(normalizedScript);
@@ -282,6 +317,19 @@ export default function ScriptsAdmin() {
 
                 <div className="scripts-admin__panel">
                     <div className="scripts-admin__selectors">
+                        <Select
+                            label="Categoria"
+                            options={categoryOptions}
+                            value={categoryId}
+                            onChange={(value) => {
+                                setCategoryId(value);
+                                setSelectedCampaignName("");
+                                setSelectedMenuItemId("");
+                                setMeta(null);
+                            }}
+                            placeholder="Selecciona una categoria"
+                            disabled={loadingOptions}
+                        />
                         <Select
                             label="Campaña"
                             options={campaignOptions}

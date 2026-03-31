@@ -189,11 +189,11 @@ const UPDATE_CONTACT_PHONE_BY_STATUS_CHANGE = `
 `;
 
 const GET_MANAGEMENT_LEVELS_BY_CAMPAIGN = `
-    SELECT DISTINCT level1, level2, level3, code
+    SELECT DISTINCT Description AS description, level1, level2, level3, code
     FROM campaignresultmanagement
     WHERE campaignid = ?
       AND COALESCE(State, '1') = '1'
-    ORDER BY level1 ASC, level2 ASC, level3 ASC
+    ORDER BY Description ASC, level1 ASC, level2 ASC, level3 ASC
 `;
 
 const GET_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3 = `
@@ -232,14 +232,71 @@ const GET_LAST_PHONE_STATUS_BY_CONTACT_AND_NUMBER = `
 
 const GET_ACTIVE_TEMPLATE_BY_CAMPAIGN_AND_TYPE = `
   SELECT
-    template_id,
-    template_name,
-    template_form_type AS form_type,
-    version
-  FROM vw_active_form_template_by_campaign
-  WHERE form_type = ?
-    AND campaign_id = ?
-  ORDER BY assigned_at DESC, version DESC, template_id DESC
+    v.menu_item_id,
+    v.category_id,
+    v.template_id,
+    v.template_name,
+    v.template_form_type AS form_type,
+    v.version
+  FROM menu_items mi
+  LEFT JOIN menu_items p
+    ON p.id = mi.id_padre
+  LEFT JOIN menu_categorias mc
+    ON mc.id = mi.id_categoria
+  INNER JOIN vw_active_form_template_by_campaign v
+    ON v.form_type = ?
+   AND (
+        v.menu_item_id = mi.id
+        OR (
+            ? = 'F2'
+            AND mi.id_padre IS NOT NULL
+            AND LOWER(COALESCE(mc.nombre_categoria, '')) LIKE '%inbound%'
+            AND v.menu_item_id = p.id
+        )
+   )
+  WHERE mi.nombre_item = ?
+    AND mi.estado = 'activo'
+    AND (? = '' OR mi.id_categoria = ?)
+  ORDER BY
+    CASE WHEN v.menu_item_id = mi.id THEN 0 ELSE 1 END ASC,
+    v.assigned_at DESC,
+    v.version DESC,
+    v.template_id DESC,
+    v.menu_item_id ASC
+  LIMIT 1
+`;
+
+const GET_ACTIVE_TEMPLATE_BY_MENU_ITEM_AND_TYPE = `
+  SELECT
+    v.menu_item_id,
+    v.category_id,
+    v.template_id,
+    v.template_name,
+    v.template_form_type AS form_type,
+    v.version
+  FROM menu_items mi
+  LEFT JOIN menu_items p
+    ON p.id = mi.id_padre
+  LEFT JOIN menu_categorias mc
+    ON mc.id = mi.id_categoria
+  INNER JOIN vw_active_form_template_by_campaign v
+    ON v.form_type = ?
+   AND (
+        v.menu_item_id = mi.id
+        OR (
+            ? = 'F2'
+            AND mi.id_padre IS NOT NULL
+            AND LOWER(COALESCE(mc.nombre_categoria, '')) LIKE '%inbound%'
+            AND v.menu_item_id = p.id
+        )
+   )
+  WHERE mi.id = ?
+    AND mi.estado = 'activo'
+  ORDER BY
+    CASE WHEN v.menu_item_id = mi.id THEN 0 ELSE 1 END ASC,
+    v.assigned_at DESC,
+    v.version DESC,
+    v.template_id DESC
   LIMIT 1
 `;
 
@@ -272,12 +329,28 @@ const GET_TEMPLATE_FIELDS_WITH_OPTIONS = `
 const GET_SUBCAMPAIGN_SCRIPT_BY_CAMPAIGN = `
   SELECT
     menu_item_id,
+    category_id,
     campaign_id,
     script_json,
     updated_by,
     updated_at
   FROM vw_subcampaign_scripts
   WHERE campaign_id = ?
+    AND (? = '' OR category_id = ?)
+  ORDER BY updated_at DESC, menu_item_id ASC
+  LIMIT 1
+`;
+
+const GET_SUBCAMPAIGN_SCRIPT_BY_MENU_ITEM = `
+  SELECT
+    menu_item_id,
+    category_id,
+    campaign_id,
+    script_json,
+    updated_by,
+    updated_at
+  FROM vw_subcampaign_scripts
+  WHERE menu_item_id = ?
   ORDER BY updated_at DESC, menu_item_id ASC
   LIMIT 1
 `;
@@ -552,11 +625,24 @@ export class AgenteDAO {
     async getActiveTemplateByCampaignAndType(
         formType,
         campaignId,
+        categoryId = "",
         executor = this.pool,
     ) {
         const [rows] = await executor.query(
             GET_ACTIVE_TEMPLATE_BY_CAMPAIGN_AND_TYPE,
-            [formType, campaignId],
+            [formType, formType, campaignId, categoryId, categoryId],
+        );
+        return rows;
+    }
+
+    async getActiveTemplateByMenuItemAndType(
+        formType,
+        menuItemId,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            GET_ACTIVE_TEMPLATE_BY_MENU_ITEM_AND_TYPE,
+            [formType, formType, menuItemId],
         );
         return rows;
     }
@@ -568,9 +654,22 @@ export class AgenteDAO {
         return rows;
     }
 
-    async getSubcampaignScriptByCampaign(campaignId, executor = this.pool) {
+    async getSubcampaignScriptByCampaign(
+        campaignId,
+        categoryId = "",
+        executor = this.pool,
+    ) {
         const [rows] = await executor.query(GET_SUBCAMPAIGN_SCRIPT_BY_CAMPAIGN, [
             campaignId,
+            categoryId,
+            categoryId,
+        ]);
+        return rows[0] || null;
+    }
+
+    async getSubcampaignScriptByMenuItem(menuItemId, executor = this.pool) {
+        const [rows] = await executor.query(GET_SUBCAMPAIGN_SCRIPT_BY_MENU_ITEM, [
+            menuItemId,
         ]);
         return rows[0] || null;
     }
@@ -674,7 +773,7 @@ export class AgenteDAO {
     }
 
     async insertDynamicFormResponse(
-        campaignId,
+        menuItemId,
         formType,
         templateId,
         contactId,
@@ -683,7 +782,7 @@ export class AgenteDAO {
         executor = this.pool,
     ) {
         return executor.query(INSERT_DYNAMIC_FORM_RESPONSE, [
-            campaignId,
+            menuItemId,
             formType,
             templateId,
             contactId,

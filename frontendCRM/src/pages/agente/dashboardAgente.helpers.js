@@ -51,6 +51,9 @@ export function mapTemplateToForm2Config(form2Template) {
             form2Template.fields.map((field) => ({
                 key: field.key,
                 label: field.label,
+                type: field.type || "text",
+                options: Array.isArray(field.options) ? field.options : [],
+                maxLength: field.maxLength || undefined,
             })),
             5,
         ),

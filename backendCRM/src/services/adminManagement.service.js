@@ -44,10 +44,19 @@ function createHttpError(status, message, data) {
     return error;
 }
 
+const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+
+function isInboundCategoryId(categoryId) {
+    return String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
+}
+
 export async function createManagementLevelsFromPairs(
     adminManagementDAO,
     {
+        categoryId,
         campaignId,
+        code,
+        description,
         isgoal,
         state,
         actor,
@@ -60,26 +69,32 @@ export async function createManagementLevelsFromPairs(
     }
 
     const campaignIsValid =
-        await adminManagementDAO.isActiveOutboundSubcampaign(campaignId);
+        await adminManagementDAO.isActiveSubcampaignByCategory(
+            categoryId,
+            campaignId,
+        );
     if (!campaignIsValid) {
         throw createHttpError(
             400,
-            "CampaignId no pertenece a una subcampana outbound activa",
+            "CampaignId no pertenece a una subcampana activa de la categoria",
         );
     }
 
     const level1List = [...new Set(normalizedItems.map((item) => item.level1))];
     const level2List = [...new Set(normalizedItems.map((item) => item.level2))];
-    const codeByLevel1 = await adminManagementDAO.getCodeByLevel1Map(
-        level1List,
-    );
+    const allowCustomLevel1 = isInboundCategoryId(categoryId);
+    const fallbackCode = Number.isFinite(Number(code)) ? Number(code) : 0;
 
-    const missingCodeItems = normalizedItems.filter(
-        (item) => !codeByLevel1.has(item.level1),
-    );
-    const validItems = normalizedItems.filter((item) =>
-        codeByLevel1.has(item.level1),
-    );
+    const codeByLevel1 = allowCustomLevel1
+        ? new Map(level1List.map((level1) => [level1, fallbackCode]))
+        : await adminManagementDAO.getCodeByLevel1Map(level1List);
+
+    const missingCodeItems = allowCustomLevel1
+        ? []
+        : normalizedItems.filter((item) => !codeByLevel1.has(item.level1));
+    const validItems = allowCustomLevel1
+        ? normalizedItems
+        : normalizedItems.filter((item) => codeByLevel1.has(item.level1));
 
     if (validItems.length === 0) {
         throw createHttpError(
@@ -94,6 +109,7 @@ export async function createManagementLevelsFromPairs(
 
     const existingSet = await adminManagementDAO.getExistingPairSet(
         campaignId,
+        description,
         level1List,
         level2List,
     );
@@ -119,6 +135,7 @@ export async function createManagementLevelsFromPairs(
         codeByLevel1,
         campaignId,
         isgoal,
+        description,
         state,
         actor,
     );
@@ -141,9 +158,11 @@ export function resolveManagementActor(user) {
 
 export function normalizeManagementPayload(raw = {}) {
     return {
+        categoryId: String(raw?.categoryId || "").trim(),
         campaignId: String(raw?.campaignId || "").trim(),
         code: Number(raw?.code || 0),
         isgoal: Number(raw?.isgoal || 0) === 1 ? 1 : 0,
+        description: String(raw?.description || "").trim(),
         level1: String(raw?.level1 || "").trim(),
         level2: String(raw?.level2 || "").trim(),
         state: Number(raw?.state || 1) === 0 ? "0" : "1",
@@ -162,7 +181,7 @@ export function normalizeBulkLevel2List(level2List) {
 
 export async function validateManagementCampaignAndCode(
     adminManagementDAO,
-    { campaignId, level1, code },
+    { categoryId, campaignId, level1, code },
 ) {
     if (!campaignId) {
         throw createHttpError(400, "campaignId es requerido");
@@ -176,15 +195,18 @@ export async function validateManagementCampaignAndCode(
     }
 
     const isValidCampaign =
-        await adminManagementDAO.isActiveOutboundSubcampaign(campaignId);
+        await adminManagementDAO.isActiveSubcampaignByCategory(
+            categoryId,
+            campaignId,
+        );
     if (!isValidCampaign) {
         throw createHttpError(
             400,
-            "CampaignId no pertenece a una subcampana outbound activa",
+            "CampaignId no pertenece a una subcampana activa de la categoria",
         );
     }
 
-    if (!level1) {
+    if (!level1 || isInboundCategoryId(categoryId)) {
         return;
     }
 
@@ -209,7 +231,18 @@ export async function createManagementLevel(
     adminManagementDAO,
     payload,
 ) {
-    const { campaignId, code, isgoal, level1, level2, state, actor } = payload;
+    const {
+        categoryId,
+        campaignId,
+        code,
+        isgoal,
+        description,
+        level1,
+        level2,
+        state,
+        actor,
+    } =
+        payload;
 
     if (!campaignId || !level1 || !level2) {
         throw createHttpError(
@@ -219,6 +252,7 @@ export async function createManagementLevel(
     }
 
     await validateManagementCampaignAndCode(adminManagementDAO, {
+        categoryId,
         campaignId,
         level1,
         code,
@@ -226,6 +260,7 @@ export async function createManagementLevel(
 
     const duplicate = await adminManagementDAO.findDuplicateManagementLevel(
         campaignId,
+        description,
         code,
         level1,
         level2,
@@ -241,6 +276,7 @@ export async function createManagementLevel(
         campaignId,
         code,
         isgoal,
+        description,
         level1,
         level2,
         state,
@@ -252,8 +288,17 @@ export async function createManagementLevelsBulk(
     adminManagementDAO,
     payload,
 ) {
-    const { campaignId, code, isgoal, level1, state, actor, level2List } =
-        payload;
+    const {
+        categoryId,
+        campaignId,
+        code,
+        isgoal,
+        description,
+        level1,
+        state,
+        actor,
+        level2List,
+    } = payload;
 
     if (!campaignId || !level1) {
         throw createHttpError(400, "campaignId y level1 son requeridos");
@@ -265,6 +310,7 @@ export async function createManagementLevelsBulk(
     }
 
     await validateManagementCampaignAndCode(adminManagementDAO, {
+        categoryId,
         campaignId,
         level1,
         code,
@@ -272,6 +318,7 @@ export async function createManagementLevelsBulk(
 
     const existingRows = await adminManagementDAO.findExistingLevel2Rows(
         campaignId,
+        description,
         code,
         level1,
         normalizedLevel2List,
@@ -297,6 +344,7 @@ export async function createManagementLevelsBulk(
         campaignId,
         code,
         isgoal,
+        description,
         level1,
         state,
         actor,
@@ -314,8 +362,18 @@ export async function updateManagementLevel(
     adminManagementDAO,
     payload,
 ) {
-    const { id, campaignId, code, isgoal, level1, level2, state, actor } =
-        payload;
+    const {
+        id,
+        categoryId,
+        campaignId,
+        code,
+        isgoal,
+        description,
+        level1,
+        level2,
+        state,
+        actor,
+    } = payload;
 
     if (!Number.isFinite(id) || id <= 0) {
         throw createHttpError(400, "id invalido");
@@ -329,6 +387,7 @@ export async function updateManagementLevel(
     }
 
     await validateManagementCampaignAndCode(adminManagementDAO, {
+        categoryId,
         campaignId,
         level1,
         code,
@@ -347,6 +406,7 @@ export async function updateManagementLevel(
 
     const duplicate = await adminManagementDAO.findDuplicateManagementLevel(
         campaignId,
+        description,
         code,
         level1,
         level2,
@@ -364,6 +424,7 @@ export async function updateManagementLevel(
         campaignId,
         code,
         isgoal,
+        description,
         level1,
         level2,
         state,

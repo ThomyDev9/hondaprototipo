@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import AccordionMenu from "./AccordionMenu";
 
@@ -11,18 +11,18 @@ const AGENT_STATUS_OPTIONS = [
 ];
 
 const MENU_ICONS = {
-    "administrar-bases": "🗂️",
-    campanias: "📣",
-    "management-levels": "🧭",
-    users: "👥",
-    settings: "⚙️",
-    scripts: "📚",
-    dashboard: "📊",
-    agents: "🧑‍💼",
-    reports: "📄",
-    inicio: "🏠",
-    gestion: "📝",
-    "campanias-outbound": "📞",
+    "administrar-bases": "\u{1F4C2}",
+    campanias: "\u{1F4E3}",
+    "management-levels": "\u2699\uFE0F",
+    users: "\u{1F465}",
+    settings: "\u2699\uFE0F",
+    scripts: "\u{1F4DD}",
+    dashboard: "\u{1F4CA}",
+    agents: "\u{1F3A7}",
+    reports: "\u{1F4C8}",
+    inicio: "\u{1F3E0}",
+    gestion: "\u260E\uFE0F",
+    "grabaciones-outbound": "\u{1F399}\uFE0F",
 };
 
 function Sidebar({
@@ -38,9 +38,9 @@ function Sidebar({
     onChangeAgentStatus,
 }) {
     const [collapsed, setCollapsed] = useState(false);
-    const [showOutbound, setShowOutbound] = useState(false);
     const effectiveRole = role || "ADMINISTRADOR";
     const prevAgentPageRef = useRef(agentPage);
+
     useEffect(() => {
         if (
             effectiveRole === "ASESOR" &&
@@ -66,14 +66,7 @@ function Sidebar({
         { label: "Reportes", key: "reports" },
         { label: "Grabaciones Outbound", key: "grabaciones-outbound" },
     ];
-    const menuAgente = [
-        { label: "Inicio", key: "inicio" },
-        {
-            label: "Campañas Outbound",
-            key: "campanias-outbound",
-            isAccordion: true,
-        },
-    ];
+    const menuAgente = [{ label: "Inicio", key: "inicio" }];
 
     const getMenu = () => {
         if (effectiveRole === "ADMINISTRADOR") return menuAdmin;
@@ -86,7 +79,7 @@ function Sidebar({
     const displayName = fullName || fallbackName || "Usuario";
     const menu = getMenu();
 
-    const getMenuIcon = (key) => MENU_ICONS[key] || "•";
+    const getMenuIcon = (key) => MENU_ICONS[key] || "\u2022";
 
     const handleClick = (item) => {
         if (
@@ -95,8 +88,8 @@ function Sidebar({
         ) {
             onChangeAdminPage(item.key);
         }
+
         if (effectiveRole.toUpperCase() === "ASESOR" && item.key === "inicio") {
-            setShowOutbound(false);
             onChangeAgentPage?.("inicio");
             return;
         }
@@ -105,39 +98,22 @@ function Sidebar({
             effectiveRole.toUpperCase() === "ASESOR" &&
             item.key === "gestion"
         ) {
-            setShowOutbound(false);
             onChangeAgentPage?.("gestion");
             return;
         }
 
-        if (
-            effectiveRole.toUpperCase() === "ASESOR" &&
-            item.key === "campanias-outbound"
-        ) {
-            setShowOutbound((prev) => !prev);
-        } else if (
-            effectiveRole.toUpperCase() === "ASESOR" &&
-            item.key !== "campanias-outbound"
-        ) {
-            setShowOutbound(false);
-        }
         if (
             effectiveRole === "SUPERVISOR" &&
             item.key === "grabaciones-outbound" &&
             onChangeAdminPage
         ) {
             onChangeAdminPage(item.key);
-            return;
         }
     };
+
     const isActive = (item) => {
         if (effectiveRole === "ADMINISTRADOR") return item.key === adminPage;
-        if (effectiveRole === "ASESOR") {
-            if (item.key === "campanias-outbound") {
-                return showOutbound;
-            }
-            return item.key === agentPage;
-        }
+        if (effectiveRole === "ASESOR") return item.key === agentPage;
         return false;
     };
 
@@ -150,10 +126,11 @@ function Sidebar({
             }}
         >
             <button
+                type="button"
                 style={styles.collapseBtn}
                 onClick={() => setCollapsed(!collapsed)}
             >
-                {collapsed ? "→" : "←"}
+                {collapsed ? "\u203A" : "\u2039"}
             </button>
 
             {!collapsed && (
@@ -215,31 +192,34 @@ function Sidebar({
                                 </span>
                             )}
                         </button>
-                        {/* Solo para ASESOR, mostrar el AccordionMenu al hacer clic en Campañas Outbound */}
-                        {effectiveRole.toUpperCase() === "ASESOR" &&
-                            item.key === "campanias-outbound" &&
-                            showOutbound &&
-                            !collapsed && (
-                                <div
-                                    style={{
-                                        marginTop: "0.5rem",
-                                        width: "100%",
-                                    }}
-                                >
-                                    <AccordionMenu
-                                        onLeafSelect={({ campaignId, importId }) => {
-                                            if (onSelectCampaign && campaignId) {
-                                                onChangeAgentPage?.("gestion");
-                                                // Si hay importId, pásalo; si no, solo campaignId (outbound)
-                                                onSelectCampaign(campaignId, importId);
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            )}
                     </li>
                 ))}
             </ul>
+
+            {effectiveRole.toUpperCase() === "ASESOR" && !collapsed && (
+                <div style={{ width: "100%", marginTop: "0.75rem" }}>
+                    <AccordionMenu
+                        onLeafSelect={({
+                            campaignId,
+                            importId,
+                            menuItemId,
+                            categoryId,
+                            manualFlow,
+                        }) => {
+                            if (onSelectCampaign && campaignId) {
+                                onChangeAgentPage?.("gestion");
+                                onSelectCampaign(
+                                    campaignId,
+                                    importId,
+                                    menuItemId,
+                                    categoryId,
+                                    manualFlow,
+                                );
+                            }
+                        }}
+                    />
+                </div>
+            )}
 
             <div style={styles.footer}>
                 <button
@@ -251,7 +231,7 @@ function Sidebar({
                     onClick={onLogout}
                 >
                     <span style={styles.logoutIcon} aria-hidden="true">
-                        ⎋
+                        {"\u21A9"}
                     </span>
                     {!collapsed && (
                         <span style={styles.logoutLabel}>Cerrar sesión</span>
@@ -408,4 +388,5 @@ Sidebar.propTypes = {
     agentStatus: PropTypes.string,
     onChangeAgentStatus: PropTypes.func,
 };
+
 export default Sidebar;

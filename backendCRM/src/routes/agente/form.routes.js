@@ -55,26 +55,30 @@ export function registerFormRoutes(
     router.get("/form-templates", ...agenteMiddlewares, async (req, res) => {
         try {
             const campaignId = String(req.query?.campaignId || "").trim();
+            const categoryId = String(req.query?.categoryId || "").trim();
+            const menuItemId = String(req.query?.menuItemId || "").trim();
 
-            if (!campaignId) {
-                return res.status(400).json({ error: "campaignId es requerido" });
+            if (!campaignId && !menuItemId) {
+                return res.status(400).json({
+                    error: "campaignId o menuItemId es requerido",
+                });
             }
 
-            const f2TemplateRows =
-                await agenteDAO.getActiveTemplateByCampaignAndType(
-                    "F2",
-                    campaignId,
-                );
-            const f3TemplateRows =
-                await agenteDAO.getActiveTemplateByCampaignAndType(
-                    "F3",
-                    campaignId,
-                );
-            const f4TemplateRows =
-                await agenteDAO.getActiveTemplateByCampaignAndType(
-                    "F4",
-                    campaignId,
-                );
+            const loadTemplateRows = (formType) =>
+                menuItemId
+                    ? agenteDAO.getActiveTemplateByMenuItemAndType(
+                          formType,
+                          menuItemId,
+                      )
+                    : agenteDAO.getActiveTemplateByCampaignAndType(
+                          formType,
+                          campaignId,
+                          categoryId,
+                      );
+
+            const f2TemplateRows = await loadTemplateRows("F2");
+            const f3TemplateRows = await loadTemplateRows("F3");
+            const f4TemplateRows = await loadTemplateRows("F4");
 
             let form2 = null;
             let form3 = null;
@@ -87,6 +91,8 @@ export function registerFormRoutes(
                 );
 
                 form2 = {
+                    menuItemId: String(f2Template.menu_item_id || "").trim(),
+                    categoryId: String(f2Template.category_id || "").trim(),
                     templateId: f2Template.template_id,
                     templateName: f2Template.template_name,
                     formType: f2Template.form_type,
@@ -102,6 +108,8 @@ export function registerFormRoutes(
                 );
 
                 form3 = {
+                    menuItemId: String(f3Template.menu_item_id || "").trim(),
+                    categoryId: String(f3Template.category_id || "").trim(),
                     templateId: f3Template.template_id,
                     templateName: f3Template.template_name,
                     formType: f3Template.form_type,
@@ -117,6 +125,8 @@ export function registerFormRoutes(
                 );
 
                 form4 = {
+                    menuItemId: String(f4Template.menu_item_id || "").trim(),
+                    categoryId: String(f4Template.category_id || "").trim(),
                     templateId: f4Template.template_id,
                     templateName: f4Template.template_name,
                     formType: f4Template.form_type,
@@ -125,7 +135,14 @@ export function registerFormRoutes(
                 };
             }
 
-            return res.json({ campaignId, form2, form3, form4 });
+            return res.json({
+                campaignId,
+                menuItemId,
+                categoryId,
+                form2,
+                form3,
+                form4,
+            });
         } catch (err) {
             console.error("Error en /agente/form-templates:", err);
             return res.status(500).json({
@@ -137,13 +154,21 @@ export function registerFormRoutes(
     router.get("/scripts", ...agenteMiddlewares, async (req, res) => {
         try {
             const campaignId = String(req.query?.campaignId || "").trim();
+            const categoryId = String(req.query?.categoryId || "").trim();
+            const menuItemId = String(req.query?.menuItemId || "").trim();
 
-            if (!campaignId) {
-                return res.status(400).json({ error: "campaignId es requerido" });
+            if (!campaignId && !menuItemId) {
+                return res.status(400).json({
+                    error: "campaignId o menuItemId es requerido",
+                });
             }
 
-            const scriptRow =
-                await agenteDAO.getSubcampaignScriptByCampaign(campaignId);
+            const scriptRow = menuItemId
+                ? await agenteDAO.getSubcampaignScriptByMenuItem(menuItemId)
+                : await agenteDAO.getSubcampaignScriptByCampaign(
+                      campaignId,
+                      categoryId,
+                  );
 
             if (!scriptRow) {
                 return res.json({ data: null });
@@ -161,7 +186,9 @@ export function registerFormRoutes(
             return res.json({
                 data: {
                     menuItemId: String(scriptRow.menu_item_id || "").trim(),
-                    campaignId,
+                    categoryId: String(scriptRow.category_id || "").trim(),
+                    campaignId:
+                        campaignId || String(scriptRow.campaign_id || "").trim(),
                     script:
                         parsedScript &&
                         typeof parsedScript === "object" &&

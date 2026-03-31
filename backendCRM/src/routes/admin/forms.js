@@ -1,6 +1,7 @@
 import express from "express";
 import pool from "../../services/db.js";
 import AdminFormsDAO from "../../services/dao/AdminFormsDAO.js";
+import { DEFAULT_MENU_CATEGORY_ID } from "../../services/menu.service.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -8,9 +9,8 @@ import {
 } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
-const OUTBOUND_CATEGORY_ID = "544fb0a6-1345-11f1-b790-000c2904c92f";
 const MAX_TEMPLATE_FIELDS = 30;
-const adminFormsDAO = new AdminFormsDAO(pool, OUTBOUND_CATEGORY_ID);
+const adminFormsDAO = new AdminFormsDAO(pool);
 
 const middlewaresAdmin = [
     requireAuth,
@@ -190,6 +190,9 @@ router.get("/subcampaigns", ...middlewaresAdmin, async (req, res) => {
         const formType = String(req.query?.formType || "")
             .trim()
             .toUpperCase();
+        const categoryId = String(
+            req.query?.categoryId || DEFAULT_MENU_CATEGORY_ID,
+        ).trim();
         const scope = String(req.query?.scope || "without-template")
             .trim()
             .toLowerCase();
@@ -205,39 +208,21 @@ router.get("/subcampaigns", ...middlewaresAdmin, async (req, res) => {
             });
         }
 
-        let assignmentFilter = "";
-        if (scope === "without-template") {
-            assignmentFilter = "AND a.id IS NULL";
-        }
-        if (scope === "with-template") {
-            assignmentFilter = "AND a.id IS NOT NULL";
-        }
-
-        const requiresF2 = formType === "F3";
-        const f2Join = requiresF2
-            ? `
-                        INNER JOIN form_template_assignments a_f2
-                            ON a_f2.menu_item_id = s.id
-                         AND a_f2.form_type = 'F2'
-                         AND a_f2.is_active = 1
-                        `
-            : "";
-
-        // Solo permitir subcampañas bajo campaña padre 'Gestión Outbound' para F4
-        let categoriaFilter = "";
-        if (formType === "F4") {
-            categoriaFilter = `AND p.nombre_item = 'Gestión Outbound'`;
-        } else {
-            categoriaFilter = ""; // Sin filtro extra para F2/F3
-        }
-
-        const rows = await adminFormsDAO.getSubcampaignRows(formType, scope);
+        const rows = await adminFormsDAO.getSubcampaignRows(
+            formType,
+            scope,
+            categoryId,
+        );
 
         const data = rows.map((row) => ({
             id: row.id,
-            label: `${row.campania} > ${row.subcampania}`,
+            label:
+                row.subcampania && row.campania !== row.subcampania
+                    ? `${row.campania} > ${row.subcampania}`
+                    : row.campania,
             campania: row.campania,
             subcampania: row.subcampania,
+            isParent: Number(row.is_parent || 0) === 1,
         }));
 
         return res.json({ data });
@@ -294,6 +279,9 @@ router.post("/template", ...middlewaresAdmin, async (req, res) => {
         const formType = String(req.body?.formType || "")
             .trim()
             .toUpperCase();
+        const categoryId = String(
+            req.body?.categoryId || DEFAULT_MENU_CATEGORY_ID,
+        ).trim();
         const rawFields = Array.isArray(req.body?.fields)
             ? req.body.fields
             : [];
@@ -320,22 +308,22 @@ router.post("/template", ...middlewaresAdmin, async (req, res) => {
             });
         }
 
-        const subcampaign = await adminFormsDAO.getActiveSubcampaignName(
+        const targetItem = await adminFormsDAO.getActiveFormTargetName(
             menuItemId,
+            categoryId,
+            formType,
             connection,
         );
-        if (!subcampaign) {
+        if (!targetItem) {
             return res.status(400).json({
-                error: "La subcampaña seleccionada no es válida o no está activa",
+                error: "La campaña o subcampaña seleccionada no es válida o no está activa",
             });
         }
 
-        const templateName = String(
-            subcampaign?.nombre_item || "",
-        ).trim();
+        const templateName = String(targetItem?.nombre_item || "").trim();
         if (!templateName) {
             return res.status(400).json({
-                error: "No se pudo resolver el nombre de la subcampaña",
+                error: "No se pudo resolver el nombre del destino del formulario",
             });
         }
 

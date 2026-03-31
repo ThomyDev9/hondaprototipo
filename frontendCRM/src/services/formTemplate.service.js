@@ -1,14 +1,31 @@
 const API_BASE = import.meta.env.VITE_API_BASE;
 
-export async function obtenerPlantillasDinamicas(campaignId) {
+export async function obtenerPlantillasDinamicas(campaignId, options = {}) {
     const normalizedCampaignId = String(campaignId || "").trim();
-    if (!normalizedCampaignId) {
+    const normalizedMenuItemId = String(options?.menuItemId || "").trim();
+    const normalizedCategoryId = String(options?.categoryId || "").trim();
+
+    if (!normalizedCampaignId && !normalizedMenuItemId) {
         return { form2: null, form3: null };
     }
 
     const token = localStorage.getItem("access_token") || "";
+    const params = new URLSearchParams();
+
+    if (normalizedCampaignId) {
+        params.set("campaignId", normalizedCampaignId);
+    }
+
+    if (normalizedMenuItemId) {
+        params.set("menuItemId", normalizedMenuItemId);
+    }
+
+    if (normalizedCategoryId) {
+        params.set("categoryId", normalizedCategoryId);
+    }
+
     const response = await fetch(
-        `${API_BASE}/agente/form-templates?campaignId=${encodeURIComponent(normalizedCampaignId)}`,
+        `${API_BASE}/agente/form-templates?${params.toString()}`,
         {
             headers: {
                 Authorization: token ? `Bearer ${token}` : "",

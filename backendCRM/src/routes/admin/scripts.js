@@ -1,6 +1,7 @@
 import express from "express";
 import pool from "../../services/db.js";
 import AdminScriptsDAO from "../../services/dao/AdminScriptsDAO.js";
+import { DEFAULT_MENU_CATEGORY_ID } from "../../services/menu.service.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -31,9 +32,12 @@ function isValidScriptObject(value) {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-router.get("/subcampaigns", ...middlewaresAdmin, async (_req, res) => {
+router.get("/subcampaigns", ...middlewaresAdmin, async (req, res) => {
     try {
-        const rows = await adminScriptsDAO.getActiveSubcampaignRows();
+        const categoryId = String(
+            req.query?.categoryId || DEFAULT_MENU_CATEGORY_ID,
+        ).trim();
+        const rows = await adminScriptsDAO.getActiveSubcampaignRows(categoryId);
 
         return res.json({
             data: rows.map((row) => ({
@@ -81,6 +85,9 @@ router.get("/:menuItemId", ...middlewaresAdmin, async (req, res) => {
 router.post("/:menuItemId", ...middlewaresAdmin, async (req, res) => {
     try {
         const menuItemId = String(req.params?.menuItemId || "").trim();
+        const categoryId = String(
+            req.body?.categoryId || DEFAULT_MENU_CATEGORY_ID,
+        ).trim();
         const script = req.body?.script;
         const updatedBy =
             req.user?.username ||
@@ -98,7 +105,7 @@ router.post("/:menuItemId", ...middlewaresAdmin, async (req, res) => {
         }
 
         const isValidSubcampaign =
-            await adminScriptsDAO.isValidSubcampaign(menuItemId);
+            await adminScriptsDAO.isValidSubcampaign(menuItemId, categoryId);
         if (!isValidSubcampaign) {
             return res.status(400).json({
                 error: "La subcampaña seleccionada no es válida",

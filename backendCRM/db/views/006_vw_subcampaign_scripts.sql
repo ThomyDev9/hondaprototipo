@@ -1,6 +1,7 @@
 CREATE OR REPLACE VIEW vw_subcampaign_scripts AS
 SELECT
     mi.id AS menu_item_id,
+    mi.id_categoria AS category_id,
     mi.nombre_item AS campaign_id,
     p.id AS parent_menu_item_id,
     p.nombre_item AS parent_campaign_name,

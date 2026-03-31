@@ -27,6 +27,10 @@ function App() {
     const [selectedAgentCampaign, setSelectedAgentCampaign] = useState({
         campaignId: "",
         tick: 0,
+        importId: "",
+        menuItemId: "",
+        categoryId: "",
+        manualFlow: false,
     });
     const [agentPage, setAgentPage] = useState("inicio");
     const [selectedAgentStatus, setSelectedAgentStatus] =
@@ -54,7 +58,14 @@ function App() {
                     console.warn("⚠️ Username no disponible en sesión actual");
                 }
 
-                setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+                setSelectedAgentCampaign({
+                    campaignId: "",
+                    tick: 0,
+                    importId: "",
+                    menuItemId: "",
+                    categoryId: "",
+                    manualFlow: false,
+                });
                 setAgentPage("inicio");
                 setUserInfo(meJson.user);
             } catch (err) {
@@ -106,7 +117,14 @@ function App() {
                 console.warn("⚠️ Username no disponible en el token");
             }
 
-            setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+            setSelectedAgentCampaign({
+                campaignId: "",
+                tick: 0,
+                importId: "",
+                menuItemId: "",
+                categoryId: "",
+                manualFlow: false,
+            });
             setAgentPage("inicio");
             setUserInfo(meJson.user);
         } catch (err) {
@@ -120,7 +138,14 @@ function App() {
     const handleLogout = async () => {
         localStorage.removeItem("access_token");
         localStorage.removeItem("import_user");
-        setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+        setSelectedAgentCampaign({
+            campaignId: "",
+            tick: 0,
+            importId: "",
+            menuItemId: "",
+            categoryId: "",
+            manualFlow: false,
+        });
         setAgentPage("inicio");
         setSelectedAgentStatus("disponible");
         setUserInfo(null);
@@ -135,19 +160,35 @@ function App() {
                 onChangeAdminPage={setAdminPage}
                 selectedAgentStatus={selectedAgentStatus}
                 onChangeAgentStatus={setSelectedAgentStatus}
-                onSelectCampaign={(campaignId, importId) => {
+                onSelectCampaign={(
+                    campaignId,
+                    importId,
+                    menuItemId,
+                    categoryId,
+                    manualFlow = false,
+                ) => {
                     setAgentPage("gestion");
                     setSelectedAgentCampaign({
                         campaignId,
                         tick: Date.now(),
                         importId: importId || "",
+                        menuItemId: menuItemId || "",
+                        categoryId: categoryId || "",
+                        manualFlow: Boolean(manualFlow),
                     });
                 }}
                 agentPage={agentPage}
                 onChangeAgentPage={(nextPage) => {
                     setAgentPage(nextPage);
                     if (nextPage === "inicio") {
-                        setSelectedAgentCampaign({ campaignId: "", tick: 0 });
+                        setSelectedAgentCampaign({
+                            campaignId: "",
+                            tick: 0,
+                            importId: "",
+                            menuItemId: "",
+                            categoryId: "",
+                            manualFlow: false,
+                        });
                     }
                 }}
             >
@@ -179,15 +220,27 @@ function App() {
                         selectedCampaignId={selectedAgentCampaign.campaignId}
                         selectedCampaignTick={selectedAgentCampaign.tick}
                         selectedImportId={selectedAgentCampaign.importId}
+                        selectedMenuItemId={selectedAgentCampaign.menuItemId}
+                        selectedCategoryId={selectedAgentCampaign.categoryId}
+                        selectedManualFlow={selectedAgentCampaign.manualFlow}
                         requestedAgentStatus={selectedAgentStatus}
                         onAgentStatusSync={setSelectedAgentStatus}
                         agentPage={agentPage}
-                        onSelectCampaign={(campaignId, importId) => {
+                        onSelectCampaign={(
+                            campaignId,
+                            importId,
+                            menuItemId,
+                            categoryId,
+                            manualFlow = false,
+                        ) => {
                             setAgentPage("gestion");
                             setSelectedAgentCampaign({
                                 campaignId,
                                 tick: Date.now(),
                                 importId: importId || "",
+                                menuItemId: menuItemId || "",
+                                categoryId: categoryId || "",
+                                manualFlow: Boolean(manualFlow),
                             });
                         }}
                         onChangeAgentPage={setAgentPage}

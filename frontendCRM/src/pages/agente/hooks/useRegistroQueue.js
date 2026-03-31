@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { obtenerPlantillasDinamicas } from "../../../services/formTemplate.service";
+import { obtenerCampaniasDetalladasDesdeMenu } from "../../../services/campaign.service";
 import { esGestionOutbound } from "../../../utils/gestionOutbound";
 import {
     buildInitialSurveyAnswers,
@@ -15,11 +16,24 @@ import {
 } from "../../../services/dashboard.service";
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+const INBOUND_SPECIAL_FIELDS = [
+    "__inbound_tipo_cliente",
+    "__inbound_tipo_canal",
+    "__inbound_relacion",
+    "__inbound_nombre_cliente",
+    "__inbound_categorizacion",
+    "__inbound_motivo",
+    "__inbound_submotivo",
+];
 
 export default function useRegistroQueue({
     selectedCampaignId,
     selectedCampaignTick,
     selectedImportId,
+    selectedMenuItemId,
+    selectedCategoryId,
+    selectedManualFlow,
     agentPage,
     bloqueado,
     handle403,
@@ -31,6 +45,9 @@ export default function useRegistroQueue({
     const [loadingRegistro, setLoadingRegistro] = useState(false);
     const [campaignIdSeleccionada, setCampaignIdSeleccionada] = useState("");
     const [importIdSeleccionada, setImportIdSeleccionada] = useState("");
+    const [menuItemIdSeleccionado, setMenuItemIdSeleccionado] = useState("");
+    const [categoryIdSeleccionada, setCategoryIdSeleccionada] = useState("");
+    const [manualFlowActivo, setManualFlowActivo] = useState(false);
     const [levels, setLevels] = useState([]);
     const [level1Seleccionado, setLevel1Seleccionado] = useState("");
     const [level2Seleccionado, setLevel2Seleccionado] = useState("");
@@ -38,13 +55,20 @@ export default function useRegistroQueue({
     const [estadoTelefonos, setEstadoTelefonos] = useState([]);
     const [dynamicFormConfig, setDynamicFormConfig] = useState(null);
     const [dynamicFormDetail, setDynamicFormDetail] = useState(null);
+    const [dynamicFormAnswers, setDynamicFormAnswers] = useState({});
     const [dynamicSurveyConfig, setDynamicSurveyConfig] = useState(null);
     const [surveyAnswers, setSurveyAnswers] = useState({});
+    const [inboundChildOptions, setInboundChildOptions] = useState([]);
     const [estadoAgente, setEstadoAgente] = useState("disponible");
     const [observacion, setObservacion] = useState("");
 
     const lastActivityRef = useRef(Date.now());
     const initialCampaignTickRef = useRef(selectedCampaignTick || 0);
+    const dynamicFormAnswersRef = useRef({});
+
+    useEffect(() => {
+        dynamicFormAnswersRef.current = dynamicFormAnswers;
+    }, [dynamicFormAnswers]);
 
     const marcarActividad = useCallback(() => {
         lastActivityRef.current = Date.now();
@@ -62,6 +86,221 @@ export default function useRegistroQueue({
             }
         },
         [registro, setError],
+    );
+
+    const resetDynamicState = useCallback(() => {
+        setDynamicFormConfig(null);
+        setDynamicFormDetail(null);
+        setDynamicFormAnswers({});
+        setDynamicSurveyConfig(null);
+        setSurveyAnswers({});
+        setInboundChildOptions([]);
+    }, []);
+
+    const loadInboundChildOptions = useCallback(
+        async ({ categoryId, menuItemId }) => {
+            const normalizedCategoryId = String(categoryId || "").trim();
+            const normalizedMenuItemId = String(menuItemId || "").trim();
+
+            if (
+                normalizedCategoryId !== INBOUND_MENU_CATEGORY_ID ||
+                !normalizedMenuItemId
+            ) {
+                setInboundChildOptions([]);
+                return null;
+            }
+
+            try {
+                const tree = await obtenerCampaniasDetalladasDesdeMenu(
+                    normalizedCategoryId,
+                );
+                const rootNode = tree.find(
+                    (item) =>
+                        String(item?.id || "").trim() === normalizedMenuItemId ||
+                        (item?.subcampanias || []).some(
+                            (child) =>
+                                String(child?.id || "").trim() ===
+                                normalizedMenuItemId,
+                        ),
+                );
+
+                const options = Array.isArray(rootNode?.subcampanias)
+                    ? rootNode.subcampanias
+                          .map((child) => ({
+                              value: String(child?.id || "").trim(),
+                              label: String(
+                                  child?.nombre || child?.campania || "",
+                              ).trim(),
+                              campaignId: String(
+                                  child?.nombre || child?.campania || "",
+                              ).trim(),
+                              menuItemId: String(child?.id || "").trim(),
+                              categoryId: normalizedCategoryId,
+                              parentMenuItemId: String(
+                                  rootNode?.id || "",
+                              ).trim(),
+                              parentCampaignId: String(
+                                  rootNode?.campania || "",
+                              ).trim(),
+                          }))
+                          .filter((item) => item.value && item.label)
+                    : [];
+
+                setInboundChildOptions(options);
+                return {
+                    rootNode,
+                    options,
+                };
+            } catch (error) {
+                console.error(
+                    "Error cargando hijos inbound para formulario manual:",
+                    error,
+                );
+                setInboundChildOptions([]);
+                return null;
+            }
+        },
+        [],
+    );
+
+    const loadTemplatesAndCatalogs = useCallback(
+        async ({
+            campaignId,
+            menuItemId = "",
+            categoryId = "",
+            contactId = "",
+            detail = null,
+        }) => {
+            const preservedInboundValues = Object.fromEntries(
+                INBOUND_SPECIAL_FIELDS.map((key) => [
+                    key,
+                    String(dynamicFormAnswersRef.current?.[key] || ""),
+                ]),
+            );
+            let nextDynamicConfig = null;
+            let nextSurveyConfig = null;
+
+            try {
+                const dynamicTemplates = await obtenerPlantillasDinamicas(
+                    campaignId,
+                    {
+                        menuItemId,
+                        categoryId,
+                    },
+                );
+                nextDynamicConfig = mapTemplateToForm2Config(
+                    dynamicTemplates.form2,
+                );
+                nextSurveyConfig = mapTemplateToSurveyConfig(
+                    dynamicTemplates.form3,
+                );
+            } catch (templateError) {
+                console.error(
+                    "Error cargando plantillas dinÃƒÂ¡micas:",
+                    templateError,
+                );
+            }
+
+            if (menuItemId && !nextDynamicConfig) {
+                setError(
+                    "No se encontrÃƒÂ³ un Formulario 2 activo para esta opciÃƒÂ³n.",
+                );
+            }
+
+            setDynamicFormConfig(nextDynamicConfig);
+            setDynamicFormDetail(detail);
+            setDynamicSurveyConfig(nextSurveyConfig);
+            setSurveyAnswers(buildInitialSurveyAnswers(nextSurveyConfig));
+
+            const initialFormAnswers = {};
+            for (const row of nextDynamicConfig?.rows || []) {
+                for (const field of row || []) {
+                    initialFormAnswers[field.key] =
+                        detail?.[field.key] !== undefined &&
+                        detail?.[field.key] !== null
+                            ? String(detail[field.key])
+                            : "";
+                }
+            }
+            setDynamicFormAnswers({
+                ...preservedInboundValues,
+                ...initialFormAnswers,
+            });
+
+            const catalogResp = await fetchFormCatalogos({
+                campaignId,
+                contactId,
+            });
+
+            if (catalogResp.ok) {
+                const catalog = catalogResp.json || {};
+                setLevels(
+                    Array.isArray(catalog.levels) ? catalog.levels : [],
+                );
+                setTelefonos(
+                    Array.isArray(catalog.telefonos) ? catalog.telefonos : [],
+                );
+                setEstadoTelefonos(
+                    Array.isArray(catalog.estadoTelefonos)
+                        ? catalog.estadoTelefonos
+                        : [],
+                );
+                setLevel1Seleccionado("");
+                setLevel2Seleccionado("");
+            } else {
+                setLevels([]);
+                setTelefonos([]);
+                setEstadoTelefonos([]);
+            }
+        },
+        [],
+    );
+
+    const handleInboundChildSelection = useCallback(
+        async ({ childMenuItemId, childCampaignId }) => {
+            const normalizedChildMenuItemId = String(
+                childMenuItemId || "",
+            ).trim();
+            const normalizedChildCampaignId = String(
+                childCampaignId || "",
+            ).trim();
+
+            if (!manualFlowActivo || !categoryIdSeleccionada) {
+                return;
+            }
+
+            if (!normalizedChildMenuItemId || !normalizedChildCampaignId) {
+                setLoadingRegistro(true);
+                await loadTemplatesAndCatalogs({
+                    campaignId: campaignIdSeleccionada,
+                    menuItemId: menuItemIdSeleccionado,
+                    categoryId: categoryIdSeleccionada,
+                    contactId: "",
+                    detail: null,
+                }).finally(() => {
+                    setLoadingRegistro(false);
+                });
+                return;
+            }
+
+            setLoadingRegistro(true);
+            await loadTemplatesAndCatalogs({
+                campaignId: normalizedChildCampaignId,
+                menuItemId: normalizedChildMenuItemId,
+                categoryId: categoryIdSeleccionada,
+                contactId: "",
+                detail: null,
+            }).finally(() => {
+                setLoadingRegistro(false);
+            });
+        },
+        [
+            manualFlowActivo,
+            categoryIdSeleccionada,
+            loadTemplatesAndCatalogs,
+            campaignIdSeleccionada,
+            menuItemIdSeleccionado,
+        ],
     );
 
     const fetchSiguienteRegistro = useCallback(
@@ -84,22 +323,16 @@ export default function useRegistroQueue({
                     (!importIdToUse && !esGestionOutbound(campaignIdToUse))
                 ) {
                     setError(
-                        "Selecciona una campaña y base para cargar registros",
+                        "Selecciona una campaÃƒÂ±a y base para cargar registros",
                     );
-                    setDynamicFormConfig(null);
-                    setDynamicFormDetail(null);
-                    setDynamicSurveyConfig(null);
-                    setSurveyAnswers({});
+                    resetDynamicState();
                     return;
                 }
 
                 if (esGestionOutbound(campaignIdToUse)) {
                     setLoadingRegistro(false);
                     setRegistro(null);
-                    setDynamicFormConfig(null);
-                    setDynamicFormDetail(null);
-                    setDynamicSurveyConfig(null);
-                    setSurveyAnswers({});
+                    resetDynamicState();
                     return;
                 }
 
@@ -115,21 +348,15 @@ export default function useRegistroQueue({
                     setLevels([]);
                     setTelefonos([]);
                     setEstadoTelefonos([]);
-                    setDynamicFormConfig(null);
-                    setDynamicFormDetail(null);
-                    setDynamicSurveyConfig(null);
-                    setSurveyAnswers({});
+                    resetDynamicState();
                     return;
                 }
 
                 if (status === 404) {
                     setRegistro(null);
-                    setDynamicFormConfig(null);
-                    setDynamicFormDetail(null);
-                    setDynamicSurveyConfig(null);
-                    setSurveyAnswers({});
+                    resetDynamicState();
                     if (
-                        json?.error === "No hay base activa para esta campaña" &&
+                        json?.error === "No hay base activa para esta campaÃƒÂ±a" &&
                         esGestionOutbound(campaignIdToUse)
                     ) {
                         setError("");
@@ -143,10 +370,7 @@ export default function useRegistroQueue({
                 }
 
                 if (!ok) {
-                    setDynamicFormConfig(null);
-                    setDynamicFormDetail(null);
-                    setDynamicSurveyConfig(null);
-                    setSurveyAnswers({});
+                    resetDynamicState();
                     setError(
                         json?.error || "No se pudo asignar siguiente registro",
                     );
@@ -157,69 +381,18 @@ export default function useRegistroQueue({
                 setObservacion("");
 
                 const record = json.registro || null;
-                let nextDynamicConfig = null;
-                let nextSurveyConfig = null;
-
-                try {
-                    const dynamicTemplates =
-                        await obtenerPlantillasDinamicas(campaignIdToUse);
-                    nextDynamicConfig = mapTemplateToForm2Config(
-                        dynamicTemplates.form2,
-                    );
-                    nextSurveyConfig = mapTemplateToSurveyConfig(
-                        dynamicTemplates.form3,
-                    );
-                } catch (templateError) {
-                    console.error(
-                        "Error cargando plantillas dinámicas:",
-                        templateError,
-                    );
-                }
-
-                setDynamicFormConfig(nextDynamicConfig);
-                setDynamicFormDetail(json.detalleCliente || null);
-                setDynamicSurveyConfig(nextSurveyConfig);
-                setSurveyAnswers(
-                    buildInitialSurveyAnswers(nextSurveyConfig),
-                );
-
-                if (record?.id && campaignIdToUse) {
-                    const catalogResp = await fetchFormCatalogos({
-                        campaignId: campaignIdToUse,
-                        contactId: record.id,
-                    });
-
-                    if (catalogResp.ok) {
-                        const catalog = catalogResp.json || {};
-                        const levelsData = Array.isArray(catalog.levels)
-                            ? catalog.levels
-                            : [];
-                        const telefonosData = Array.isArray(
-                            catalog.telefonos,
-                        )
-                            ? catalog.telefonos
-                            : [];
-                        const estadosData = Array.isArray(
-                            catalog.estadoTelefonos,
-                        )
-                            ? catalog.estadoTelefonos
-                            : [];
-                        setLevels(levelsData);
-                        setTelefonos(telefonosData);
-                        setEstadoTelefonos(estadosData);
-                        setLevel1Seleccionado("");
-                        setLevel2Seleccionado("");
-                    }
-
-                    if (nextDynamicConfig && !json.detalleCliente) {
-                        setDynamicFormDetail(null);
-                    }
-                }
+                await loadTemplatesAndCatalogs({
+                    campaignId: campaignIdToUse,
+                    menuItemId: selectedMenuItemId,
+                    categoryId: selectedCategoryId,
+                    contactId: record?.id || "",
+                    detail: json.detalleCliente || null,
+                });
 
                 marcarActividad();
             } catch (err) {
                 console.error(err);
-                setError("Error de conexión con el servidor");
+                setError("Error de conexiÃƒÂ³n con el servidor");
             } finally {
                 setLoadingRegistro(false);
             }
@@ -228,8 +401,12 @@ export default function useRegistroQueue({
             campaignIdSeleccionada,
             importIdSeleccionada,
             selectedImportId,
+            selectedMenuItemId,
+            selectedCategoryId,
             handle403,
+            loadTemplatesAndCatalogs,
             marcarActividad,
+            resetDynamicState,
             setError,
         ],
     );
@@ -261,25 +438,30 @@ export default function useRegistroQueue({
                 marcarActividad();
 
                 if (
-                    ["baño", "consulta", "lunch", "reunion"].includes(
+                    ["baÃƒÂ±o", "consulta", "lunch", "reunion"].includes(
                         nuevoEstado,
                     )
                 ) {
                     setRegistro(null);
                 }
 
-                if (nuevoEstado === "disponible" && campaignIdSeleccionada) {
+                if (
+                    nuevoEstado === "disponible" &&
+                    campaignIdSeleccionada &&
+                    !manualFlowActivo
+                ) {
                     await fetchSiguienteRegistro();
                 }
             } catch (err) {
                 console.error(err);
-                setError("Error de conexión con el servidor");
+                setError("Error de conexiÃƒÂ³n con el servidor");
             }
         },
         [
             campaignIdSeleccionada,
             fetchSiguienteRegistro,
             handle403,
+            manualFlowActivo,
             marcarActividad,
             onAgentStatusSync,
             setError,
@@ -290,6 +472,9 @@ export default function useRegistroQueue({
         (card) => {
             setCampaignIdSeleccionada(card.campaignId);
             setImportIdSeleccionada(card.importId);
+            setMenuItemIdSeleccionado("");
+            setCategoryIdSeleccionada("");
+            setManualFlowActivo(false);
             fetchSiguienteRegistro(card.campaignId, card.importId);
             if (typeof onChangeAgentPage === "function") {
                 onChangeAgentPage("gestion");
@@ -307,17 +492,52 @@ export default function useRegistroQueue({
 
         const isOutbound = esGestionOutbound(selectedCampaignId);
         setCampaignIdSeleccionada(selectedCampaignId);
+        setMenuItemIdSeleccionado(selectedMenuItemId || "");
+        setCategoryIdSeleccionada(selectedCategoryId || "");
+        setManualFlowActivo(Boolean(selectedManualFlow));
         if (isOutbound) {
             setImportIdSeleccionada("");
             setRegistro(null);
-            setDynamicFormConfig(null);
-            setDynamicFormDetail(null);
-            setDynamicSurveyConfig(null);
-            setSurveyAnswers({});
+            resetDynamicState();
             setLevel1Seleccionado("");
             setLevel2Seleccionado("");
             setTelefonos([]);
             setEstadoTelefonos([]);
+        } else if (selectedManualFlow) {
+            setLoadingRegistro(true);
+            setImportIdSeleccionada("");
+            setRegistro(null);
+            setObservacion("");
+            Promise.resolve(
+                loadInboundChildOptions({
+                    categoryId: selectedCategoryId || "",
+                    menuItemId: selectedMenuItemId || "",
+                }).then((inboundData) =>
+                    loadTemplatesAndCatalogs({
+                        campaignId: selectedCampaignId,
+                        menuItemId: selectedMenuItemId || "",
+                        categoryId: selectedCategoryId || "",
+                        contactId: "",
+                        detail: null,
+                    }).then(() => {
+                        const preselectedChild = inboundData?.options?.find(
+                            (item) =>
+                                String(item.menuItemId) ===
+                                String(selectedMenuItemId || ""),
+                        );
+
+                        if (preselectedChild) {
+                            setDynamicFormAnswers((prev) => ({
+                                ...prev,
+                                __inbound_nombre_cliente:
+                                    preselectedChild.menuItemId,
+                            }));
+                        }
+                    }),
+                ),
+            ).finally(() => {
+                setLoadingRegistro(false);
+            });
         } else {
             fetchSiguienteRegistro(selectedCampaignId);
         }
@@ -328,6 +548,12 @@ export default function useRegistroQueue({
         fetchSiguienteRegistro,
         selectedCampaignId,
         selectedCampaignTick,
+        selectedMenuItemId,
+        selectedCategoryId,
+        selectedManualFlow,
+        loadTemplatesAndCatalogs,
+        loadInboundChildOptions,
+        resetDynamicState,
     ]);
 
     useEffect(() => {
@@ -336,6 +562,11 @@ export default function useRegistroQueue({
             setRegistro(null);
             setError("");
             setCampaignIdSeleccionada("");
+            setImportIdSeleccionada("");
+            setMenuItemIdSeleccionado("");
+            setCategoryIdSeleccionada("");
+            setManualFlowActivo(false);
+            resetDynamicState();
         };
         if (agentPage === "inicio") {
             releaseAndReset();
@@ -380,6 +611,8 @@ export default function useRegistroQueue({
         setImportIdSeleccionada,
         dynamicFormConfig,
         dynamicFormDetail,
+        dynamicFormAnswers,
+        setDynamicFormAnswers,
         dynamicSurveyConfig,
         surveyAnswers,
         setSurveyAnswers,
@@ -397,8 +630,13 @@ export default function useRegistroQueue({
         setEstadoAgente,
         observacion,
         setObservacion,
+        manualFlowActivo,
+        menuItemIdSeleccionado,
+        categoryIdSeleccionada,
+        inboundChildOptions,
         hasCampaignSelection,
         handleCambioEstadoAgente,
+        handleInboundChildSelection,
         fetchSiguienteRegistro,
         selectBaseCard,
         releaseRegistroIfPresent,

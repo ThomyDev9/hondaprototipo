@@ -1,6 +1,7 @@
 CREATE OR REPLACE VIEW vw_active_form_template_by_campaign AS
 SELECT
     m.id AS menu_item_id,
+    m.id_categoria AS category_id,
     m.nombre_item AS campaign_id,
     a.form_type,
     t.id AS template_id,

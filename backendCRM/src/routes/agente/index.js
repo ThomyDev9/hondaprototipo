@@ -17,6 +17,7 @@ import { registerQueueRoutes } from "./queue.routes.js";
 import { registerFormRoutes } from "./form.routes.js";
 import { registerGestionRoutes } from "./gestion.routes.js";
 import { registerOutboundRoutes } from "./outbound.routes.js";
+import { registerInboundRoutes } from "./inbound.routes.js";
 import {
     loadUserRoles,
     requireRole,
@@ -135,18 +136,28 @@ function normalizeTemplateRows(rows) {
 
 async function saveDynamicResponseIfTemplateActive({
     campaignId,
+    categoryId,
+    menuItemId,
     formType,
     contactId,
     agentUser,
     payload,
 }) {
     const campaignIdToUse = String(campaignId || "").trim();
-    if (!campaignIdToUse) return;
+    const categoryIdToUse = String(categoryId || "").trim();
+    const menuItemIdToUse = String(menuItemId || "").trim();
+    if (!campaignIdToUse && !menuItemIdToUse) return;
 
-    const templateRows = await agenteDAO.getActiveTemplateByCampaignAndType(
-        formType,
-        campaignIdToUse,
-    );
+    const templateRows = menuItemIdToUse
+        ? await agenteDAO.getActiveTemplateByMenuItemAndType(
+              formType,
+              menuItemIdToUse,
+          )
+        : await agenteDAO.getActiveTemplateByCampaignAndType(
+              formType,
+              campaignIdToUse,
+              categoryIdToUse,
+          );
 
     if (templateRows.length === 0) {
         return;
@@ -156,7 +167,7 @@ async function saveDynamicResponseIfTemplateActive({
     const payloadJson = JSON.stringify(payload || {});
 
     await agenteDAO.insertDynamicFormResponse(
-        campaignIdToUse,
+        String(template.menu_item_id || "").trim(),
         formType,
         template.template_id,
         String(contactId || "").trim(),
@@ -237,14 +248,15 @@ registerOutboundRoutes(router, {
     linkManagementToRecording,
 });
 
+registerInboundRoutes(router, {
+    agenteDAO,
+    agenteMiddlewares,
+    encuestaSchema,
+    getAgentActor,
+    buildOutboundCampos,
+    buildOutboundQuestionPayload,
+    saveDynamicResponseIfTemplateActive,
+    linkManagementToRecording,
+});
+
 export default router;
-
-
-
-
-
-
-
-
-
-

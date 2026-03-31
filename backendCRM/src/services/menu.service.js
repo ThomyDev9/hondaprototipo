@@ -1,25 +1,36 @@
 import pool from "./db.js";
 import MenuDAO from "./dao/MenuDAO.js";
 
+export const DEFAULT_MENU_CATEGORY_ID =
+    "544fb0a6-1345-11f1-b790-000c2904c92f";
 const OUTBOUND_MENU_CACHE_TTL_MS = 60_000;
-let outboundMenuTreeCache = null;
-let outboundMenuTreeCacheAt = 0;
+const menuTreeCache = new Map();
 const menuDAO = new MenuDAO(pool);
 
-function invalidateOutboundMenuTreeCache() {
-    outboundMenuTreeCache = null;
-    outboundMenuTreeCacheAt = 0;
+function resolveCategoryId(categoryId) {
+    return String(categoryId || DEFAULT_MENU_CATEGORY_ID).trim();
 }
 
-export async function getOutboundMenuTree() {
-    if (
-        outboundMenuTreeCache &&
-        Date.now() - outboundMenuTreeCacheAt < OUTBOUND_MENU_CACHE_TTL_MS
-    ) {
-        return outboundMenuTreeCache;
+function invalidateMenuTreeCache(categoryId) {
+    if (categoryId) {
+        menuTreeCache.delete(resolveCategoryId(categoryId));
+        return;
+    }
+    menuTreeCache.clear();
+}
+
+export async function getMenuCategories() {
+    return menuDAO.getMenuCategories();
+}
+
+export async function getMenuTree(categoryId) {
+    const resolvedCategoryId = resolveCategoryId(categoryId);
+    const cached = menuTreeCache.get(resolvedCategoryId);
+    if (cached && Date.now() - cached.savedAt < OUTBOUND_MENU_CACHE_TTL_MS) {
+        return cached.data;
     }
 
-    const rows = await menuDAO.getOutboundMenuTreeRows();
+    const rows = await menuDAO.getMenuTreeRowsByCategory(resolvedCategoryId);
 
     const tree = [];
     const map = {};
@@ -33,33 +44,70 @@ export async function getOutboundMenuTree() {
         }
     }
 
-    outboundMenuTreeCache = tree;
-    outboundMenuTreeCacheAt = Date.now();
+    menuTreeCache.set(resolvedCategoryId, {
+        data: tree,
+        savedAt: Date.now(),
+    });
 
     return tree;
 }
 
-export async function getOutboundParentCampaigns() {
-    return menuDAO.getOutboundParentCampaigns();
+export async function getMenuTreeDetailed(categoryId) {
+    const resolvedCategoryId = resolveCategoryId(categoryId);
+    const rows = await menuDAO.getMenuTreeRowsByCategory(resolvedCategoryId);
+
+    const tree = [];
+    const map = {};
+
+    for (const row of rows) {
+        if (!map[row.campania_id]) {
+            map[row.campania_id] = {
+                id: row.campania_id,
+                campania: row.campania,
+                categoryId: resolvedCategoryId,
+                subcampanias: [],
+            };
+            tree.push(map[row.campania_id]);
+        }
+
+        if (row.subcampania_id && row.subcampania) {
+            map[row.campania_id].subcampanias.push({
+                id: row.subcampania_id,
+                nombre: row.subcampania,
+                categoryId: resolvedCategoryId,
+            });
+        }
+    }
+
+    return tree;
 }
 
-export async function createOutboundCampaign(nombre) {
+export async function getParentCampaigns(categoryId) {
+    return menuDAO.getParentCampaignsByCategory(resolveCategoryId(categoryId));
+}
+
+export async function createCampaign(categoryId, nombre) {
+    const resolvedCategoryId = resolveCategoryId(categoryId);
     const nombreLimpio = String(nombre || "").trim();
     if (!nombreLimpio) {
         throw new Error("El nombre de la campana es requerido");
     }
 
-    const existing = await menuDAO.findActiveCampaignByName(nombreLimpio);
+    const existing = await menuDAO.findActiveCampaignByName(
+        resolvedCategoryId,
+        nombreLimpio,
+    );
     if (existing) {
         throw new Error("La campana ya existe");
     }
 
-    await menuDAO.insertOutboundCampaign(nombreLimpio);
-    invalidateOutboundMenuTreeCache();
-    return { nombre: nombreLimpio };
+    await menuDAO.insertCampaign(resolvedCategoryId, nombreLimpio);
+    invalidateMenuTreeCache(resolvedCategoryId);
+    return { nombre: nombreLimpio, categoryId: resolvedCategoryId };
 }
 
-export async function createOutboundSubcampaign(parentId, nombre) {
+export async function createSubcampaign(categoryId, parentId, nombre) {
+    const resolvedCategoryId = resolveCategoryId(categoryId);
     const parentIdLimpio = String(parentId || "").trim();
     const nombreLimpio = String(nombre || "").trim();
 
@@ -70,7 +118,19 @@ export async function createOutboundSubcampaign(parentId, nombre) {
         throw new Error("El nombre de la subcampana es requerido");
     }
 
+    const parentItem = await menuDAO.getMenuItemById(parentIdLimpio);
+    if (!parentItem) {
+        throw new Error("No se encontro la campana padre");
+    }
+    if (parentItem.id_padre !== null) {
+        throw new Error("La campana padre seleccionada no es valida");
+    }
+    if (String(parentItem.id_categoria || "").trim() !== resolvedCategoryId) {
+        throw new Error("La campana padre no pertenece a la categoria seleccionada");
+    }
+
     const existing = await menuDAO.findActiveSubcampaign(
+        resolvedCategoryId,
         parentIdLimpio,
         nombreLimpio,
     );
@@ -78,13 +138,24 @@ export async function createOutboundSubcampaign(parentId, nombre) {
         throw new Error("La subcampana ya existe para la campana seleccionada");
     }
 
-    await menuDAO.insertOutboundSubcampaign(nombreLimpio, parentIdLimpio);
-    invalidateOutboundMenuTreeCache();
-    return { parentId: parentIdLimpio, nombre: nombreLimpio };
+    await menuDAO.insertSubcampaign(
+        resolvedCategoryId,
+        nombreLimpio,
+        parentIdLimpio,
+    );
+    invalidateMenuTreeCache(resolvedCategoryId);
+    return {
+        parentId: parentIdLimpio,
+        nombre: nombreLimpio,
+        categoryId: resolvedCategoryId,
+    };
 }
 
-export async function getOutboundMenuTreeWithStatus() {
-    const rows = await menuDAO.getOutboundMenuTreeWithStatusRows();
+export async function getMenuTreeWithStatus(categoryId) {
+    const resolvedCategoryId = resolveCategoryId(categoryId);
+    const rows = await menuDAO.getMenuTreeWithStatusRowsByCategory(
+        resolvedCategoryId,
+    );
 
     const tree = [];
     const map = {};
@@ -112,7 +183,8 @@ export async function getOutboundMenuTreeWithStatus() {
     return tree;
 }
 
-export async function updateOutboundMenuItemStatus(id, estado) {
+export async function updateMenuItemStatus(categoryId, id, estado) {
+    const resolvedCategoryId = resolveCategoryId(categoryId);
     const idLimpio = String(id || "").trim();
     const estadoLimpio = String(estado || "")
         .trim()
@@ -130,13 +202,18 @@ export async function updateOutboundMenuItemStatus(id, estado) {
     try {
         await connection.beginTransaction();
 
-        const item = await menuDAO.getOutboundMenuItemById(idLimpio, connection);
+        const item = await menuDAO.getMenuItemByIdAndCategory(
+            idLimpio,
+            resolvedCategoryId,
+            connection,
+        );
         if (!item) {
             throw new Error("No se encontro el item a actualizar");
         }
 
-        const [result] = await menuDAO.updateOutboundMenuItemStatus(
+        const [result] = await menuDAO.updateMenuItemStatus(
             idLimpio,
+            resolvedCategoryId,
             estadoLimpio,
             connection,
         );
@@ -147,8 +224,9 @@ export async function updateOutboundMenuItemStatus(id, estado) {
 
         const isParentCampaign = item.id_padre === null;
         if (isParentCampaign && estadoLimpio === "inactivo") {
-            await menuDAO.updateOutboundChildrenStatus(
+            await menuDAO.updateChildrenStatus(
                 idLimpio,
+                resolvedCategoryId,
                 "inactivo",
                 connection,
             );
@@ -162,7 +240,31 @@ export async function updateOutboundMenuItemStatus(id, estado) {
         connection.release();
     }
 
-    invalidateOutboundMenuTreeCache();
+    invalidateMenuTreeCache(resolvedCategoryId);
 
-    return { id: idLimpio, estado: estadoLimpio };
+    return { id: idLimpio, estado: estadoLimpio, categoryId: resolvedCategoryId };
+}
+
+export async function getOutboundMenuTree() {
+    return getMenuTree(DEFAULT_MENU_CATEGORY_ID);
+}
+
+export async function getOutboundParentCampaigns() {
+    return getParentCampaigns(DEFAULT_MENU_CATEGORY_ID);
+}
+
+export async function createOutboundCampaign(nombre) {
+    return createCampaign(DEFAULT_MENU_CATEGORY_ID, nombre);
+}
+
+export async function createOutboundSubcampaign(parentId, nombre) {
+    return createSubcampaign(DEFAULT_MENU_CATEGORY_ID, parentId, nombre);
+}
+
+export async function getOutboundMenuTreeWithStatus() {
+    return getMenuTreeWithStatus(DEFAULT_MENU_CATEGORY_ID);
+}
+
+export async function updateOutboundMenuItemStatus(id, estado) {
+    return updateMenuItemStatus(DEFAULT_MENU_CATEGORY_ID, id, estado);
 }

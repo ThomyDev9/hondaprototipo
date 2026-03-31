@@ -13,6 +13,10 @@ import {
     obtenerPlantillaAsignada,
     guardarPlantillaDinamica,
 } from "../../services/adminForms.service";
+import {
+    DEFAULT_MENU_CATEGORY_ID,
+    listarCategoriasMenu,
+} from "../../services/campaign.service";
 import "./ConfiguracionAdmin.css";
 
 const FIELD_TYPE_OPTIONS = [
@@ -167,7 +171,7 @@ function mapTemplateFieldsToEditorState(template) {
     }));
 }
 
-function FormularioConfigTab({ formType, editorMode, menuItemId }) {
+function FormularioConfigTab({ formType, editorMode, menuItemId, categoryId }) {
     const isF2 = formType === "F2";
     const isF3 = formType === "F3";
     const fieldTypeOptions = isF3 ? F3_FIELD_TYPE_OPTIONS : FIELD_TYPE_OPTIONS;
@@ -370,6 +374,7 @@ function FormularioConfigTab({ formType, editorMode, menuItemId }) {
         try {
             setLoading(true);
             const response = await guardarPlantillaDinamica({
+                categoryId,
                 menuItemId,
                 formType,
                 fields: cleanedFields,
@@ -649,15 +654,44 @@ FormularioConfigTab.propTypes = {
     formType: PropTypes.oneOf(["F2", "F3", "F4"]).isRequired,
     editorMode: PropTypes.oneOf(["create", "edit"]).isRequired,
     menuItemId: PropTypes.string.isRequired,
+    categoryId: PropTypes.string.isRequired,
 };
 
 export default function ConfiguracionAdmin() {
     const [activeTab, setActiveTab] = useState("create");
     const [formType, setFormType] = useState("F2");
+    const [categoryId, setCategoryId] = useState(DEFAULT_MENU_CATEGORY_ID);
+    const [categoryOptions, setCategoryOptions] = useState([]);
     const [menuItemId, setMenuItemId] = useState("");
     const [subcampaignOptions, setSubcampaignOptions] = useState([]);
     const [loadingSubcampaigns, setLoadingSubcampaigns] = useState(false);
     const [headerAlert, setHeaderAlert] = useState(null);
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const rows = await listarCategoriasMenu();
+                const options = rows
+                    .filter((item) => item.id && item.nombre)
+                    .map((item) => ({
+                        id: item.id,
+                        label: item.nombre,
+                    }));
+                setCategoryOptions(options);
+                if (!options.some((item) => item.id === categoryId)) {
+                    setCategoryId(String(options[0]?.id || DEFAULT_MENU_CATEGORY_ID));
+                }
+            } catch (error) {
+                setHeaderAlert({
+                    type: "error",
+                    message:
+                        error.message || "No se pudieron cargar categorias",
+                });
+            }
+        };
+
+        loadCategories();
+    }, []);
 
     useEffect(() => {
         const loadSubcampaigns = async () => {
@@ -666,7 +700,11 @@ export default function ConfiguracionAdmin() {
                 setHeaderAlert(null);
                 const scope =
                     activeTab === "edit" ? "with-template" : "without-template";
-                const data = await listarSubcampaniasActivas(formType, scope);
+                const data = await listarSubcampaniasActivas(
+                    formType,
+                    categoryId,
+                    scope,
+                );
                 const options = data.map((item) => ({
                     id: String(item.id || ""),
                     label: item.label,
@@ -695,13 +733,24 @@ export default function ConfiguracionAdmin() {
         };
 
         loadSubcampaigns();
-    }, [activeTab, formType, menuItemId]);
+    }, [activeTab, formType, categoryId, menuItemId]);
 
     const renderTabContent = (mode) => (
         <>
             {headerAlert && (
                 <Alert type={headerAlert.type} message={headerAlert.message} />
             )}
+
+            <Select
+                label="Categoria"
+                options={categoryOptions}
+                value={categoryId}
+                onChange={(value) => {
+                    setCategoryId(value);
+                    setMenuItemId("");
+                }}
+                disabled={loadingSubcampaigns}
+            />
 
             <TwoSelectRow
                 first={{
@@ -728,6 +777,7 @@ export default function ConfiguracionAdmin() {
                 formType={formType}
                 editorMode={mode}
                 menuItemId={menuItemId}
+                categoryId={categoryId}
             />
         </>
     );

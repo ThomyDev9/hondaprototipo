@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import "./NivelesGestionAdmin.css";
 import {
     PageContainer,
@@ -10,15 +10,23 @@ import {
     TwoSelectRow,
 } from "../../components/common";
 import {
-    listarArbolCampaniasOutbound,
+    listarArbolCampaniasPorCategoria,
     listarNivelesGestion,
     crearNivelesGestionMasivo,
     actualizarNivelGestion,
     listarSugerenciasNivelesGestion,
 } from "../../services/managementLevels.service";
+import {
+    DEFAULT_MENU_CATEGORY_ID,
+    listarCategoriasMenu,
+} from "../../services/campaign.service";
+
+const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 
 export default function NivelesGestionAdmin() {
     const [activeTab, setActiveTab] = useState("view");
+    const [categoryId, setCategoryId] = useState(DEFAULT_MENU_CATEGORY_ID);
+    const [categoryOptions, setCategoryOptions] = useState([]);
     const [campaignTree, setCampaignTree] = useState([]);
     const [selectedCampaignParentId, setSelectedCampaignParentId] =
         useState("");
@@ -31,15 +39,47 @@ export default function NivelesGestionAdmin() {
     const [rowActionLoadingId, setRowActionLoadingId] = useState("");
     const [alert, setAlert] = useState(null);
     const [code, setCode] = useState("");
+    const [description, setDescription] = useState("");
     const [level1, setLevel1] = useState("");
     const [level2, setLevel2] = useState("");
     const [level2Pool, setLevel2Pool] = useState([]);
     const [level1Suggestions, setLevel1Suggestions] = useState([]);
     const [level2Suggestions, setLevel2Suggestions] = useState([]);
     const [editingId, setEditingId] = useState("");
+    const [editDescription, setEditDescription] = useState("");
     const [editLevel1, setEditLevel1] = useState("");
     const [editLevel2, setEditLevel2] = useState("");
     const effectiveCampaignId = String(selectedSubcampaignId || "").trim();
+    const isInboundCategory =
+        String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                const rows = await listarCategoriasMenu();
+                const options = rows
+                    .filter((item) => item.id && item.nombre)
+                    .map((item) => ({
+                        id: item.id,
+                        label: item.nombre,
+                    }));
+                setCategoryOptions(options);
+                if (!options.some((item) => item.id === categoryId)) {
+                    setCategoryId(
+                        String(options[0]?.id || DEFAULT_MENU_CATEGORY_ID),
+                    );
+                }
+            } catch (error) {
+                setAlert({
+                    type: "error",
+                    message:
+                        error.message || "No se pudieron cargar categorias",
+                });
+            }
+        };
+
+        loadCategories();
+    }, []);
     const campaignOptions = useMemo(
         () =>
             (campaignTree || [])
@@ -78,6 +118,7 @@ export default function NivelesGestionAdmin() {
     const tableColumns = useMemo(
         () => [
             { key: "CampaignId", label: "CampaignId" },
+            { key: "Description", label: "Categorización" },
             { key: "Code", label: "Code", width: "90px" },
             { key: "Level1", label: "Level1" },
             { key: "Level2", label: "Level2" },
@@ -104,7 +145,7 @@ export default function NivelesGestionAdmin() {
             (level1Suggestions || [])
                 .map((item) => ({
                     id: String(item?.level1 || "").trim(),
-                    label: `${String(item?.level1 || "").trim()} · Code ${String(
+                    label: `${String(item?.level1 || "").trim()} Â· Code ${String(
                         item?.code ?? "",
                     )}`,
                     code: String(item?.code ?? "").trim(),
@@ -148,7 +189,7 @@ export default function NivelesGestionAdmin() {
         { key: "level2", label: "Level2" },
         {
             key: "actions",
-            label: "Acción",
+            label: "AcciÃ³n",
             width: "130px",
             render: (_, row) => (
                 <Button
@@ -165,6 +206,7 @@ export default function NivelesGestionAdmin() {
     ];
 
     const tableColumnsEdit = [
+        { key: "Description", label: "Categorización" },
         { key: "Level1", label: "Level1" },
         { key: "Level2", label: "Level2" },
         {
@@ -220,20 +262,20 @@ export default function NivelesGestionAdmin() {
                         <TwoSelectRow
                             marginBottom="0"
                             first={{
-                                label: "Campaña",
+                                label: "CampaÃ±a",
                                 options: campaignOptions,
                                 value: selectedCampaignParentId,
                                 onChange: setSelectedCampaignParentId,
-                                placeholder: "Selecciona campaña",
+                                placeholder: "Selecciona campaÃ±a",
                                 disabled: loadingCampaigns,
                                 required: true,
                             }}
                             second={{
-                                label: "Subcampaña",
+                                label: "SubcampaÃ±a",
                                 options: subcampaignOptions,
                                 value: selectedSubcampaignId,
                                 onChange: setSelectedSubcampaignId,
-                                placeholder: "Selecciona subcampaña",
+                                placeholder: "Selecciona subcampaÃ±a",
                                 disabled:
                                     loadingCampaigns ||
                                     !selectedCampaignParentId,
@@ -250,8 +292,8 @@ export default function NivelesGestionAdmin() {
                         loading={loadingRows}
                         noDataMessage={
                             effectiveCampaignId
-                                ? "No hay niveles activos para esta campaña"
-                                : "Selecciona una campaña para ver niveles"
+                                ? "No hay niveles activos para esta campaÃ±a"
+                                : "Selecciona una campaÃ±a para ver niveles"
                         }
                     />
                 </div>
@@ -264,20 +306,20 @@ export default function NivelesGestionAdmin() {
                 <div className="niveles-gestion-wrapper">
                     <TwoSelectRow
                         first={{
-                            label: "Campaña",
+                            label: "CampaÃ±a",
                             options: campaignOptions,
                             value: selectedCampaignParentId,
                             onChange: setSelectedCampaignParentId,
-                            placeholder: "Selecciona campaña",
+                            placeholder: "Selecciona campaÃ±a",
                             disabled: loadingCampaigns,
                             required: true,
                         }}
                         second={{
-                            label: "Subcampaña",
+                            label: "SubcampaÃ±a",
                             options: subcampaignOptions,
                             value: selectedSubcampaignId,
                             onChange: setSelectedSubcampaignId,
-                            placeholder: "Selecciona subcampaña",
+                            placeholder: "Selecciona subcampaÃ±a",
                             disabled:
                                 loadingCampaigns || !selectedCampaignParentId,
                             required: true,
@@ -286,22 +328,59 @@ export default function NivelesGestionAdmin() {
 
                     <div className="niveles-gestion-wrapper">
                         <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-                            Crear pool dinámico de Level2
+                            Crear pool dinÃ¡mico de Level2
                         </h3>
 
                         <div className="niveles-gestion-grid">
-                            <Select
-                                label="Level1"
-                                options={level1Options}
-                                value={level1}
-                                onChange={setLevel1}
-                                placeholder={
-                                    loadingSuggestions
-                                        ? "Cargando Level1..."
-                                        : "Selecciona Level1"
-                                }
-                                disabled={loadingSuggestions}
-                            />
+                            {isInboundCategory && (
+                                <label className="label">
+                                    <span>Categorización</span>
+                                    <input
+                                        className="input"
+                                        value={description}
+                                        onChange={(e) =>
+                                            setDescription(e.target.value)
+                                        }
+                                        placeholder="Ej: Información general"
+                                    />
+                                </label>
+                            )}
+
+                            {isInboundCategory ? (
+                                <label className="label">
+                                    <span>Level1</span>
+                                    <input
+                                        className="input"
+                                        list="level1-suggestions"
+                                        value={level1}
+                                        onChange={(e) =>
+                                            setLevel1(e.target.value)
+                                        }
+                                        placeholder="Escribe el motivo"
+                                    />
+                                    <datalist id="level1-suggestions">
+                                        {level1Options.map((item) => (
+                                            <option
+                                                key={item.id}
+                                                value={item.id}
+                                            />
+                                        ))}
+                                    </datalist>
+                                </label>
+                            ) : (
+                                <Select
+                                    label="Level1"
+                                    options={level1Options}
+                                    value={level1}
+                                    onChange={setLevel1}
+                                    placeholder={
+                                        loadingSuggestions
+                                            ? "Cargando Level1..."
+                                            : "Selecciona Level1"
+                                    }
+                                    disabled={loadingSuggestions}
+                                />
+                            )}
 
                             <label className="label">
                                 <span>Code</span>
@@ -310,8 +389,16 @@ export default function NivelesGestionAdmin() {
                                     type="number"
                                     min="0"
                                     value={code}
-                                    readOnly
-                                    placeholder="Se asigna por Level1"
+                                    readOnly={!isInboundCategory}
+                                    onChange={(e) =>
+                                        isInboundCategory &&
+                                        setCode(e.target.value)
+                                    }
+                                    placeholder={
+                                        isInboundCategory
+                                            ? "Ej: 0"
+                                            : "Se asigna por Level1"
+                                    }
                                 />
                             </label>
 
@@ -337,7 +424,8 @@ export default function NivelesGestionAdmin() {
                                 disabled={
                                     saving ||
                                     !effectiveCampaignId ||
-                                    !selectedLevel1Option
+                                    (!isInboundCategory &&
+                                        !selectedLevel1Option)
                                 }
                             >
                                 Agregar al pool
@@ -381,7 +469,7 @@ export default function NivelesGestionAdmin() {
                             data={level2PoolRows}
                             keyField="id"
                             loading={false}
-                            noDataMessage="Aún no agregas Level2 al pool"
+                            noDataMessage="AÃºn no agregas Level2 al pool"
                         />
 
 
@@ -402,7 +490,8 @@ export default function NivelesGestionAdmin() {
                                 disabled={
                                     saving ||
                                     !effectiveCampaignId ||
-                                    !selectedLevel1Option ||
+                                    (!isInboundCategory &&
+                                        !selectedLevel1Option) ||
                                     level2Pool.length === 0
                                 }
                             >
@@ -422,20 +511,20 @@ export default function NivelesGestionAdmin() {
                 <div className="niveles-gestion-wrapper">
                     <TwoSelectRow
                         first={{
-                            label: "Campaña",
+                            label: "CampaÃ±a",
                             options: campaignOptions,
                             value: selectedCampaignParentId,
                             onChange: setSelectedCampaignParentId,
-                            placeholder: "Selecciona campaña",
+                            placeholder: "Selecciona campaÃ±a",
                             disabled: loadingCampaigns,
                             required: true,
                         }}
                         second={{
-                            label: "Subcampaña",
+                            label: "SubcampaÃ±a",
                             options: subcampaignOptions,
                             value: selectedSubcampaignId,
                             onChange: setSelectedSubcampaignId,
-                            placeholder: "Selecciona subcampaña",
+                            placeholder: "Selecciona subcampaÃ±a",
                             disabled:
                                 loadingCampaigns || !selectedCampaignParentId,
                             required: true,
@@ -451,8 +540,8 @@ export default function NivelesGestionAdmin() {
                                 loading={loadingRows}
                                 noDataMessage={
                                     effectiveCampaignId
-                                        ? "No hay niveles para esta subcampaña"
-                                        : "Selecciona una subcampaña para editar"
+                                        ? "No hay niveles para esta subcampaÃ±a"
+                                        : "Selecciona una subcampaÃ±a para editar"
                                 }
                             />
                         )}
@@ -468,6 +557,22 @@ export default function NivelesGestionAdmin() {
                                     alignItems: "end",
                                 }}
                             >
+                                {isInboundCategory && (
+                                    <label className="label">
+                                        <span>Categorización</span>
+                                        <input
+                                            className="input"
+                                            value={editDescription}
+                                            onChange={(e) =>
+                                                setEditDescription(
+                                                    e.target.value,
+                                                )
+                                            }
+                                            placeholder="Ej: Información general"
+                                        />
+                                    </label>
+                                )}
+
                                 <label className="label">
                                     <span>Level1</span>
                                     <input
@@ -500,7 +605,7 @@ export default function NivelesGestionAdmin() {
                                 >
                                     {saving
                                         ? "Guardando..."
-                                        : "Guardar edición"}
+                                        : "Guardar ediciÃ³n"}
                                 </Button>
 
                                 <Button
@@ -522,7 +627,7 @@ export default function NivelesGestionAdmin() {
     const loadCampaigns = useCallback(async () => {
         try {
             setLoadingCampaigns(true);
-            const data = await listarArbolCampaniasOutbound();
+            const data = await listarArbolCampaniasPorCategoria(categoryId);
             setCampaignTree(Array.isArray(data) ? data : []);
 
             const activeCampaigns = (Array.isArray(data) ? data : []).filter(
@@ -537,12 +642,12 @@ export default function NivelesGestionAdmin() {
         } catch (error) {
             setAlert({
                 type: "error",
-                message: error.message || "No se pudo cargar campañas",
+                message: error.message || "No se pudo cargar campaÃ±as",
             });
         } finally {
             setLoadingCampaigns(false);
         }
-    }, [selectedCampaignParentId]);
+    }, [categoryId, selectedCampaignParentId]);
 
     useEffect(() => {
         if (!selectedCampaignParentId) {
@@ -574,7 +679,7 @@ export default function NivelesGestionAdmin() {
             setAlert({
                 type: "error",
                 message:
-                    error.message || "No se pudo cargar niveles de gestión",
+                    error.message || "No se pudo cargar niveles de gestiÃ³n",
             });
         } finally {
             setLoadingRows(false);
@@ -618,13 +723,20 @@ export default function NivelesGestionAdmin() {
     }, [loadRows]);
 
     useEffect(() => {
+        if (isInboundCategory) {
+            if (!String(code || "").trim()) {
+                setCode("0");
+            }
+            return;
+        }
+
         if (!selectedLevel1Option) {
             setCode("");
             return;
         }
 
         setCode(String(selectedLevel1Option.code || ""));
-    }, [selectedLevel1Option]);
+    }, [code, isInboundCategory, selectedLevel1Option]);
 
     useEffect(() => {
         setLevel2("");
@@ -632,7 +744,14 @@ export default function NivelesGestionAdmin() {
     }, [level1]);
 
     useEffect(() => {
+        if (!isInboundCategory) {
+            setDescription("");
+        }
+    }, [isInboundCategory]);
+
+    useEffect(() => {
         setEditingId("");
+        setEditDescription("");
         setEditLevel1("");
         setEditLevel2("");
     }, [effectiveCampaignId]);
@@ -645,10 +764,26 @@ export default function NivelesGestionAdmin() {
             return;
         }
 
-        if (!selectedLevel1Option) {
+        if (!selectedLevel1Option && !isInboundCategory) {
             setAlert({
                 type: "error",
-                message: "Selecciona un Level1 válido de la lista",
+                message: "Selecciona un Level1 vÃ¡lido de la lista",
+            });
+            return;
+        }
+
+        if (!String(level1 || "").trim()) {
+            setAlert({
+                type: "error",
+                message: "Ingresa un Level1",
+            });
+            return;
+        }
+
+        if (isInboundCategory && !String(description || "").trim()) {
+            setAlert({
+                type: "error",
+                message: "Ingresa una categorización",
             });
             return;
         }
@@ -668,7 +803,7 @@ export default function NivelesGestionAdmin() {
         if (alreadyExists) {
             setAlert({
                 type: "error",
-                message: "Ese Level2 ya está en el pool",
+                message: "Ese Level2 ya estÃ¡ en el pool",
             });
             return;
         }
@@ -716,15 +851,23 @@ export default function NivelesGestionAdmin() {
         if (!Number.isFinite(codeValue) || codeValue < 0) {
             setAlert({
                 type: "error",
-                message: "Code debe ser numérico y >= 0",
+                message: "Code debe ser numÃ©rico y >= 0",
             });
             return;
         }
 
-        if (!selectedLevel1Option) {
+        if (!selectedLevel1Option && !isInboundCategory) {
             setAlert({
                 type: "error",
-                message: "Selecciona un Level1 válido de la lista",
+                message: "Selecciona un Level1 vÃ¡lido de la lista",
+            });
+            return;
+        }
+
+        if (!String(level1 || "").trim()) {
+            setAlert({
+                type: "error",
+                message: "Ingresa un Level1",
             });
             return;
         }
@@ -740,9 +883,11 @@ export default function NivelesGestionAdmin() {
         try {
             setSaving(true);
             const response = await crearNivelesGestionMasivo({
+                categoryId,
                 campaignId: effectiveCampaignId,
                 code: codeValue,
                 isgoal: 1,
+                description: String(description || "").trim(),
                 level1: String(level1 || "").trim(),
                 level2List: level2Pool,
                 state: 1,
@@ -775,6 +920,7 @@ export default function NivelesGestionAdmin() {
 
         setRowActionLoadingId(`edit-${id}`);
         setEditingId(id);
+        setEditDescription(String(row?.Description || ""));
         setEditLevel1(String(row?.Level1 || ""));
         setEditLevel2(String(row?.Level2 || ""));
         setRowActionLoadingId("");
@@ -782,6 +928,7 @@ export default function NivelesGestionAdmin() {
 
     function handleCancelEdit() {
         setEditingId("");
+        setEditDescription("");
         setEditLevel1("");
         setEditLevel2("");
     }
@@ -800,7 +947,7 @@ export default function NivelesGestionAdmin() {
         }
 
         if (!selectedEditRow) {
-            setAlert({ type: "error", message: "Registro no válido" });
+            setAlert({ type: "error", message: "Registro no vÃ¡lido" });
             return;
         }
 
@@ -808,7 +955,7 @@ export default function NivelesGestionAdmin() {
         if (!Number.isFinite(codeValue) || codeValue < 0) {
             setAlert({
                 type: "error",
-                message: "Code debe ser numérico y >= 0",
+                message: "Code debe ser numÃ©rico y >= 0",
             });
             return;
         }
@@ -824,13 +971,23 @@ export default function NivelesGestionAdmin() {
             return;
         }
 
+        if (isInboundCategory && !String(editDescription || "").trim()) {
+            setAlert({
+                type: "error",
+                message: "Categorización es obligatoria para inbound",
+            });
+            return;
+        }
+
         try {
             setSaving(true);
             setRowActionLoadingId(`edit-${editingId}`);
             const response = await actualizarNivelGestion(editingId, {
+                categoryId,
                 campaignId: effectiveCampaignId,
                 code: codeValue,
                 isgoal: Number(selectedEditRow.Isgoal || 1) === 1 ? 1 : 0,
+                description: String(editDescription || "").trim(),
                 level1: String(editLevel1 || "").trim(),
                 level2: String(editLevel2 || "").trim(),
                 state: Number(selectedEditRow.State || 1) === 0 ? 0 : 1,
@@ -869,7 +1026,7 @@ export default function NivelesGestionAdmin() {
         }
 
         const confirmDeactivate = globalThis.confirm(
-            "¿Seguro que deseas desactivar este nivel?",
+            "Â¿Seguro que deseas desactivar este nivel?",
         );
         if (!confirmDeactivate) {
             return;
@@ -878,9 +1035,11 @@ export default function NivelesGestionAdmin() {
         try {
             setRowActionLoadingId(`deactivate-${id}`);
             const response = await actualizarNivelGestion(id, {
+                categoryId,
                 campaignId: effectiveCampaignId,
                 code: Number(row?.Code || 0),
                 isgoal: Number(row?.Isgoal || 1) === 1 ? 1 : 0,
+                description: String(row?.Description || "").trim(),
                 level1: String(row?.Level1 || "").trim(),
                 level2: String(row?.Level2 || "").trim(),
                 state: 0,
@@ -908,6 +1067,19 @@ export default function NivelesGestionAdmin() {
         <PageContainer fullWidth>
             {alert && <Alert type={alert.type} message={alert.message} />}
 
+            <Select
+                label="Categoria"
+                options={categoryOptions}
+                value={categoryId}
+                onChange={(value) => {
+                    setCategoryId(value);
+                    setSelectedCampaignParentId("");
+                    setSelectedSubcampaignId("");
+                    setRows([]);
+                }}
+                disabled={loadingCampaigns}
+            />
+
             <Tabs
                 tabs={tabs}
                 activeTab={activeTab}
@@ -917,3 +1089,4 @@ export default function NivelesGestionAdmin() {
         </PageContainer>
     );
 }
+

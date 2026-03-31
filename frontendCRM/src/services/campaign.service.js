@@ -4,6 +4,15 @@
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE;
+export const DEFAULT_MENU_CATEGORY_ID =
+    "544fb0a6-1345-11f1-b790-000c2904c92f";
+
+function getAuthHeaders() {
+    const token = localStorage.getItem("access_token") || "";
+    return {
+        Authorization: token ? `Bearer ${token}` : "",
+    };
+}
 
 /**
  * Obtener todas las campañas distintas
@@ -87,9 +96,36 @@ export async function obtenerCampaniasActivas() {
  * Obtener árbol de campañas outbound desde menu_items
  * @returns {Promise<Array>} [{ campania, subcampanias: string[] }]
  */
-export async function obtenerCampaniasDesdeMenu() {
+export async function listarCategoriasMenu() {
     try {
-        const response = await fetch(`${API_BASE}/api/menu/outbound`);
+        const response = await fetch(`${API_BASE}/api/menu/categories`, {
+            headers: getAuthHeaders(),
+        });
+        if (!response.ok) {
+            throw new Error("Error obteniendo categorias del menu");
+        }
+
+        const json = await response.json();
+        return (json.data || []).map((item) => ({
+            id: String(item?.id || "").trim(),
+            nombre: String(item?.nombre || "").trim(),
+        }));
+    } catch (err) {
+        console.error("Error en listarCategoriasMenu:", err);
+        throw err;
+    }
+}
+
+export async function obtenerCampaniasDesdeMenu(
+    categoryId = DEFAULT_MENU_CATEGORY_ID,
+) {
+    try {
+        const normalizedCategoryId =
+            String(categoryId || DEFAULT_MENU_CATEGORY_ID).trim() ||
+            DEFAULT_MENU_CATEGORY_ID;
+        const response = await fetch(
+            `${API_BASE}/api/menu/categories/${encodeURIComponent(normalizedCategoryId)}/tree`,
+        );
         if (!response.ok) {
             throw new Error("Error obteniendo campañas desde menú");
         }
@@ -111,9 +147,36 @@ export async function obtenerCampaniasDesdeMenu() {
     }
 }
 
+export async function obtenerCampaniasDetalladasDesdeMenu(
+    categoryId = DEFAULT_MENU_CATEGORY_ID,
+) {
+    try {
+        const normalizedCategoryId =
+            String(categoryId || DEFAULT_MENU_CATEGORY_ID).trim() ||
+            DEFAULT_MENU_CATEGORY_ID;
+        const response = await fetch(
+            `${API_BASE}/api/menu/categories/${encodeURIComponent(normalizedCategoryId)}/tree-detailed`,
+            {
+                headers: getAuthHeaders(),
+            },
+        );
+        if (!response.ok) {
+            throw new Error("Error obteniendo campañas detalladas desde menú");
+        }
+
+        const json = await response.json();
+        return Array.isArray(json?.data) ? json.data : [];
+    } catch (err) {
+        console.error("Error en obtenerCampaniasDetalladasDesdeMenu:", err);
+        throw err;
+    }
+}
+
 export default {
     obtenerCampanas,
     buscarCampanas,
     obtenerCampaniasActivas,
+    listarCategoriasMenu,
     obtenerCampaniasDesdeMenu,
+    obtenerCampaniasDetalladasDesdeMenu,
 };

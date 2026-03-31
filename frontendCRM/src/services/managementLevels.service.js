@@ -18,9 +18,9 @@ async function parseJson(response) {
     }
 }
 
-export async function listarCampaniasParaNiveles() {
+export async function listarCampaniasParaNiveles(categoryId) {
     const response = await fetch(
-        `${API_BASE}/admin/management-levels/campaigns`,
+        `${API_BASE}/admin/management-levels/campaigns?categoryId=${encodeURIComponent(String(categoryId || "").trim())}`,
         {
             headers: getAuthHeaders(),
         },
@@ -53,10 +53,14 @@ export async function listarSugerenciasNivelesGestion() {
     };
 }
 
-export async function listarArbolCampaniasOutbound() {
-    const response = await fetch(`${API_BASE}/api/menu/outbound/admin-tree`, {
+export async function listarArbolCampaniasPorCategoria(categoryId) {
+    const normalizedCategoryId = String(categoryId || "").trim();
+    const response = await fetch(
+        `${API_BASE}/api/menu/categories/${encodeURIComponent(normalizedCategoryId)}/admin-tree`,
+        {
         headers: getAuthHeaders(),
-    });
+        },
+    );
 
     const json = await parseJson(response);
     if (!response.ok) {
@@ -152,7 +156,7 @@ export async function actualizarNivelGestion(id, payload) {
 export default {
     listarCampaniasParaNiveles,
     listarSugerenciasNivelesGestion,
-    listarArbolCampaniasOutbound,
+    listarArbolCampaniasPorCategoria,
     listarNivelesGestion,
     crearNivelGestion,
     crearNivelesGestionMasivo,

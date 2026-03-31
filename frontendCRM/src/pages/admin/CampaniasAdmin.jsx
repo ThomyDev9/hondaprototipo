@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import {
     PageContainer,
@@ -10,6 +10,10 @@ import {
     Badge,
 } from "../../components/common";
 import VerCampaniasActivas from "./VerCampaniasActivas";
+import {
+    DEFAULT_MENU_CATEGORY_ID,
+    listarCategoriasMenu,
+} from "../../services/campaign.service";
 import "./CampaniasAdmin.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -24,7 +28,27 @@ async function parseJsonSafe(response) {
     }
 }
 
-function CrearCampaniaOSubcampaniaForm({ reloadToken, onCreated }) {
+function getAuthHeaders() {
+    const token = localStorage.getItem("access_token") || "";
+    return {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+    };
+}
+
+function buildCategoryBaseUrl(categoryId) {
+    const normalizedCategoryId =
+        String(categoryId || DEFAULT_MENU_CATEGORY_ID).trim() ||
+        DEFAULT_MENU_CATEGORY_ID;
+    return `${API_BASE}/api/menu/categories/${encodeURIComponent(normalizedCategoryId)}`;
+}
+
+function CrearCampaniaOSubcampaniaForm({
+    categoryId,
+    categoryLabel,
+    reloadToken,
+    onCreated,
+}) {
     const [tipoCreacion, setTipoCreacion] = useState("");
     const [campaniasPadre, setCampaniasPadre] = useState([]);
     const [parentId, setParentId] = useState("");
@@ -52,13 +76,10 @@ function CrearCampaniaOSubcampaniaForm({ reloadToken, onCreated }) {
 
             try {
                 setLoadingParents(true);
-                const token = localStorage.getItem("access_token") || "";
                 const response = await fetch(
-                    `${API_BASE}/api/menu/outbound/parents`,
+                    `${buildCategoryBaseUrl(categoryId)}/parents`,
                     {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
+                        headers: getAuthHeaders(),
                     },
                 );
 
@@ -85,7 +106,7 @@ function CrearCampaniaOSubcampaniaForm({ reloadToken, onCreated }) {
         };
 
         loadParents();
-    }, [tipoCreacion, reloadToken]);
+    }, [categoryId, tipoCreacion, reloadToken]);
 
     const validateCreateForm = () => {
         if (!tipoCreacion) {
@@ -109,8 +130,8 @@ function CrearCampaniaOSubcampaniaForm({ reloadToken, onCreated }) {
     const buildCreatePayload = () => {
         const nombreLimpio = nombre.trim();
         const url = isSubcampania
-            ? `${API_BASE}/api/menu/outbound/subcampaigns`
-            : `${API_BASE}/api/menu/outbound/campaigns`;
+            ? `${buildCategoryBaseUrl(categoryId)}/subcampaigns`
+            : `${buildCategoryBaseUrl(categoryId)}/campaigns`;
         const body = isSubcampania
             ? { parentId, nombre: nombreLimpio }
             : { nombre: nombreLimpio };
@@ -132,16 +153,11 @@ function CrearCampaniaOSubcampaniaForm({ reloadToken, onCreated }) {
 
         try {
             setLoadingSubmit(true);
-            const token = localStorage.getItem("access_token") || "";
-
             const { url, body } = buildCreatePayload();
 
             const response = await fetch(url, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(body),
             });
 
@@ -172,6 +188,14 @@ function CrearCampaniaOSubcampaniaForm({ reloadToken, onCreated }) {
     return (
         <div className="wrapper">
             <form onSubmit={handleSubmit} className="form">
+                <Select
+                    label="Categoria"
+                    options={[{ id: categoryId, label: categoryLabel }]}
+                    value={categoryId}
+                    onChange={() => {}}
+                    disabled
+                />
+
                 <Select
                     label="Qué deseas crear"
                     options={[
@@ -231,11 +255,13 @@ function CrearCampaniaOSubcampaniaForm({ reloadToken, onCreated }) {
 }
 
 CrearCampaniaOSubcampaniaForm.propTypes = {
+    categoryId: PropTypes.string.isRequired,
+    categoryLabel: PropTypes.string.isRequired,
     reloadToken: PropTypes.number.isRequired,
     onCreated: PropTypes.func,
 };
 
-function AdministrarEstadoCampanias({ reloadToken }) {
+function AdministrarEstadoCampanias({ categoryId, reloadToken }) {
     const [campaignRows, setCampaignRows] = useState([]);
     const [subcampaignMap, setSubcampaignMap] = useState({});
     const [adminTarget, setAdminTarget] = useState("campanias");
@@ -247,14 +273,10 @@ function AdministrarEstadoCampanias({ reloadToken }) {
         try {
             setLoading(true);
             setAlert(null);
-            const token = localStorage.getItem("access_token") || "";
-
             const response = await fetch(
-                `${API_BASE}/api/menu/outbound/admin-tree`,
+                `${buildCategoryBaseUrl(categoryId)}/admin-tree`,
                 {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
+                    headers: getAuthHeaders(),
                 },
             );
 
@@ -303,7 +325,7 @@ function AdministrarEstadoCampanias({ reloadToken }) {
         } finally {
             setLoading(false);
         }
-    }, [selectedCampaignId]);
+    }, [categoryId, selectedCampaignId]);
 
     useEffect(() => {
         loadTree();
@@ -318,15 +340,11 @@ function AdministrarEstadoCampanias({ reloadToken }) {
         try {
             setLoading(true);
             setAlert(null);
-            const token = localStorage.getItem("access_token") || "";
             const response = await fetch(
-                `${API_BASE}/api/menu/outbound/items/${encodeURIComponent(row.id)}/status`,
+                `${buildCategoryBaseUrl(categoryId)}/items/${encodeURIComponent(row.id)}/status`,
                 {
                     method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify({ estado: nextEstado }),
                 },
             );
@@ -444,9 +462,6 @@ function AdministrarEstadoCampanias({ reloadToken }) {
         },
     ];
 
-    const selectedCampaign = campaignRows.find(
-        (row) => row.id === selectedCampaignId,
-    );
     const selectedSubcampaigns = selectedCampaignId
         ? subcampaignMap[selectedCampaignId] || []
         : [];
@@ -516,24 +531,76 @@ function AdministrarEstadoCampanias({ reloadToken }) {
 }
 
 AdministrarEstadoCampanias.propTypes = {
+    categoryId: PropTypes.string.isRequired,
     reloadToken: PropTypes.number.isRequired,
 };
 
 export default function CampaniasAdmin() {
     const [activeTab, setActiveTab] = useState("ver-campanias");
     const [reloadToken, setReloadToken] = useState(0);
+    const [categoryOptions, setCategoryOptions] = useState([]);
+    const [selectedCategoryId, setSelectedCategoryId] = useState(
+        DEFAULT_MENU_CATEGORY_ID,
+    );
+    const [loadingCategories, setLoadingCategories] = useState(false);
+    const [categoryAlert, setCategoryAlert] = useState(null);
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            try {
+                setLoadingCategories(true);
+                setCategoryAlert(null);
+                const rows = await listarCategoriasMenu();
+                const options = rows
+                    .filter((item) => item.id && item.nombre)
+                    .map((item) => ({
+                        id: item.id,
+                        label: item.nombre,
+                    }));
+
+                setCategoryOptions(options);
+
+                const exists = options.some(
+                    (item) => item.id === selectedCategoryId,
+                );
+                if (!exists) {
+                    setSelectedCategoryId(
+                        String(options[0]?.id || DEFAULT_MENU_CATEGORY_ID),
+                    );
+                }
+            } catch (err) {
+                setCategoryAlert({
+                    type: "error",
+                    message: err.message || "Error cargando categorias",
+                });
+            } finally {
+                setLoadingCategories(false);
+            }
+        };
+
+        loadCategories();
+    }, [selectedCategoryId]);
+
+    const selectedCategoryLabel = useMemo(() => {
+        return (
+            categoryOptions.find((item) => item.id === selectedCategoryId)
+                ?.label || "Categoria seleccionada"
+        );
+    }, [categoryOptions, selectedCategoryId]);
 
     const tabs = [
         {
             id: "ver-campanias",
             label: "Ver Campañas",
-            content: <VerCampaniasActivas />,
+            content: <VerCampaniasActivas categoryId={selectedCategoryId} />,
         },
         {
             id: "crear",
             label: "Crear",
             content: (
                 <CrearCampaniaOSubcampaniaForm
+                    categoryId={selectedCategoryId}
+                    categoryLabel={selectedCategoryLabel}
                     reloadToken={reloadToken}
                     onCreated={() => setReloadToken(Date.now())}
                 />
@@ -542,12 +609,39 @@ export default function CampaniasAdmin() {
         {
             id: "administrar-estado",
             label: "Activar/Desactivar",
-            content: <AdministrarEstadoCampanias reloadToken={reloadToken} />,
+            content: (
+                <AdministrarEstadoCampanias
+                    categoryId={selectedCategoryId}
+                    reloadToken={reloadToken}
+                />
+            ),
         },
     ];
 
     return (
         <PageContainer fullWidth>
+            {categoryAlert && (
+                <Alert
+                    type={categoryAlert.type}
+                    message={categoryAlert.message}
+                />
+            )}
+
+            <div className="form" style={{ marginBottom: "1rem" }}>
+                <Select
+                    label="Categoria de campañas"
+                    options={categoryOptions}
+                    value={selectedCategoryId}
+                    onChange={(value) => {
+                        setSelectedCategoryId(value);
+                        setReloadToken(Date.now());
+                    }}
+                    placeholder="Seleccione categoria"
+                    disabled={loadingCategories || categoryOptions.length === 0}
+                    required
+                />
+            </div>
+
             <Tabs
                 tabs={tabs}
                 activeTab={activeTab}

@@ -1,12 +1,15 @@
 import pool from "../db.js";
 
 export class AdminManagementDAO {
-    constructor(dbPool = pool, outboundCategoryId) {
+    constructor(dbPool = pool) {
         this.pool = dbPool;
-        this.outboundCategoryId = outboundCategoryId;
     }
 
-    async isActiveOutboundSubcampaign(campaignId, executor = this.pool) {
+    async isActiveSubcampaignByCategory(
+        categoryId,
+        campaignId,
+        executor = this.pool,
+    ) {
         const [rows] = await executor.query(
             `
             SELECT s.id
@@ -20,7 +23,7 @@ export class AdminManagementDAO {
               AND TRIM(s.nombre_item) = ?
             LIMIT 1
             `,
-            [this.outboundCategoryId, this.outboundCategoryId, campaignId],
+            [categoryId, categoryId, campaignId],
         );
         return rows.length > 0;
     }
@@ -48,6 +51,7 @@ export class AdminManagementDAO {
 
     async getExistingPairSet(
         campaignId,
+        description,
         level1List,
         level2List,
         executor = this.pool,
@@ -59,10 +63,11 @@ export class AdminManagementDAO {
             SELECT TRIM(Level1) AS level1, TRIM(Level2) AS level2
             FROM campaignresultmanagement
             WHERE CampaignId = ?
+              AND COALESCE(Description, '') = ?
               AND TRIM(Level1) IN (${level1Placeholders})
               AND TRIM(Level2) IN (${level2Placeholders})
             `,
-            [campaignId, ...level1List, ...level2List],
+            [campaignId, description, ...level1List, ...level2List],
         );
 
         return new Set(
@@ -101,7 +106,7 @@ export class AdminManagementDAO {
         return { level1: level1Rows, level2: level2Rows };
     }
 
-    async getManagementLevelCampaigns(executor = this.pool) {
+    async getManagementLevelCampaigns(categoryId, executor = this.pool) {
         const [rows] = await executor.query(
             `
             SELECT
@@ -123,7 +128,7 @@ export class AdminManagementDAO {
             GROUP BY src.campaign_id
             ORDER BY MIN(src.parent_name) ASC, src.campaign_id ASC
             `,
-            [this.outboundCategoryId, this.outboundCategoryId],
+            [categoryId, categoryId],
         );
 
         return rows;
@@ -143,6 +148,7 @@ export class AdminManagementDAO {
                 Id,
                 CampaignId,
                 Code,
+                Description,
                 Isgoal,
                 Level1,
                 Level2,
@@ -189,13 +195,14 @@ export class AdminManagementDAO {
 
     async findDuplicateManagementLevel(
         campaignId,
+        description,
         code,
         level1,
         level2,
         excludeId = null,
         executor = this.pool,
     ) {
-        const params = [campaignId, code, level1, level2];
+        const params = [campaignId, code, description, level1, level2];
         let excludeSql = "";
         if (excludeId !== null && excludeId !== undefined) {
             excludeSql = " AND Id <> ?";
@@ -208,6 +215,7 @@ export class AdminManagementDAO {
             FROM campaignresultmanagement
             WHERE CampaignId = ?
               AND Code = ?
+              AND COALESCE(Description, '') = ?
               AND Level1 = ?
               AND Level2 = ?
               ${excludeSql}
@@ -239,6 +247,7 @@ export class AdminManagementDAO {
 
     async findExistingLevel2Rows(
         campaignId,
+        description,
         code,
         level1,
         level2List,
@@ -251,10 +260,11 @@ export class AdminManagementDAO {
             FROM campaignresultmanagement
             WHERE CampaignId = ?
               AND Code = ?
+              AND COALESCE(Description, '') = ?
               AND Level1 = ?
               AND Level2 IN (${placeholders})
             `,
-            [campaignId, code, level1, ...level2List],
+            [campaignId, code, description, level1, ...level2List],
         );
         return rows;
     }
@@ -263,6 +273,7 @@ export class AdminManagementDAO {
         campaignId,
         code,
         isgoal,
+        description,
         level1,
         level2,
         state,
@@ -290,7 +301,7 @@ export class AdminManagementDAO {
                 '',
                 ?,
                 ?,
-                '',
+                ?,
                 ?,
                 ?,
                 ?,
@@ -302,7 +313,17 @@ export class AdminManagementDAO {
                 ?
             )
             `,
-            [campaignId, code, isgoal, level1, level2, state, actor, actor],
+            [
+                campaignId,
+                code,
+                description,
+                isgoal,
+                level1,
+                level2,
+                state,
+                actor,
+                actor,
+            ],
         );
         return result;
     }
@@ -312,6 +333,7 @@ export class AdminManagementDAO {
         campaignId,
         code,
         isgoal,
+        description,
         level1,
         state,
         actor,
@@ -319,7 +341,7 @@ export class AdminManagementDAO {
     ) {
         const valuesSql = level2List
             .map(
-                () => `( '', ?, ?, '', ?, ?, ?, NULL, NULL, ?, NOW(), ?, ? )`,
+                () => `( '', ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NOW(), ?, ? )`,
             )
             .join(",");
 
@@ -328,6 +350,7 @@ export class AdminManagementDAO {
             params.push(
                 campaignId,
                 code,
+                description,
                 isgoal,
                 level1,
                 level2,
@@ -365,13 +388,14 @@ export class AdminManagementDAO {
         codeByLevel1,
         campaignId,
         isgoal,
+        description,
         state,
         actor,
         executor = this.pool,
     ) {
         const valuesSql = items
             .map(
-                () => `( '', ?, ?, '', ?, ?, ?, NULL, NULL, ?, NOW(), ?, ? )`,
+                () => `( '', ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NOW(), ?, ? )`,
             )
             .join(",");
 
@@ -380,6 +404,7 @@ export class AdminManagementDAO {
             params.push(
                 campaignId,
                 Number(codeByLevel1.get(item.level1) || 0),
+                description,
                 isgoal,
                 item.level1,
                 item.level2,
@@ -417,6 +442,7 @@ export class AdminManagementDAO {
         campaignId,
         code,
         isgoal,
+        description,
         level1,
         level2,
         state,
@@ -427,6 +453,7 @@ export class AdminManagementDAO {
             `
             UPDATE campaignresultmanagement
             SET Code = ?,
+                Description = ?,
                 Isgoal = ?,
                 Level1 = ?,
                 Level2 = ?,
@@ -436,7 +463,17 @@ export class AdminManagementDAO {
             WHERE Id = ?
               AND CampaignId = ?
             `,
-            [code, isgoal, level1, level2, state, actor, id, campaignId],
+            [
+                code,
+                description,
+                isgoal,
+                level1,
+                level2,
+                state,
+                actor,
+                id,
+                campaignId,
+            ],
         );
         return result;
     }

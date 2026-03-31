@@ -12,6 +12,9 @@ export default function DashboardAgente({
     user,
     selectedCampaignId,
     selectedCampaignTick,
+    selectedMenuItemId,
+    selectedCategoryId,
+    selectedManualFlow,
     requestedAgentStatus,
     onAgentStatusSync,
     agentPage,
@@ -38,6 +41,7 @@ export default function DashboardAgente({
         estadoTelefonoSeleccionado,
         dynamicFormConfig,
         dynamicFormDetail,
+        dynamicFormAnswers,
         dynamicSurveyConfig,
         surveyFieldsToRender,
         surveyAnswers,
@@ -46,6 +50,10 @@ export default function DashboardAgente({
         regestionBaseCards,
         loadingRegestionBaseCards,
         hasCampaignSelection,
+        manualFlowActivo,
+        menuItemIdSeleccionado,
+        categoryIdSeleccionada,
+        inboundChildOptions,
         shouldShowQueueMessage,
         isHomeView,
         isGestionOutbound,
@@ -55,6 +63,7 @@ export default function DashboardAgente({
         handleGrabadoraAutofill,
         handleContestaTerceroAutofill,
         handleSurveyFieldChange,
+        handleDynamicFormFieldChange,
         handleGuardarGestion,
         handleCancelarGestion,
         selectBaseCard,
@@ -62,6 +71,9 @@ export default function DashboardAgente({
         user,
         selectedCampaignId,
         selectedCampaignTick,
+        selectedMenuItemId,
+        selectedCategoryId,
+        selectedManualFlow,
         requestedAgentStatus,
         onAgentStatusSync,
         agentPage,
@@ -158,7 +170,7 @@ export default function DashboardAgente({
     return (
         <PageContainer fullWidth className="">
             <section className="">
-                    {!registro && isHomeView && (
+                    {!registro && !manualFlowActivo && isHomeView && (
                         <div className={baseCardLayoutClass}>
                             <BaseCardSection
                                 title="Bases activas disponibles"
@@ -184,7 +196,11 @@ export default function DashboardAgente({
                     {error && <p className="agent-error">{error}</p>}
 
                     {loadingRegistro && !isHomeView && !isGestionOutbound && (
-                        <p className="agent-info-text">Asignando registro...</p>
+                        <p className="agent-info-text">
+                            {manualFlowActivo
+                                ? "Cargando formulario..."
+                                : "Asignando registro..."}
+                        </p>
                     )}
 
                     {shouldShowQueueMessage &&
@@ -197,7 +213,7 @@ export default function DashboardAgente({
                             </p>
                         )}
 
-                    {registro && !isHomeView && (
+                    {(registro || manualFlowActivo) && !isHomeView && (
                         <AgentGestionForm
                             registro={registro}
                             campaignId={
@@ -205,6 +221,10 @@ export default function DashboardAgente({
                                 selectedCampaignId ||
                                 ""
                             }
+                            manualFlow={manualFlowActivo}
+                            menuItemId={menuItemIdSeleccionado}
+                            categoryId={categoryIdSeleccionada}
+                            inboundChildOptions={inboundChildOptions}
                             onSubmit={handleGuardarGestion}
                             levels={levels}
                             level1Seleccionado={level1Seleccionado}
@@ -228,10 +248,14 @@ export default function DashboardAgente({
                             }
                             dynamicFormConfig={dynamicFormConfig}
                             dynamicFormDetail={dynamicFormDetail}
+                            dynamicFormAnswers={dynamicFormAnswers}
                             dynamicSurveyConfig={dynamicSurveyConfig}
                             surveyFieldsToRender={surveyFieldsToRender}
                             surveyAnswers={surveyAnswers}
                             onSurveyFieldChange={handleSurveyFieldChange}
+                            onDynamicFormFieldChange={
+                                handleDynamicFormFieldChange
+                            }
                             onCancelarGestion={handleCancelarGestion}
                             user={user}
                         />
@@ -292,6 +316,9 @@ DashboardAgente.propTypes = {
     }),
     selectedCampaignId: PropTypes.string,
     selectedCampaignTick: PropTypes.number,
+    selectedMenuItemId: PropTypes.string,
+    selectedCategoryId: PropTypes.string,
+    selectedManualFlow: PropTypes.bool,
     requestedAgentStatus: PropTypes.string,
     onAgentStatusSync: PropTypes.func,
     agentPage: PropTypes.string,

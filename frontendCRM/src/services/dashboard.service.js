@@ -89,6 +89,13 @@ export const guardarGestion = (payload) =>
         body: JSON.stringify(payload),
     });
 
+export const guardarGestionInbound = (payload) =>
+    request("agente/guardar-gestion-inbound", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
 export const guardarGestionOutbound = (payload) =>
     request("agente/guardar-gestion-outbound", {
         method: "POST",

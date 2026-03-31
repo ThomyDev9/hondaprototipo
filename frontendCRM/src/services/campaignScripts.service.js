@@ -19,10 +19,14 @@ async function parseJson(response) {
     }
 }
 
-export async function listScriptSubcampaigns() {
-    const response = await fetch(`${API_BASE}/admin/scripts/subcampaigns`, {
-        headers: getAuthHeaders(),
-    });
+export async function listScriptSubcampaigns(categoryId) {
+    const normalizedCategoryId = String(categoryId || "").trim();
+    const response = await fetch(
+        `${API_BASE}/admin/scripts/subcampaigns?categoryId=${encodeURIComponent(normalizedCategoryId)}`,
+        {
+            headers: getAuthHeaders(),
+        },
+    );
     const json = await parseJson(response);
 
     if (!response.ok) {
@@ -48,13 +52,13 @@ export async function getAdminCampaignScript(menuItemId) {
     return json.data || null;
 }
 
-export async function saveAdminCampaignScript(menuItemId, script) {
+export async function saveAdminCampaignScript(menuItemId, script, categoryId) {
     const response = await fetch(
         `${API_BASE}/admin/scripts/${encodeURIComponent(menuItemId)}`,
         {
             method: "POST",
             headers: getAuthHeaders(),
-            body: JSON.stringify({ script }),
+            body: JSON.stringify({ script, categoryId }),
         },
     );
     const json = await parseJson(response);
@@ -66,9 +70,20 @@ export async function saveAdminCampaignScript(menuItemId, script) {
     return json;
 }
 
-export async function getAgentCampaignScript(campaignId) {
+export async function getAgentCampaignScript(campaignId, options = {}) {
+    const params = new URLSearchParams();
+    params.set("campaignId", String(campaignId || "").trim());
+
+    if (options?.menuItemId) {
+        params.set("menuItemId", String(options.menuItemId).trim());
+    }
+
+    if (options?.categoryId) {
+        params.set("categoryId", String(options.categoryId).trim());
+    }
+
     const response = await fetch(
-        `${API_BASE}/agente/scripts?campaignId=${encodeURIComponent(campaignId)}`,
+        `${API_BASE}/agente/scripts?${params.toString()}`,
         {
             headers: getAuthHeaders(),
         },

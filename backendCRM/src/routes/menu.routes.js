@@ -1,5 +1,14 @@
 import express from "express";
 import {
+    DEFAULT_MENU_CATEGORY_ID,
+    getMenuCategories,
+    getMenuTree,
+    getMenuTreeDetailed,
+    getParentCampaigns,
+    createCampaign,
+    createSubcampaign,
+    getMenuTreeWithStatus,
+    updateMenuItemStatus,
     getOutboundMenuTree,
     getOutboundParentCampaigns,
     createOutboundCampaign,
@@ -11,6 +20,158 @@ import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireRole } from "../middleware/role.middleware.js";
 
 const router = express.Router();
+
+router.get("/categories", requireAuth, async (_req, res) => {
+    try {
+        const rows = await getMenuCategories();
+        res.json({ data: rows });
+    } catch (err) {
+        console.error("Error en GET /api/menu/categories:", err);
+        res.status(500).json({ error: "Error al obtener categorias" });
+    }
+});
+
+router.get("/categories/:categoryId/tree", async (req, res) => {
+    try {
+        const categoryId = String(req.params?.categoryId || "").trim();
+        const tree = await getMenuTree(categoryId || DEFAULT_MENU_CATEGORY_ID);
+        res.json(tree);
+    } catch (err) {
+        console.error("Error en GET /api/menu/categories/:categoryId/tree:", err);
+        res.status(500).json({ error: "Error al obtener el menu de campanas" });
+    }
+});
+
+router.get("/categories/:categoryId/tree-detailed", requireAuth, async (req, res) => {
+    try {
+        const categoryId = String(req.params?.categoryId || "").trim();
+        const tree = await getMenuTreeDetailed(
+            categoryId || DEFAULT_MENU_CATEGORY_ID,
+        );
+        res.json({ data: tree });
+    } catch (err) {
+        console.error(
+            "Error en GET /api/menu/categories/:categoryId/tree-detailed:",
+            err,
+        );
+        res.status(500).json({ error: "Error al obtener el menu detallado" });
+    }
+});
+
+router.get("/categories/:categoryId/parents", requireAuth, async (req, res) => {
+    try {
+        const categoryId = String(req.params?.categoryId || "").trim();
+        const rows = await getParentCampaigns(
+            categoryId || DEFAULT_MENU_CATEGORY_ID,
+        );
+        res.json({ data: rows });
+    } catch (err) {
+        console.error(
+            "Error en GET /api/menu/categories/:categoryId/parents:",
+            err,
+        );
+        res.status(500).json({ error: "Error al obtener campanas padre" });
+    }
+});
+
+router.post(
+    "/categories/:categoryId/campaigns",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const categoryId = String(req.params?.categoryId || "").trim();
+            const { nombre } = req.body;
+            const result = await createCampaign(
+                categoryId || DEFAULT_MENU_CATEGORY_ID,
+                nombre,
+            );
+            res.status(201).json({
+                success: true,
+                message: "Campana creada correctamente",
+                data: result,
+            });
+        } catch (err) {
+            res.status(400).json({
+                error: err.message || "Error creando campana",
+            });
+        }
+    },
+);
+
+router.post(
+    "/categories/:categoryId/subcampaigns",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const categoryId = String(req.params?.categoryId || "").trim();
+            const { parentId, nombre } = req.body;
+            const result = await createSubcampaign(
+                categoryId || DEFAULT_MENU_CATEGORY_ID,
+                parentId,
+                nombre,
+            );
+            res.status(201).json({
+                success: true,
+                message: "Subcampana creada correctamente",
+                data: result,
+            });
+        } catch (err) {
+            res.status(400).json({
+                error: err.message || "Error creando subcampana",
+            });
+        }
+    },
+);
+
+router.get(
+    "/categories/:categoryId/admin-tree",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const categoryId = String(req.params?.categoryId || "").trim();
+            const tree = await getMenuTreeWithStatus(
+                categoryId || DEFAULT_MENU_CATEGORY_ID,
+            );
+            res.json({ data: tree });
+        } catch (err) {
+            console.error(
+                "Error en GET /api/menu/categories/:categoryId/admin-tree:",
+                err,
+            );
+            res.status(500).json({ error: "Error obteniendo campanas" });
+        }
+    },
+);
+
+router.patch(
+    "/categories/:categoryId/items/:id/status",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const categoryId = String(req.params?.categoryId || "").trim();
+            const { id } = req.params;
+            const { estado } = req.body;
+            const data = await updateMenuItemStatus(
+                categoryId || DEFAULT_MENU_CATEGORY_ID,
+                id,
+                estado,
+            );
+            res.json({
+                success: true,
+                message: "Estado actualizado correctamente",
+                data,
+            });
+        } catch (err) {
+            res.status(400).json({
+                error: err.message || "Error actualizando estado",
+            });
+        }
+    },
+);
 
 router.get("/outbound", async (req, res) => {
     try {

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import PropTypes from "prop-types";
 import { Alert, Badge, Table } from "../../components/common";
 import { obtenerCampaniasDesdeMenu } from "../../services/campaign.service";
 import "./CargarBases.css";
 
-export default function VerCampaniasActivas() {
+export default function VerCampaniasActivas({ categoryId }) {
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(false);
     const [alert, setAlert] = useState(null);
@@ -14,7 +15,7 @@ export default function VerCampaniasActivas() {
                 setLoading(true);
                 setAlert(null);
 
-                const tree = await obtenerCampaniasDesdeMenu();
+                const tree = await obtenerCampaniasDesdeMenu(categoryId);
                 const mappedRows = (tree || []).map((item) => {
                     const subcampanias = Array.isArray(item?.subcampanias)
                         ? item.subcampanias.filter(Boolean)
@@ -43,7 +44,7 @@ export default function VerCampaniasActivas() {
         };
 
         cargarPanorama();
-    }, []);
+    }, [categoryId]);
 
     const columns = [
         {
@@ -81,3 +82,7 @@ export default function VerCampaniasActivas() {
         </div>
     );
 }
+
+VerCampaniasActivas.propTypes = {
+    categoryId: PropTypes.string.isRequired,
+};

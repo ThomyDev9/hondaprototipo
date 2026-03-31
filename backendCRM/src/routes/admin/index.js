@@ -3,6 +3,7 @@ import express from "express";
 import pool from "../../services/db.js";
 import * as userService from "../../services/user.service.js";
 import AdminManagementDAO from "../../services/dao/AdminManagementDAO.js";
+import { DEFAULT_MENU_CATEGORY_ID } from "../../services/menu.service.js";
 import {
     createManagementLevel,
     createManagementLevelsBulk,
@@ -18,8 +19,7 @@ import {
 } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
-const OUTBOUND_CATEGORY_ID = "544fb0a6-1345-11f1-b790-000c2904c92f";
-const adminManagementDAO = new AdminManagementDAO(pool, OUTBOUND_CATEGORY_ID);
+const adminManagementDAO = new AdminManagementDAO(pool);
 
 const middlewaresAdmin = [
     requireAuth,
@@ -67,9 +67,13 @@ router.get(
 router.get(
     "/management-levels/campaigns",
     ...middlewaresAdminStrict,
-    async (_req, res) => {
+    async (req, res) => {
         try {
-            const rows = await adminManagementDAO.getManagementLevelCampaigns();
+            const categoryId = String(
+                req.query?.categoryId || DEFAULT_MENU_CATEGORY_ID,
+            ).trim();
+            const rows =
+                await adminManagementDAO.getManagementLevelCampaigns(categoryId);
 
             return res.json({
                 data: rows.map((row) => ({
@@ -91,6 +95,9 @@ router.get(
     ...middlewaresAdminStrict,
     async (req, res) => {
         try {
+            const categoryId = String(
+                req.query?.categoryId || DEFAULT_MENU_CATEGORY_ID,
+            ).trim();
             const campaignId = String(req.query?.campaignId || "").trim();
             const state = String(req.query?.state || "1").trim();
 
@@ -177,7 +184,12 @@ router.post(
     ...middlewaresAdminStrict,
     async (req, res) => {
         try {
+            const categoryId = String(
+                req.body?.categoryId || DEFAULT_MENU_CATEGORY_ID,
+            ).trim();
             const campaignId = String(req.body?.campaignId || "").trim();
+            const code = Number(req.body?.code || 0);
+            const description = String(req.body?.description || "").trim();
             const isgoal = Number(req.body?.isgoal || 1) === 1 ? 1 : 0;
             const state = Number(req.body?.state || 1) === 0 ? "0" : "1";
             const actor = resolveManagementActor(req.user);
@@ -198,7 +210,10 @@ router.post(
             const result = await createManagementLevelsFromPairs(
                 adminManagementDAO,
                 {
+                    categoryId,
                     campaignId,
+                    code,
+                    description,
                     isgoal,
                     state,
                     actor,

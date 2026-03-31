@@ -90,21 +90,36 @@ export function getOutMaquitaFlow(formData = {}) {
 }
 
 export function buildOutMaquitaMailPayload(formData = {}, actor = "") {
+    const identification = String(
+        formData?.identificacion ||
+            formData?.Identificacion ||
+            formData?.["Nº de cédula"] ||
+            formData?.["N° de cédula"] ||
+            "",
+    ).trim();
+    const motivoInteraccion = String(
+        formData?.motivoInteraccion || "",
+    ).trim();
+    const submotivoInteraccion = String(
+        formData?.submotivoInteraccion || "",
+    ).trim();
+    const observaciones = String(
+        formData?.observaciones || formData?.Observaciones || "",
+    ).trim();
+
     return {
-        identification: String(
-            formData?.identificacion ||
-                formData?.Identificacion ||
-                formData?.["Nº de cédula"] ||
-                formData?.["N° de cédula"] ||
-                "",
-        ).trim(),
-        motivoInteraccion: String(formData?.motivoInteraccion || "").trim(),
-        submotivoInteraccion: String(
-            formData?.submotivoInteraccion || "",
-        ).trim(),
-        observaciones: String(
-            formData?.observaciones || formData?.Observaciones || "",
-        ).trim(),
+        identification,
+        motivoInteraccion,
+        submotivoInteraccion,
+        observaciones,
+        // Compatibilidad con webhooks que actualizan Google Sheets por letra
+        // de columna en el flujo mail.
+        K: motivoInteraccion,
+        L: submotivoInteraccion,
+        M: observaciones,
+        estado: motivoInteraccion,
+        subEstado: submotivoInteraccion,
+        seguimiento: observaciones,
         updatedBy: String(actor || "").trim(),
     };
 }

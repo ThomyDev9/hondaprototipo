@@ -78,6 +78,8 @@ function buildDynamicFieldSearchers(dynamicFormFields, dynamicFormDetail) {
 
 export default function useAgentCampaignScript({
     campaignId,
+    menuItemId,
+    categoryId,
     registro,
     user,
     dynamicFormConfig,
@@ -101,7 +103,10 @@ export default function useAgentCampaignScript({
             }
 
             try {
-                const data = await getAgentCampaignScript(resolvedCampaignId);
+                const data = await getAgentCampaignScript(resolvedCampaignId, {
+                    menuItemId,
+                    categoryId,
+                });
                 if (!cancelled) {
                     setRemoteScriptContent(data?.script || data || null);
                 }
@@ -117,7 +122,7 @@ export default function useAgentCampaignScript({
         return () => {
             cancelled = true;
         };
-    }, [resolvedCampaignId]);
+    }, [resolvedCampaignId, menuItemId, categoryId]);
 
     const dynamicFormFields = useMemo(
         () => flattenDynamicFormFields(dynamicFormConfig),

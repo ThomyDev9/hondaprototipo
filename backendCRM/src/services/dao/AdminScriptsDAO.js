@@ -5,7 +5,7 @@ export class AdminScriptsDAO {
         this.pool = dbPool;
     }
 
-    async getActiveSubcampaignRows(executor = this.pool) {
+    async getActiveSubcampaignRows(categoryId, executor = this.pool) {
         const [rows] = await executor.query(
             `
             SELECT
@@ -15,10 +15,13 @@ export class AdminScriptsDAO {
             FROM menu_items s
             INNER JOIN menu_items p ON p.id = s.id_padre
             WHERE s.id_padre IS NOT NULL
+              AND s.id_categoria = ?
+              AND p.id_categoria = ?
               AND s.estado = 'activo'
               AND p.estado = 'activo'
             ORDER BY p.nombre_item ASC, s.nombre_item ASC
             `,
+            [categoryId, categoryId],
         );
         return rows;
     }
@@ -44,16 +47,17 @@ export class AdminScriptsDAO {
         return rows[0] || null;
     }
 
-    async isValidSubcampaign(menuItemId, executor = this.pool) {
+    async isValidSubcampaign(menuItemId, categoryId, executor = this.pool) {
         const [rows] = await executor.query(
             `
             SELECT id
             FROM menu_items
             WHERE id = ?
+              AND id_categoria = ?
               AND id_padre IS NOT NULL
             LIMIT 1
             `,
-            [menuItemId],
+            [menuItemId, categoryId],
         );
         return rows.length > 0;
     }

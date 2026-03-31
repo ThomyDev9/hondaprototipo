@@ -20,6 +20,7 @@ async function parseJson(response) {
 
 export async function listarSubcampaniasActivas(
     formType,
+    categoryId,
     scope = "without-template",
 ) {
     const normalizedFormType = String(formType || "")
@@ -28,8 +29,9 @@ export async function listarSubcampaniasActivas(
     const normalizedScope = String(scope || "without-template")
         .trim()
         .toLowerCase();
+    const normalizedCategoryId = String(categoryId || "").trim();
     const response = await fetch(
-        `${API_BASE}/admin/forms/subcampaigns?formType=${encodeURIComponent(normalizedFormType)}&scope=${encodeURIComponent(normalizedScope)}`,
+        `${API_BASE}/admin/forms/subcampaigns?formType=${encodeURIComponent(normalizedFormType)}&categoryId=${encodeURIComponent(normalizedCategoryId)}&scope=${encodeURIComponent(normalizedScope)}`,
         {
             headers: getAuthHeaders(),
         },

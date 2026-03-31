@@ -7,12 +7,28 @@ import {
 import useBaseCards from "./hooks/useBaseCards";
 import usePhoneManagement from "./hooks/usePhoneManagement";
 import useRegistroQueue from "./hooks/useRegistroQueue";
-import { guardarGestion } from "../../services/dashboard.service";
+import {
+    guardarGestion,
+    guardarGestionInbound,
+} from "../../services/dashboard.service";
+
+const INBOUND_SPECIAL_FIELDS_META = [
+    { name: "__inbound_tipo_cliente", label: "Tipo cliente" },
+    { name: "__inbound_tipo_canal", label: "Tipo de canal" },
+    { name: "__inbound_relacion", label: "Relacion" },
+    { name: "__inbound_nombre_cliente", label: "Nombre Cliente" },
+    { name: "__inbound_categorizacion", label: "Categorizacion" },
+    { name: "__inbound_motivo", label: "Motivo de la interaccion" },
+    { name: "__inbound_submotivo", label: "Submotivo de la interaccion" },
+];
 
 export default function useDashboardAgenteState({
     user,
     selectedCampaignId,
     selectedCampaignTick,
+    selectedMenuItemId,
+    selectedCategoryId,
+    selectedManualFlow,
     requestedAgentStatus,
     onAgentStatusSync,
     agentPage,
@@ -57,13 +73,20 @@ export default function useDashboardAgenteState({
         estadoTelefonos,
         dynamicFormConfig,
         dynamicFormDetail,
+        dynamicFormAnswers,
+        setDynamicFormAnswers,
         dynamicSurveyConfig,
         surveyAnswers,
         observacion,
         setObservacion,
+        manualFlowActivo,
+        menuItemIdSeleccionado,
+        categoryIdSeleccionada,
+        inboundChildOptions,
         hasCampaignSelection,
         estadoAgente,
         handleCambioEstadoAgente,
+        handleInboundChildSelection,
         fetchSiguienteRegistro,
         selectBaseCard,
         releaseRegistroIfPresent,
@@ -72,6 +95,9 @@ export default function useDashboardAgenteState({
         selectedCampaignId,
         selectedCampaignTick,
         selectedImportId,
+        selectedMenuItemId,
+        selectedCategoryId,
+        selectedManualFlow,
         agentPage,
         bloqueado,
         handle403,
@@ -197,9 +223,141 @@ export default function useDashboardAgenteState({
         [setSurveyAnswers],
     );
 
+    const handleDynamicFormFieldChange = useCallback(
+        async (fieldKey, value) => {
+            if (fieldKey === "__inbound_nombre_cliente") {
+                const selectedOption = (inboundChildOptions || []).find(
+                    (item) => String(item.value) === String(value),
+                );
+
+                setDynamicFormAnswers((prev) => ({
+                    ...prev,
+                    [fieldKey]: value,
+                    __inbound_categorizacion: "",
+                    __inbound_motivo: "",
+                    __inbound_submotivo: "",
+                }));
+
+                await handleInboundChildSelection({
+                    childMenuItemId: selectedOption?.menuItemId || "",
+                    childCampaignId: selectedOption?.campaignId || "",
+                });
+                setDynamicFormAnswers((prev) => ({
+                    ...prev,
+                    [fieldKey]: value,
+                    __inbound_categorizacion: "",
+                    __inbound_motivo: "",
+                    __inbound_submotivo: "",
+                }));
+                return;
+            }
+
+            if (fieldKey === "__inbound_categorizacion") {
+                setDynamicFormAnswers((prev) => ({
+                    ...prev,
+                    [fieldKey]: value,
+                    __inbound_motivo: "",
+                    __inbound_submotivo: "",
+                }));
+                return;
+            }
+
+            if (fieldKey === "__inbound_motivo") {
+                setDynamicFormAnswers((prev) => ({
+                    ...prev,
+                    [fieldKey]: value,
+                    __inbound_submotivo: "",
+                }));
+                return;
+            }
+
+            setDynamicFormAnswers((prev) => ({
+                ...prev,
+                [fieldKey]: value,
+            }));
+        },
+        [
+            handleInboundChildSelection,
+            inboundChildOptions,
+            setDynamicFormAnswers,
+        ],
+    );
+
     const handleGuardarGestion = useCallback(
         async (event) => {
             event?.preventDefault?.();
+
+            if (manualFlowActivo) {
+                try {
+                    setError("");
+
+                    const dynamicRows = Array.isArray(dynamicFormConfig?.rows)
+                        ? dynamicFormConfig.rows.flat()
+                        : [];
+                    const fieldsMeta = [
+                        ...INBOUND_SPECIAL_FIELDS_META,
+                        ...dynamicRows.map((field) => ({
+                            name: field?.key || "",
+                            label: field?.label || field?.key || "",
+                        })),
+                    ].filter((field) => field.name);
+
+                    const inboundFormData = {
+                        ...dynamicFormAnswers,
+                        tipoCliente:
+                            dynamicFormAnswers?.__inbound_tipo_cliente || "",
+                        tipoCanal:
+                            dynamicFormAnswers?.__inbound_tipo_canal || "",
+                        relacion:
+                            dynamicFormAnswers?.__inbound_relacion || "",
+                        nombreCliente:
+                            dynamicFormAnswers?.__inbound_nombre_cliente || "",
+                        categorizacion:
+                            dynamicFormAnswers?.__inbound_categorizacion || "",
+                        motivoInteraccion:
+                            dynamicFormAnswers?.__inbound_motivo || "",
+                        submotivoInteraccion:
+                            dynamicFormAnswers?.__inbound_submotivo || "",
+                        observaciones:
+                            dynamicFormAnswers?.observaciones || observacion || "",
+                    };
+
+                    const { status, ok, json } = await guardarGestionInbound({
+                        campaignId: campaignIdSeleccionada,
+                        campaign_id: campaignIdSeleccionada,
+                        categoryId: categoryIdSeleccionada,
+                        menuItemId: menuItemIdSeleccionado,
+                        formData: inboundFormData,
+                        fieldsMeta,
+                    });
+
+                    if (status === 403) {
+                        handle403(json);
+                        return;
+                    }
+
+                    if (!ok) {
+                        setError(
+                            json?.detail ||
+                                json?.error ||
+                                "No se pudo guardar la gestion inbound",
+                        );
+                        return;
+                    }
+
+                    if (typeof onChangeAgentPage === "function") {
+                        onChangeAgentPage("inicio");
+                    } else {
+                        setRegistro(null);
+                    }
+                    return;
+                } catch (err) {
+                    console.error(err);
+                    setError("Error de conexion con el servidor");
+                    return;
+                }
+            }
+
             if (!registro) return;
 
             try {
@@ -238,7 +396,7 @@ export default function useDashboardAgenteState({
                 }
 
                 if (!ok) {
-                    setError(json?.error || "No se pudo guardar la gestión");
+                    setError(json?.error || "No se pudo guardar la gestion");
                     return;
                 }
 
@@ -249,11 +407,14 @@ export default function useDashboardAgenteState({
                 }
             } catch (err) {
                 console.error(err);
-                setError("Error de conexión con el servidor");
+                setError("Error de conexion con el servidor");
             }
         },
         [
             campaignIdSeleccionada,
+            categoryIdSeleccionada,
+            dynamicFormAnswers,
+            dynamicFormConfig,
             dynamicFormDetail,
             estadoAgente,
             fetchSiguienteRegistro,
@@ -261,13 +422,14 @@ export default function useDashboardAgenteState({
             interactionIdActual,
             level1Seleccionado,
             level2Seleccionado,
+            manualFlowActivo,
+            menuItemIdSeleccionado,
             observacion,
+            onChangeAgentPage,
             registro,
-            telefonoSeleccionado,
             surveyAnswers,
             surveyFieldsToRender,
-            setError,
-            setRegistro,
+            telefonoSeleccionado,
         ],
     );
 
@@ -282,10 +444,16 @@ export default function useDashboardAgenteState({
         const label = String(
             campaignIdSeleccionada || selectedCampaignId || "",
         ).toLowerCase();
-        if (!bloqueado && !esGestionOutbound(label)) {
+        if (!bloqueado && !esGestionOutbound(label) && !manualFlowActivo) {
             refreshBases();
         }
-    }, [bloqueado, campaignIdSeleccionada, refreshBases, selectedCampaignId]);
+    }, [
+        bloqueado,
+        campaignIdSeleccionada,
+        manualFlowActivo,
+        refreshBases,
+        selectedCampaignId,
+    ]);
 
     useEffect(() => {
         resetPhoneSelection();
@@ -311,6 +479,7 @@ export default function useDashboardAgenteState({
         !registro &&
         hasCampaignSelection &&
         !error &&
+        !manualFlowActivo &&
         !esGestionOutbound(campaignIdSeleccionada);
 
     return {
@@ -333,6 +502,7 @@ export default function useDashboardAgenteState({
         estadoTelefonoSeleccionado,
         dynamicFormConfig,
         dynamicFormDetail,
+        dynamicFormAnswers,
         dynamicSurveyConfig,
         surveyAnswers,
         surveyFieldsToRender,
@@ -341,6 +511,10 @@ export default function useDashboardAgenteState({
         regestionBaseCards,
         loadingRegestionBaseCards,
         hasCampaignSelection,
+        manualFlowActivo,
+        menuItemIdSeleccionado,
+        categoryIdSeleccionada,
+        inboundChildOptions,
         shouldShowQueueMessage,
         isHomeView,
         isGestionOutbound,
@@ -350,15 +524,9 @@ export default function useDashboardAgenteState({
         handleGrabadoraAutofill,
         handleContestaTerceroAutofill,
         handleSurveyFieldChange,
+        handleDynamicFormFieldChange,
         handleGuardarGestion,
         handleCancelarGestion,
         selectBaseCard,
     };
 }
-
-
-
-
-
-
-
