@@ -100,6 +100,14 @@ export default function useAgentGestionSubmit({
                         })),
                     ].filter((field) => field.name);
 
+                    const selectedInboundOption = (inboundChildOptions || []).find(
+                        (item) =>
+                            String(item?.value || "") ===
+                            String(
+                                dynamicFormAnswers?.__inbound_nombre_cliente || "",
+                            ),
+                    );
+
                     const inboundFormData = {
                         ...dynamicFormAnswers,
                         tipoCliente:
@@ -111,7 +119,13 @@ export default function useAgentGestionSubmit({
                             dynamicFormAnswers?.__inbound_tipo_canal || "",
                         relacion: dynamicFormAnswers?.__inbound_relacion || "",
                         nombreCliente:
-                            dynamicFormAnswers?.__inbound_nombre_cliente || "",
+                            String(selectedInboundOption?.campaignId || "").trim() ||
+                            dynamicFormAnswers?.__inbound_nombre_cliente ||
+                            "",
+                        nombreClienteMenuItemId:
+                            String(selectedInboundOption?.menuItemId || "").trim() ||
+                            dynamicFormAnswers?.__inbound_nombre_cliente ||
+                            "",
                         categorizacion:
                             dynamicFormAnswers?.__inbound_categorizacion || "",
                         motivoInteraccion:
@@ -123,16 +137,12 @@ export default function useAgentGestionSubmit({
                             observacion ||
                             "",
                     };
-                    const selectedInboundOption = (inboundChildOptions || []).find(
-                        (item) =>
-                            String(item?.value || "") ===
-                            String(
-                                dynamicFormAnswers?.__inbound_nombre_cliente || "",
-                            ),
-                    );
                     const campaignIdToUse =
-                        campaignIdSeleccionada ||
-                        String(selectedInboundOption?.campaignId || "").trim();
+                        String(selectedInboundOption?.campaignId || "").trim() ||
+                        campaignIdSeleccionada;
+                    const menuItemIdToUse =
+                        String(selectedInboundOption?.menuItemId || "").trim() ||
+                        menuItemIdSeleccionado;
                     const identificationToUse = getFirstFormValueByKeys(
                         inboundFormData,
                         [
@@ -160,7 +170,7 @@ export default function useAgentGestionSubmit({
                         campaignId: campaignIdToUse,
                         campaign_id: campaignIdToUse,
                         categoryId: categoryIdSeleccionada,
-                        menuItemId: menuItemIdSeleccionado,
+                        menuItemId: menuItemIdToUse,
                         formData: inboundFormData,
                         fieldsMeta,
                     });

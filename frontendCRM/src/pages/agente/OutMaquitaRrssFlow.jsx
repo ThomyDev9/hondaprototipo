@@ -19,15 +19,33 @@ import {
 import "./OutMaquitaRrssFlow.css";
 
 const FLOW_GID = "463742430";
-const FLOW_STATUS_KEYS = ["Estado", "Estado ", "T", "S"];
+const FLOW_STATUS_KEYS = ["Estado", "Estado ", "U"];
 const RRSS_REGESTION_STATUS_VALUES = [
     "No contesta",
     "Volver a llamar",
     "Seguimiento",
 ];
 const CAMPAIGN_ID = "Out Maquita Cushunchic";
-const RRSS_GESTION_REQUIRED_KEYS = ["P", "Q", "R"];
-const RRSS_GESTION_EMPTY_KEYS = ["T", "U", "V", "W"];
+const RRSS_OBSERVACION_KEYS = ["Observacion AGENTE MAQUITA", "R"];
+const RRSS_PROCESO_KEYS = ["PROCESO A REALIZAR ", "PROCESO A REALIZAR", "S"];
+const RRSS_USUARIO_KEYS = ["Usuario Maquita ", "Usuario Maquita", "T"];
+const RRSS_STATUS_EMPTY_KEY_GROUPS = [
+    ["U"],
+    ["V"],
+    ["W"],
+    ["X"],
+];
+const RRSS_TIPO_RELACION_KEYS = [
+    "Tipo de relación laboral",
+    "Tipo de relacion laboral",
+    "L",
+];
+const RRSS_TIPO_VIVIENDA_KEYS = [
+    "Tipo de Vivienda:",
+    "Tipo de Vivienda",
+    "N",
+];
+const RRSS_PRODUCTO_KEYS = ["Producto", "Q"];
 
 const RRSS_EXTRA_FIELDS = [
     {
@@ -53,6 +71,13 @@ const RRSS_EXTRA_FIELDS = [
         label: "Tipo de Vivienda:",
         type: "text",
         required: false,
+    },
+    {
+        name: "tipoRelacionLaboral",
+        label: "Tipo de relacion laboral",
+        type: "text",
+        required: false,
+        readOnly: true,
     },
     {
         name: "producto",
@@ -152,15 +177,25 @@ const RRSS_DRIVE_TEMPLATE = [
         required: false,
     },
     {
-        name: "actividadEconomicaTiempo",
-        label: "Actividad economica y que tiempo:",
-        type: "textarea",
-        required: false,
-    },
-    {
         name: "ingresoNetoRecibir",
         label: "Ingreso Neto a recibir:",
         type: "text",
+        required: false,
+    },
+    {
+        name: "tipoRelacionLaboral",
+        label: "Tipo de relacion laboral",
+        type: "select",
+        required: false,
+        options: [
+            { value: "Dependiente", label: "Dependiente" },
+            { value: "Independiente", label: "Independiente" },
+        ],
+    },
+    {
+        name: "actividadEconomicaTiempo",
+        label: "Actividad economica y que tiempo:",
+        type: "textarea",
         required: false,
     },
     {
@@ -215,26 +250,18 @@ function buildRrssBaseValues(registro) {
             "Monto solicitado",
             "H",
         ]),
-        tipoVivienda: getFirstNonEmptyValue(registro, [
-            "Tipo de Vivienda:",
-            "Tipo de Vivienda",
-            "L",
-        ]),
-        producto: getFirstNonEmptyValue(registro, ["Producto", "O"]),
-        observacionAgenteMaquita: getFirstNonEmptyValue(registro, [
-            "Observacion AGENTE MAQUITA",
-            "P",
-        ]),
-        procesoARealizarRrss: getFirstNonEmptyValue(registro, [
-            "PROCESO A REALIZAR ",
-            "PROCESO A REALIZAR",
-            "Q",
-        ]),
-        usuarioMaquita: getFirstNonEmptyValue(registro, [
-            "Usuario Maquita ",
-            "Usuario Maquita",
-            "R",
-        ]),
+        tipoRelacionLaboral: getFirstNonEmptyValue(
+            registro,
+            RRSS_TIPO_RELACION_KEYS,
+        ),
+        tipoVivienda: getFirstNonEmptyValue(registro, RRSS_TIPO_VIVIENDA_KEYS),
+        producto: getFirstNonEmptyValue(registro, RRSS_PRODUCTO_KEYS),
+        observacionAgenteMaquita: getFirstNonEmptyValue(
+            registro,
+            RRSS_OBSERVACION_KEYS,
+        ),
+        procesoARealizarRrss: getFirstNonEmptyValue(registro, RRSS_PROCESO_KEYS),
+        usuarioMaquita: getFirstNonEmptyValue(registro, RRSS_USUARIO_KEYS),
         asesor: localStorage.getItem("import_user") || "",
         fecha: getTodayFormatted(),
         estadoCivil: "",
@@ -254,6 +281,7 @@ function buildRrssDriveInitialValues() {
         apellidosNombres: "",
         estadoCivil: "",
         autorizaBuro: "",
+        tipoRelacionLaboral: "",
         ciudad: "",
         celular: "",
         montoSolicitadoRrss: "",
@@ -286,14 +314,15 @@ export default function OutMaquitaRrssFlow({ onBack }) {
     const isRegestionTab = activeTab === "regestion";
     const hasRequiredGestionData = React.useCallback(
         (row) =>
-            RRSS_GESTION_REQUIRED_KEYS.every(
-                (key) =>
-                    String(getFirstNonEmptyValue(row, [key]) || "").trim() !==
-                    "",
-            ) &&
-            RRSS_GESTION_EMPTY_KEYS.every(
-                (key) =>
-                    String(getFirstNonEmptyValue(row, [key]) || "").trim() ===
+            String(getFirstNonEmptyValue(row, RRSS_OBSERVACION_KEYS) || "").trim() !==
+                "" &&
+            String(getFirstNonEmptyValue(row, RRSS_PROCESO_KEYS) || "").trim() !==
+                "" &&
+            String(getFirstNonEmptyValue(row, RRSS_USUARIO_KEYS) || "").trim() !==
+                "" &&
+            RRSS_STATUS_EMPTY_KEY_GROUPS.every(
+                (keys) =>
+                    String(getFirstNonEmptyValue(row, keys) || "").trim() ===
                     "",
             ),
         [],
@@ -789,6 +818,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                     <tr>
                                         <th>Identificacion</th>
                                         <th>Autoriza Buro</th>
+                                        <th>Relacion laboral</th>
                                         <th>Cliente</th>
                                         <th>Celular</th>
                                         <th>Estado</th>
@@ -813,6 +843,11 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                                 "Autoriza Buro",
                                                 "C",
                                             ]) || "";
+                                        const rowTipoRelacionLaboral =
+                                            getFirstNonEmptyValue(
+                                                row,
+                                                RRSS_TIPO_RELACION_KEYS,
+                                            ) || "";
                                         const rowPhone =
                                             getFirstNonEmptyValue(row, [
                                                 "Celular",
@@ -830,6 +865,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                             >
                                                 <td>{rowId}</td>
                                                 <td>{rowAutorizaBuro}</td>
+                                                <td>{rowTipoRelacionLaboral}</td>
                                                 <td>{rowName}</td>
                                                 <td>{rowPhone}</td>
                                                 <td>{rowEstado}</td>
@@ -906,6 +942,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                     <tr>
                                         <th>Identificacion</th>
                                         <th>Autoriza Buro</th>
+                                        <th>Relacion laboral</th>
                                         <th>Cliente</th>
                                         <th>Celular</th>
                                         <th>Observacion</th>
@@ -930,16 +967,21 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                                 "Autoriza Buro",
                                                 "C",
                                             ]) || "";
+                                        const rowTipoRelacionLaboral =
+                                            getFirstNonEmptyValue(
+                                                row,
+                                                RRSS_TIPO_RELACION_KEYS,
+                                            ) || "";
                                         const rowPhone =
                                             getFirstNonEmptyValue(row, [
                                                 "Celular",
                                                 "G",
                                             ]) || "";
                                         const rowObservation =
-                                            getFirstNonEmptyValue(row, [
-                                                "P",
-                                                "Observacion AGENTE MAQUITA",
-                                            ]) || "";
+                                            getFirstNonEmptyValue(
+                                                row,
+                                                RRSS_OBSERVACION_KEYS,
+                                            ) || "";
 
                                         return (
                                             <tr
@@ -947,6 +989,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                             >
                                                 <td>{rowId}</td>
                                                 <td>{rowAutorizaBuro}</td>
+                                                <td>{rowTipoRelacionLaboral}</td>
                                                 <td>{rowName}</td>
                                                 <td>{rowPhone}</td>
                                                 <td>{rowObservation}</td>

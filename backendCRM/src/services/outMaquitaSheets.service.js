@@ -161,6 +161,12 @@ export function buildOutMaquitaRrssDrivePayload(formData = {}, actor = "") {
                 formData?.["Autoriza Buro si / no"] ||
                 "",
         ).trim(),
+        tipoRelacionLaboral: String(
+            formData?.tipoRelacionLaboral ||
+                formData?.["Tipo de relación laboral"] ||
+                formData?.["Tipo de relacion laboral"] ||
+                "",
+        ).trim(),
         ciudad: String(formData?.ciudad || "").trim(),
         celular: String(formData?.celular || "").trim(),
         montoSolicitado: String(

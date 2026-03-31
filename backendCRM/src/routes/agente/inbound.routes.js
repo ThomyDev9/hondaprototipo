@@ -1,4 +1,4 @@
-// Rutas para gestion inbound (nuevo endpoint, no afecta outbound)
+// Rutas para gestion inbound (nuevo endpoint, aislado de outbound)
 import express from "express";
 
 function normalizeLookupKey(value) {
@@ -50,8 +50,6 @@ export function registerInboundRoutes(
         agenteMiddlewares,
         encuestaSchema,
         getAgentActor,
-        buildOutboundCampos,
-        buildOutboundQuestionPayload,
         saveDynamicResponseIfTemplateActive,
         linkManagementToRecording,
     },
@@ -65,6 +63,8 @@ export function registerInboundRoutes(
                 const campaignId = String(
                     req.body?.campaignId || req.body?.campaign_id || "",
                 ).trim();
+                const categoryId = String(req.body?.categoryId || "").trim();
+                const menuItemId = String(req.body?.menuItemId || "").trim();
                 const formData =
                     req.body?.formData && typeof req.body.formData === "object"
                         ? req.body.formData
@@ -72,6 +72,7 @@ export function registerInboundRoutes(
                 const fieldsMeta = Array.isArray(req.body?.fieldsMeta)
                     ? req.body.fieldsMeta
                     : [];
+
                 const identification = getFirstFormValueByKeys(formData, [
                     "identificacion",
                     "Identificacion",
@@ -81,6 +82,7 @@ export function registerInboundRoutes(
                     "NumeroCedula",
                     "numeroDeCedula",
                     "cedula",
+                    "IDENTIFICACION",
                 ]);
 
                 if (!campaignId || !identification) {
@@ -89,56 +91,94 @@ export function registerInboundRoutes(
                     });
                 }
 
-                const campaignLike = `${campaignId}%`;
-                const existingClient =
-                    await agenteDAO.getClienteByIdentificationAndCampaign(
-                        identification,
-                        campaignLike,
-                    );
-                const contactId =
-                    String(existingClient?.ContactId || "").trim() ||
-                    `INB-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
                 const now = new Date();
-                const startedManagement = now;
                 const tmstmp = now;
+                const startedManagement = now;
+                const interactionId = `INB-${Date.now()}`;
+                const payloadJson = JSON.stringify(formData || {});
+                const fieldsMetaJson = JSON.stringify(fieldsMeta || []);
+
                 const level1ToUse = String(
                     formData?.motivoInteraccion || "",
                 ).trim();
                 const level2ToUse = String(
                     formData?.submotivoInteraccion || "",
                 ).trim();
-                const estadoFinalToUse =
-                    level2ToUse || level1ToUse || "sin_gestion";
-                const contactName = getFirstFormValueByKeys(formData, [
+                const observaciones = String(
+                    formData?.observaciones ||
+                        formData?.["Observaciones de la interacción"] ||
+                        formData?.["Observaciones de la interaccion"] ||
+                        formData?.CAMPO6 ||
+                        "",
+                ).trim();
+                const fechaAgendamiento = String(
+                    formData?.FechaAgenda || formData?.fechaAgenda || "",
+                ).trim();
+                const fullName = getFirstFormValueByKeys(formData, [
                     "apellidosNombres",
                     "ApellidosNombres",
                     "apellidosNombre",
                     "nombreCompleto",
                     "nombresApellidos",
+                    "NOMBRE_CLIENTE",
                     "NombreCliente",
                 ]);
-                const contactAddress = getFirstFormValueByKeys(formData, [
+                const celular = getFirstFormValueByKeys(formData, [
                     "celular",
                     "Celular",
                     "telefono",
                     "telefonoCelular",
                     "movil",
+                    "CAMPO3",
                 ]);
-                const interactionId = `INB-${Date.now()}`;
-                const importId = String(formData?.Origen || "INBOUND").trim();
-                const observaciones = String(
-                    formData?.observaciones || "",
+                const city = getFirstFormValueByKeys(formData, [
+                    "ciudad",
+                    "Ciudad",
+                    "CAMPO1",
+                ]);
+                const email = getFirstFormValueByKeys(formData, [
+                    "correoCliente",
+                    "correo",
+                    "email",
+                    "Correo del cliente",
+                    "CAMPO2",
+                ]);
+                const convencional = getFirstFormValueByKeys(formData, [
+                    "convencional",
+                    "telefonoConvencional",
+                    "Convencional",
+                    "CAMPO4",
+                ]);
+                const ticketId = getFirstFormValueByKeys(formData, [
+                    "ticketId",
+                    "idLlamada",
+                    "Id llamada/Nro. Ticket",
+                    "CAMPO5",
+                ]);
+                const tipoCliente = String(
+                    formData?.tipoCliente || formData?.__inbound_tipo_cliente || "",
                 ).trim();
-                const fechaAgendamiento = String(
-                    formData?.FechaAgenda || "",
+                const tipoIdentificacion = String(
+                    formData?.tipoIdentificacion ||
+                        formData?.__inbound_tipo_identificacion ||
+                        "",
                 ).trim();
-                const campos = buildOutboundCampos(formData);
-                const questionEntries = fieldsMeta.map((field) => ({
-                    label: field?.label || field?.name || "",
-                    value: formData?.[field?.name] ?? "",
-                }));
-                const { preguntas, respuestas } =
-                    buildOutboundQuestionPayload(questionEntries);
+                const tipoCanal = String(
+                    formData?.tipoCanal || formData?.__inbound_tipo_canal || "",
+                ).trim();
+                const relacion = String(
+                    formData?.relacion || formData?.__inbound_relacion || "",
+                ).trim();
+                const nombreClienteRef = String(
+                    formData?.nombreCliente ||
+                        formData?.__inbound_nombre_cliente ||
+                        "",
+                ).trim();
+                const categorizacion = String(
+                    formData?.categorizacion ||
+                        formData?.__inbound_categorizacion ||
+                        "",
+                ).trim();
 
                 let managementResultCode = "";
                 if (campaignId && level1ToUse && level2ToUse) {
@@ -151,121 +191,107 @@ export function registerInboundRoutes(
                     managementResultCode = String(codeRow?.code || "").trim();
                 }
 
-                const payloadJson = JSON.stringify(formData || {});
+                const existingClientByCampaign =
+                    await agenteDAO.getInboundClientByIdentificationAndCampaign(
+                        identification,
+                        campaignId,
+                    );
+                const existingClient =
+                    existingClientByCampaign ||
+                    (await agenteDAO.getInboundClientByIdentification(
+                        identification,
+                    ));
+                const contactId =
+                    String(existingClient?.contact_id || "").trim() ||
+                    `INB-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
                 const nextIntentos =
-                    Math.max(Number(existingClient?.Intentos || 0), 0) + 1;
+                    Math.max(Number(existingClient?.intentos || 0), 0) + 1;
 
-                if (!existingClient) {
-                    await agenteDAO.insertOutboundCliente([
-                        "CCK",
-                        campaignId,
-                        contactId,
-                        contactName,
-                        contactAddress,
-                        interactionId,
-                        importId,
-                        agenteActor,
-                        level1ToUse,
-                        level2ToUse,
-                        "",
-                        managementResultCode || estadoFinalToUse,
-                        "",
-                        tmstmp,
-                        nextIntentos,
-                        identification,
-                        campaignId,
-                        campaignId,
-                        identification,
-                        contactName,
-                        ...campos,
-                        payloadJson,
-                        agenteActor,
-                        "Gestionado",
-                    ]);
+                const clientParams = [
+                    contactId,
+                    campaignId,
+                    categoryId,
+                    menuItemId,
+                    identification,
+                    tipoIdentificacion,
+                    fullName,
+                    city,
+                    email,
+                    celular,
+                    convencional,
+                    ticketId,
+                    tipoCliente,
+                    relacion,
+                    tipoCanal,
+                    nombreClienteRef,
+                    categorizacion,
+                    level1ToUse,
+                    level2ToUse,
+                    observaciones,
+                    payloadJson,
+                    agenteActor,
+                ];
+
+                let clienteInboundId = Number(existingClient?.id || 0);
+                if (!clienteInboundId) {
+                    const [insertResult] = await agenteDAO.insertInboundClient(
+                        clientParams,
+                    );
+                    clienteInboundId = Number(insertResult?.insertId || 0);
                 } else {
-                    await agenteDAO.updateOutboundCliente([
-                        contactId,
-                        contactName,
-                        contactAddress,
-                        interactionId,
-                        importId,
-                        agenteActor,
-                        level1ToUse,
-                        level2ToUse,
-                        managementResultCode || estadoFinalToUse,
-                        tmstmp,
-                        contactName,
-                        ...campos,
-                        payloadJson,
-                        agenteActor,
-                        contactId,
-                        identification,
-                        campaignLike,
+                    await agenteDAO.updateInboundClientById([
+                        ...clientParams,
+                        clienteInboundId,
                     ]);
                 }
 
-                const gestionFinalRows =
-                    await agenteDAO.getGestionFinalByContactId(contactId);
+                const gestionFinalRow =
+                    await agenteDAO.getInboundGestionFinalByContactId(contactId);
+                const gestionParams = [
+                    contactId,
+                    clienteInboundId,
+                    campaignId,
+                    categoryId,
+                    menuItemId,
+                    interactionId,
+                    agenteActor,
+                    managementResultCode || level2ToUse || level1ToUse || "sin_gestion",
+                    level1ToUse,
+                    level2ToUse,
+                    categorizacion,
+                    observaciones,
+                    fechaAgendamiento,
+                    identification,
+                    fullName,
+                    celular,
+                    tipoCliente,
+                    tipoIdentificacion,
+                    tipoCanal,
+                    relacion,
+                    nombreClienteRef,
+                    payloadJson,
+                    fieldsMetaJson,
+                    startedManagement,
+                    tmstmp,
+                    nextIntentos,
+                ];
 
-                if (gestionFinalRows.length === 0) {
-                    await agenteDAO.insertGestionFinalFromCliente([
-                        contactId,
-                        contactAddress,
-                        interactionId,
-                        agenteActor,
-                        level1ToUse,
-                        level2ToUse,
-                        "",
-                        managementResultCode || estadoFinalToUse,
-                        startedManagement,
-                        tmstmp,
-                        nextIntentos,
-                        fechaAgendamiento,
-                        contactAddress,
-                        observaciones,
-                        identification,
-                        ...preguntas,
-                        ...respuestas,
-                        contactId,
-                        contactId,
-                    ]);
+                if (!gestionFinalRow) {
+                    await agenteDAO.insertInboundGestionFinal(gestionParams);
                 } else {
-                    await agenteDAO.updateGestionFinalByContactId([
-                        contactAddress,
-                        interactionId,
-                        agenteActor,
-                        level1ToUse,
-                        level2ToUse,
-                        "",
-                        managementResultCode || estadoFinalToUse,
-                        startedManagement,
-                        tmstmp,
-                        nextIntentos,
-                        fechaAgendamiento,
-                        contactAddress,
-                        observaciones,
-                        ...preguntas,
-                        ...respuestas,
-                        contactId,
-                    ]);
-
-                    await agenteDAO.updateOutboundGestionFinalMetadata([
-                        contactName,
-                        campaignId,
-                        importId,
-                        identification,
-                        contactName,
-                        ...campos,
-                        contactId,
-                    ]);
-
-                    await agenteDAO.insertGestionHistoricaFromGestionFinal(
+                    await agenteDAO.insertInboundGestionHistoricaFromFinal(
                         contactId,
                     );
+                    await agenteDAO.updateInboundGestionFinalByContactId([
+                        ...gestionParams.slice(1),
+                        contactId,
+                    ]);
                 }
 
                 await saveDynamicResponseIfTemplateActive({
                     campaignId,
+                    categoryId,
+                    menuItemId,
                     formType: "F3",
                     contactId,
                     agentUser: agenteActor,
@@ -281,7 +307,7 @@ export function registerInboundRoutes(
                         interactionId,
                         campaignId,
                         agent: agenteActor,
-                        contactAddress,
+                        contactAddress: celular,
                         managementTimestamp: tmstmp,
                     });
                 } catch (linkErr) {
@@ -294,6 +320,7 @@ export function registerInboundRoutes(
                 return res.json({
                     success: true,
                     contactId,
+                    clienteInboundId,
                     recordingLinked: Boolean(linkedRecording?.recording_path),
                 });
             } catch (err) {
@@ -306,3 +333,6 @@ export function registerInboundRoutes(
         },
     );
 }
+
+
+

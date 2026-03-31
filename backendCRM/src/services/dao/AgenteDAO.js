@@ -26,6 +26,14 @@ const GET_CLIENTE_BY_IDENTIFICATION_AND_CAMPAIGN = `
     LIMIT 1
 `;
 
+const GET_CLIENTE_BY_IDENTIFICATION = `
+    SELECT *
+    FROM ${encuestaSchema}.vw_outbound_client_lookup
+    WHERE IDENTIFICACION = ?
+    ORDER BY Id DESC
+    LIMIT 1
+`;
+
 const GET_CLIENTE_CONTACT_KEYS_BY_ID_OR_CONTACT_ID = `
   SELECT Id, ContactId, IDENTIFICACION
   FROM ${encuestaSchema}.clientes
@@ -377,6 +385,211 @@ const INSERT_DYNAMIC_FORM_RESPONSE = `
   VALUES (?, ?, ?, ?, ?, ?, NOW())
 `;
 
+const GET_INBOUND_CLIENT_BY_IDENTIFICATION_AND_CAMPAIGN = `
+  SELECT *
+  FROM clientes_inbound
+  WHERE identification = ?
+    AND campaign_id = ?
+  ORDER BY id DESC
+  LIMIT 1
+`;
+
+const GET_INBOUND_CLIENT_BY_IDENTIFICATION = `
+  SELECT *
+  FROM clientes_inbound
+  WHERE identification = ?
+  ORDER BY id DESC
+  LIMIT 1
+`;
+
+const INSERT_INBOUND_CLIENT = `
+  INSERT INTO clientes_inbound (
+    contact_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    identification,
+    tipo_identificacion,
+    full_name,
+    city,
+    email,
+    celular,
+    convencional,
+    ticket_id,
+    tipo_cliente,
+    relacion,
+    tipo_canal,
+    nombre_cliente_ref,
+    categorizacion,
+    motivo,
+    submotivo,
+    observaciones,
+    payload_json,
+    created_by
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+const UPDATE_INBOUND_CLIENT_BY_ID = `
+  UPDATE clientes_inbound
+  SET contact_id = ?,
+      campaign_id = ?,
+      category_id = ?,
+      menu_item_id = ?,
+      identification = ?,
+      tipo_identificacion = ?,
+      full_name = ?,
+      city = ?,
+      email = ?,
+      celular = ?,
+      convencional = ?,
+      ticket_id = ?,
+      tipo_cliente = ?,
+      relacion = ?,
+      tipo_canal = ?,
+      nombre_cliente_ref = ?,
+      categorizacion = ?,
+      motivo = ?,
+      submotivo = ?,
+      observaciones = ?,
+      payload_json = ?,
+      created_by = ?
+  WHERE id = ?
+`;
+
+const GET_INBOUND_GESTION_FINAL_BY_CONTACT_ID = `
+  SELECT *
+  FROM gestionfinal_inbound
+  WHERE contact_id = ?
+  LIMIT 1
+`;
+
+const INSERT_INBOUND_GESTION_FINAL = `
+  INSERT INTO gestionfinal_inbound (
+    contact_id,
+    cliente_inbound_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    interaction_id,
+    agent,
+    management_result_code,
+    result_level1,
+    result_level2,
+    categorizacion,
+    observaciones,
+    fecha_agendamiento,
+    identification,
+    full_name,
+    celular,
+    tipo_cliente,
+    tipo_identificacion,
+    tipo_canal,
+    relacion,
+    nombre_cliente_ref,
+    payload_json,
+    fields_meta_json,
+    started_management,
+    tmstmp,
+    intentos
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+const UPDATE_INBOUND_GESTION_FINAL_BY_CONTACT_ID = `
+  UPDATE gestionfinal_inbound
+  SET cliente_inbound_id = ?,
+      campaign_id = ?,
+      category_id = ?,
+      menu_item_id = ?,
+      interaction_id = ?,
+      agent = ?,
+      management_result_code = ?,
+      result_level1 = ?,
+      result_level2 = ?,
+      categorizacion = ?,
+      observaciones = ?,
+      fecha_agendamiento = ?,
+      identification = ?,
+      full_name = ?,
+      celular = ?,
+      tipo_cliente = ?,
+      tipo_identificacion = ?,
+      tipo_canal = ?,
+      relacion = ?,
+      nombre_cliente_ref = ?,
+      payload_json = ?,
+      fields_meta_json = ?,
+      started_management = ?,
+      tmstmp = ?,
+      intentos = ?,
+      updated_at = CURRENT_TIMESTAMP
+  WHERE contact_id = ?
+`;
+
+const INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL = `
+  INSERT INTO gestionhistorica_inbound (
+    gestionfinal_inbound_id,
+    contact_id,
+    cliente_inbound_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    interaction_id,
+    agent,
+    management_result_code,
+    result_level1,
+    result_level2,
+    categorizacion,
+    observaciones,
+    fecha_agendamiento,
+    identification,
+    full_name,
+    celular,
+    tipo_cliente,
+    tipo_identificacion,
+    tipo_canal,
+    relacion,
+    nombre_cliente_ref,
+    payload_json,
+    fields_meta_json,
+    started_management,
+    tmstmp,
+    intentos
+  )
+  SELECT
+    id,
+    contact_id,
+    cliente_inbound_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    interaction_id,
+    agent,
+    management_result_code,
+    result_level1,
+    result_level2,
+    categorizacion,
+    observaciones,
+    fecha_agendamiento,
+    identification,
+    full_name,
+    celular,
+    tipo_cliente,
+    tipo_identificacion,
+    tipo_canal,
+    relacion,
+    nombre_cliente_ref,
+    payload_json,
+    fields_meta_json,
+    started_management,
+    tmstmp,
+    intentos
+  FROM gestionfinal_inbound
+  WHERE contact_id = ?
+  LIMIT 1
+`;
+
 export class AgenteDAO {
     constructor(dbPool = pool) {
         this.pool = dbPool;
@@ -528,6 +741,13 @@ export class AgenteDAO {
             GET_CLIENTE_BY_IDENTIFICATION_AND_CAMPAIGN,
             [identification, campaignLike],
         );
+        return rows[0] || null;
+    }
+
+    async getClienteByIdentification(identification, executor = this.pool) {
+        const [rows] = await executor.query(GET_CLIENTE_BY_IDENTIFICATION, [
+            identification,
+        ]);
         return rows[0] || null;
     }
 
@@ -788,6 +1008,61 @@ export class AgenteDAO {
             contactId,
             agentUser,
             payloadJson,
+        ]);
+    }
+
+    async getInboundClientByIdentificationAndCampaign(
+        identification,
+        campaignId,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            GET_INBOUND_CLIENT_BY_IDENTIFICATION_AND_CAMPAIGN,
+            [identification, campaignId],
+        );
+        return rows[0] || null;
+    }
+
+    async getInboundClientByIdentification(
+        identification,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(GET_INBOUND_CLIENT_BY_IDENTIFICATION, [
+            identification,
+        ]);
+        return rows[0] || null;
+    }
+
+    async insertInboundClient(params, executor = this.pool) {
+        return executor.query(INSERT_INBOUND_CLIENT, params);
+    }
+
+    async updateInboundClientById(params, executor = this.pool) {
+        return executor.query(UPDATE_INBOUND_CLIENT_BY_ID, params);
+    }
+
+    async getInboundGestionFinalByContactId(contactId, executor = this.pool) {
+        const [rows] = await executor.query(
+            GET_INBOUND_GESTION_FINAL_BY_CONTACT_ID,
+            [contactId],
+        );
+        return rows[0] || null;
+    }
+
+    async insertInboundGestionFinal(params, executor = this.pool) {
+        return executor.query(INSERT_INBOUND_GESTION_FINAL, params);
+    }
+
+    async updateInboundGestionFinalByContactId(params, executor = this.pool) {
+        return executor.query(UPDATE_INBOUND_GESTION_FINAL_BY_CONTACT_ID, params);
+    }
+
+    async insertInboundGestionHistoricaFromFinal(
+        contactId,
+        executor = this.pool,
+    ) {
+        return executor.query(INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL, [
+            contactId,
         ]);
     }
 }
