@@ -9,6 +9,10 @@ import { desencriptar } from "../../utils/crypto.js";
 const TARGET_YEAR = 2026;
 const TARGET_YEAR_START = `${TARGET_YEAR}-01-01 00:00:00`;
 const TARGET_YEAR_END = `${TARGET_YEAR + 1}-01-01 00:00:00`;
+const OUTBOUND_SCHEMA =
+    process.env.MYSQL_DB ||
+    process.env.MYSQL_DB_ENCUESTA ||
+    "cck_dev_pruebas";
 
 function buildLinkKey(schemaName, contactId, interactionId = "") {
     return [
@@ -139,7 +143,7 @@ async function buildClientByPhoneMap(phones = []) {
     const [rows] = await pool.query(
         `
         SELECT ContactAddress, ContactName, NOMBRE_CLIENTE, ContactId, CampaignId, TmStmp
-        FROM bancopichinchaencuesta_dev.clientes
+        FROM ${OUTBOUND_SCHEMA}.clientes_outbound
         WHERE REPLACE(REPLACE(REPLACE(REPLACE(ContactAddress, ' ', ''), '-', ''), '(', ''), ')', '') IN (${placeholders})
         ORDER BY TmStmp DESC, Id DESC
         `,
@@ -163,8 +167,8 @@ export async function getRecordingsByPhone(req, res) {
     try {
         const { phone } = req.query;
 
-        let query1 = `SELECT 'bancopichinchaencuesta_dev' AS schema_name, Id, ContactId, InteractionId, TmStmp, CampaignId, ContactName, ContactAddress, ImportId, Agent, ResultLevel1
-                        FROM bancopichinchaencuesta_dev.gestionfinal
+        let query1 = `SELECT '${OUTBOUND_SCHEMA}' AS schema_name, Id, ContactId, InteractionId, TmStmp, CampaignId, ContactName, ContactAddress, ImportId, Agent, ResultLevel1
+                        FROM ${OUTBOUND_SCHEMA}.gestionfinal_outbound
                         WHERE ContactAddress IS NOT null and ContactAddress !=''
                         and TmStmp >= ? and TmStmp < ?
                         and ResultLevel1 !='' `;

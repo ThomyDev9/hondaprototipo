@@ -1,7 +1,9 @@
 import pool from "../db.js";
 
-const encuestaSchema =
-    process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev";
+const outboundSchema =
+    process.env.MYSQL_DB ||
+    process.env.MYSQL_DB_ENCUESTA ||
+    "cck_dev_pruebas";
 
 const GET_USER_STATE_BY_ID = `
     SELECT State
@@ -12,14 +14,14 @@ const GET_USER_STATE_BY_ID = `
 
 const GET_CLIENTE_BY_ID = `
     SELECT *
-    FROM ${encuestaSchema}.vw_outbound_client_lookup
+    FROM ${outboundSchema}.vw_outbound_client_lookup
     WHERE Id = ?
     LIMIT 1
 `;
 
 const GET_CLIENTE_BY_IDENTIFICATION_AND_CAMPAIGN = `
     SELECT *
-    FROM ${encuestaSchema}.vw_outbound_client_lookup
+    FROM ${outboundSchema}.vw_outbound_client_lookup
     WHERE IDENTIFICACION = ?
       AND CampaignId LIKE ?
     ORDER BY Id DESC
@@ -28,7 +30,7 @@ const GET_CLIENTE_BY_IDENTIFICATION_AND_CAMPAIGN = `
 
 const GET_CLIENTE_BY_IDENTIFICATION = `
     SELECT *
-    FROM ${encuestaSchema}.vw_outbound_client_lookup
+    FROM ${outboundSchema}.vw_outbound_client_lookup
     WHERE IDENTIFICACION = ?
     ORDER BY Id DESC
     LIMIT 1
@@ -36,14 +38,14 @@ const GET_CLIENTE_BY_IDENTIFICATION = `
 
 const GET_CLIENTE_CONTACT_KEYS_BY_ID_OR_CONTACT_ID = `
   SELECT Id, ContactId, IDENTIFICACION
-  FROM ${encuestaSchema}.clientes
+  FROM ${outboundSchema}.clientes_outbound
   WHERE Id = ?
      OR ContactId = ?
   LIMIT 1
 `;
 
 const UPDATE_CLIENTE_SURVEY_AND_MANAGEMENT = `
-    UPDATE ${encuestaSchema}.clientes
+    UPDATE ${outboundSchema}.clientes_outbound
     SET LastAgent = ?,
       ResultLevel1 = ?,
       ResultLevel2 = ?,
@@ -61,13 +63,13 @@ const UPDATE_CLIENTE_SURVEY_AND_MANAGEMENT = `
 
 const GET_GESTION_FINAL_BY_CONTACT_ID = `
     SELECT ContactId
-    FROM ${encuestaSchema}.gestionfinal
+    FROM ${outboundSchema}.gestionfinal_outbound
     WHERE ContactId = ?
     LIMIT 1
 `;
 
 const INSERT_GESTION_FINAL_FROM_CLIENTE = `
-  INSERT INTO ${encuestaSchema}.gestionfinal (
+  INSERT INTO ${outboundSchema}.gestionfinal_outbound (
       VCC, CampaignId, ContactId, ContactName, ContactAddress, InteractionId, ImportId, Agent,
       ResultLevel1, ResultLevel2, ResultLevel3, ManagementResultCode, ManagementResultDescription,
       StartedManagement, TmStmp, Intentos, FechaAgendamiento, Telefono2, Observaciones, ID,
@@ -120,14 +122,14 @@ const INSERT_GESTION_FINAL_FROM_CLIENTE = `
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-    FROM ${encuestaSchema}.clientes c
+    FROM ${outboundSchema}.clientes_outbound c
     WHERE c.Id = ?
        OR c.ContactId = ?
     LIMIT 1
 `;
 
 const UPDATE_GESTION_FINAL_BY_CONTACT_ID = `
-  UPDATE ${encuestaSchema}.gestionfinal
+  UPDATE ${outboundSchema}.gestionfinal_outbound
   SET ContactAddress = ?,
       InteractionId = ?,
       Agent = ?,
@@ -158,9 +160,9 @@ const UPDATE_GESTION_FINAL_BY_CONTACT_ID = `
 `;
 
 const INSERT_GESTION_HISTORICA_FROM_GESTION_FINAL = `
-    INSERT INTO ${encuestaSchema}.gestionhistorica
+    INSERT INTO ${outboundSchema}.gestionhistorica_outbound
     SELECT *
-    FROM ${encuestaSchema}.gestionfinal
+    FROM ${outboundSchema}.gestionfinal_outbound
     WHERE ContactId = ?
     ORDER BY TmStmp DESC
     LIMIT 1
@@ -1030,7 +1032,7 @@ export class AgenteDAO {
     async insertOutboundCliente(params, executor = this.pool) {
         return executor.query(
             `
-            INSERT INTO ${encuestaSchema}.clientes
+            INSERT INTO ${outboundSchema}.clientes_outbound
             (
                 VCC, CampaignId, ContactId, ContactName, ContactAddress, InteractionId,
                 ImportId, LastAgent, ResultLevel1, ResultLevel2, ResultLevel3, ManagementResultCode,
@@ -1048,7 +1050,7 @@ export class AgenteDAO {
     async updateOutboundCliente(params, executor = this.pool) {
         return executor.query(
             `
-            UPDATE ${encuestaSchema}.clientes
+            UPDATE ${outboundSchema}.clientes_outbound
             SET ContactId = ?,
                 ContactName = ?,
                 ContactAddress = ?,
@@ -1078,7 +1080,7 @@ export class AgenteDAO {
     async updateOutboundGestionFinalMetadata(params, executor = this.pool) {
         return executor.query(
             `
-            UPDATE ${encuestaSchema}.gestionfinal
+            UPDATE ${outboundSchema}.gestionfinal_outbound
             SET ContactName = ?,
                 CampaignId = ?,
                 ImportId = ?,

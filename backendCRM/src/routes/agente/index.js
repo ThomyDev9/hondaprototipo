@@ -24,8 +24,10 @@ import {
 } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
-const encuestaSchema =
-    process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev";
+const outboundSchema =
+    process.env.MYSQL_DB ||
+    process.env.MYSQL_DB_ENCUESTA ||
+    "cck_dev_pruebas";
 const agenteDAO = new AgenteDAO(pool);
 
 // Estados operativos válidos del agente
@@ -233,7 +235,7 @@ registerGestionRoutes(router, {
     pool,
     agenteDAO,
     agenteMiddlewares,
-    encuestaSchema,
+    encuestaSchema: outboundSchema,
     getAgentActor,
     recomputeImportStats,
     linkManagementToRecording,
@@ -252,7 +254,7 @@ registerFormRoutes(router, {
 registerOutboundRoutes(router, {
     agenteDAO,
     agenteMiddlewares,
-    encuestaSchema,
+    encuestaSchema: outboundSchema,
     getAgentActor,
     buildOutboundCampos,
     buildOutboundQuestionPayload,
@@ -266,7 +268,7 @@ registerOutboundRoutes(router, {
 registerInboundRoutes(router, {
     agenteDAO,
     agenteMiddlewares,
-    encuestaSchema,
+    encuestaSchema: outboundSchema,
     getAgentActor,
     buildOutboundCampos,
     buildOutboundQuestionPayload,

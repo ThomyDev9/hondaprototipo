@@ -5,8 +5,10 @@ dotenv.config();
 
 let recordingLinkInfraReady = false;
 
-const DEFAULT_ENCUESTA_SCHEMA =
-    process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev";
+const DEFAULT_OUTBOUND_SCHEMA =
+    process.env.MYSQL_DB ||
+    process.env.MYSQL_DB_ENCUESTA ||
+    "cck_dev_pruebas";
 
 const recordingLinkDAO = new RecordingLinkDAO();
 
@@ -69,7 +71,7 @@ export async function findBestCdrMatch({ phoneNumber, managementTimestamp }) {
 }
 
 export async function linkManagementToRecording({
-    schemaName = DEFAULT_ENCUESTA_SCHEMA,
+    schemaName = DEFAULT_OUTBOUND_SCHEMA,
     contactId,
     gestionRowId = "",
     interactionId = "",

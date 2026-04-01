@@ -43,4 +43,4 @@ SELECT
         JSON_UNQUOTE(JSON_EXTRACT(c.CamposAdicionalesJson, '$.Observaciones')),
         ''
     ) AS outbound_observaciones
-FROM clientes c;
+FROM clientes_outbound c;

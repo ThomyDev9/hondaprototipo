@@ -51,6 +51,7 @@ Luego corre en orden:
 
 ## Vista outbound
 
-`004_vw_outbound_client_lookup.sql` debe ejecutarse en el esquema de encuestas
-configurado por `MYSQL_DB_ENCUESTA`, porque la vista usa la tabla `clientes`
-de ese esquema.
+`004_vw_outbound_client_lookup.sql` debe ejecutarse en la base principal
+configurada por `MYSQL_DB`. Si todavia mantienes una base outbound antigua,
+migra primero las tablas `clientes_outbound`, `gestionfinal_outbound` y
+`gestionhistorica_outbound` hacia la base principal y luego recrea la vista ahi.

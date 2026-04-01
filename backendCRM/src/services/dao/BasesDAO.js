@@ -1,7 +1,9 @@
 import pool from "../db.js";
 
-const encuestaSchema =
-    process.env.MYSQL_DB_ENCUESTA || "bancopichinchaencuesta_dev";
+const outboundSchema =
+    process.env.MYSQL_DB ||
+    process.env.MYSQL_DB_ENCUESTA ||
+    "cck_dev_pruebas";
 
 const CHECK_CAMPAIGN_FOR_IMPORT = `
     SELECT Id
@@ -51,7 +53,7 @@ const INSERT_CONTACT_IMPORT_CONTACT = `
 `;
 
 const INSERT_CLIENTE_BANCO_PICHINCHA = `
-    INSERT INTO ${encuestaSchema}.clientes
+    INSERT INTO ${outboundSchema}.clientes_outbound
     (VCC, CampaignId, ContactId, ContactName, ContactAddress, InteractionId,
      ImportId, LastAgent, ResultLevel1, ResultLevel2, ResultLevel3, ManagementResultCode,
      ManagementResultDescription, TmStmp, Intentos,
