@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { esGestionOutbound } from "../../utils/gestionOutbound";
+import { fetchInboundClientByIdentification } from "../../services/dashboard.service";
 import {
     buildInitialSurveyAnswers,
     findOptionIgnoreCase,
@@ -22,6 +23,7 @@ export default function useDashboardAgenteState({
     onChangeAgentPage,
     selectedImportId,
 }) {
+    const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
     const roles = user?.roles || [];
     const isAgente = roles.includes("ASESOR");
 
@@ -29,6 +31,19 @@ export default function useDashboardAgenteState({
     const [bloqueado, setBloqueado] = useState(
         user?.bloqueado === true || user?.is_active === false,
     );
+    const [inboundInteractionDetails, setInboundInteractionDetails] = useState([
+        {
+            categorizacion: "",
+            motivo: "",
+            submotivo: "",
+            observaciones: "",
+        },
+    ]);
+    const [inboundImageDrafts, setInboundImageDrafts] = useState([
+        {
+            file: null,
+        },
+    ]);
 
     const {
         activeBaseCards,
@@ -210,6 +225,96 @@ export default function useDashboardAgenteState({
         [setSurveyAnswers],
     );
 
+    const handleAddInboundInteractionDetail = useCallback(() => {
+        setInboundInteractionDetails((prev) => [
+            ...prev,
+            {
+                categorizacion: "",
+                motivo: "",
+                submotivo: "",
+                observaciones: "",
+            },
+        ]);
+    }, []);
+
+    const handleRemoveInboundInteractionDetail = useCallback((index) => {
+        setInboundInteractionDetails((prev) => {
+            const next = prev.filter((_, currentIndex) => currentIndex !== index);
+            return next.length > 0
+                ? next
+                : [
+                      {
+                          categorizacion: "",
+                          motivo: "",
+                          submotivo: "",
+                          observaciones: "",
+                      },
+                  ];
+        });
+    }, []);
+
+    const handleInboundInteractionDetailChange = useCallback(
+        (index, fieldKey, value) => {
+            setInboundInteractionDetails((prev) =>
+                prev.map((item, currentIndex) => {
+                    if (currentIndex !== index) return item;
+
+                    if (fieldKey === "categorizacion") {
+                        return {
+                            ...item,
+                            categorizacion: value,
+                            motivo: "",
+                            submotivo: "",
+                        };
+                    }
+
+                    if (fieldKey === "motivo") {
+                        return {
+                            ...item,
+                            motivo: value,
+                            submotivo: "",
+                        };
+                    }
+
+                    return {
+                        ...item,
+                        [fieldKey]: value,
+                    };
+                }),
+            );
+        },
+        [],
+    );
+
+    const handleAddInboundImageDraft = useCallback(() => {
+        setInboundImageDrafts((prev) => [
+            ...prev,
+            {
+                file: null,
+            },
+        ]);
+    }, []);
+
+    const handleRemoveInboundImageDraft = useCallback((index) => {
+        setInboundImageDrafts((prev) => {
+            const next = prev.filter((_, currentIndex) => currentIndex !== index);
+            return next.length > 0 ? next : [{ file: null }];
+        });
+    }, []);
+
+    const handleInboundImageDraftChange = useCallback((index, fieldKey, value) => {
+        setInboundImageDrafts((prev) =>
+            prev.map((item, currentIndex) =>
+                currentIndex === index
+                    ? {
+                          ...item,
+                          [fieldKey]: value,
+                      }
+                    : item,
+            ),
+        );
+    }, []);
+
     const handleDynamicFormFieldChange = useCallback(
         async (fieldKey, value) => {
             if (fieldKey === "__inbound_nombre_cliente") {
@@ -220,10 +325,16 @@ export default function useDashboardAgenteState({
                 setDynamicFormAnswers((prev) => ({
                     ...prev,
                     [fieldKey]: value,
-                    __inbound_categorizacion: "",
-                    __inbound_motivo: "",
-                    __inbound_submotivo: "",
                 }));
+                setInboundInteractionDetails([
+                    {
+                        categorizacion: "",
+                        motivo: "",
+                        submotivo: "",
+                        observaciones: "",
+                    },
+                ]);
+                setInboundImageDrafts([{ file: null }]);
 
                 await handleInboundChildSelection({
                     childMenuItemId: selectedOption?.menuItemId || "",
@@ -232,40 +343,89 @@ export default function useDashboardAgenteState({
                 setDynamicFormAnswers((prev) => ({
                     ...prev,
                     [fieldKey]: value,
-                    __inbound_categorizacion: "",
-                    __inbound_motivo: "",
-                    __inbound_submotivo: "",
                 }));
                 return;
             }
 
-            if (fieldKey === "__inbound_categorizacion") {
-                setDynamicFormAnswers((prev) => ({
-                    ...prev,
-                    [fieldKey]: value,
-                    __inbound_motivo: "",
-                    __inbound_submotivo: "",
-                }));
-                return;
-            }
-
-            if (fieldKey === "__inbound_motivo") {
-                setDynamicFormAnswers((prev) => ({
-                    ...prev,
-                    [fieldKey]: value,
-                    __inbound_submotivo: "",
-                }));
-                return;
-            }
-
+            const nextValue = String(value ?? "");
             setDynamicFormAnswers((prev) => ({
                 ...prev,
-                [fieldKey]: value,
+                [fieldKey]: nextValue,
+            }));
+
+            const isInboundIdentificationField =
+                manualFlowActivo &&
+                String(categoryIdSeleccionada || "").trim() ===
+                    INBOUND_MENU_CATEGORY_ID &&
+                fieldKey === "IDENTIFICACION";
+
+            if (!isInboundIdentificationField) {
+                return;
+            }
+
+            const identification = nextValue.trim();
+            if (identification.length < 5) {
+                return;
+            }
+
+            const selectedChildMenuItemId = String(
+                dynamicFormAnswers?.__inbound_nombre_cliente || "",
+            ).trim();
+            const selectedChild = (inboundChildOptions || []).find(
+                (item) =>
+                    String(item.menuItemId || item.value || "").trim() ===
+                    selectedChildMenuItemId,
+            );
+
+            const { ok, status, json } = await fetchInboundClientByIdentification({
+                identification,
+                campaignId:
+                    String(selectedChild?.campaignId || "").trim() ||
+                    String(campaignIdSeleccionada || "").trim(),
+            });
+
+            if (status === 404 || !json?.data) {
+                return;
+            }
+
+            if (!ok) {
+                return;
+            }
+
+            const client = json.data;
+            setDynamicFormAnswers((prev) => ({
+                ...prev,
+                IDENTIFICACION: identification,
+                NOMBRE_CLIENTE: String(client.fullName || "").trim(),
+                CAMPO1: String(client.city || "").trim(),
+                CAMPO2: String(client.email || "").trim(),
+                CAMPO3: String(client.celular || "").trim(),
+                CAMPO4: String(client.convencional || "").trim(),
+                __inbound_tipo_identificacion:
+                    String(client.tipoIdentificacion || "").trim() ||
+                    prev.__inbound_tipo_identificacion ||
+                    "",
+                __inbound_tipo_cliente:
+                    String(client.tipoCliente || "").trim() ||
+                    prev.__inbound_tipo_cliente ||
+                    "",
+                __inbound_tipo_canal:
+                    String(client.tipoCanal || "").trim() ||
+                    prev.__inbound_tipo_canal ||
+                    "",
+                __inbound_relacion:
+                    String(client.relacion || "").trim() ||
+                    prev.__inbound_relacion ||
+                    "",
             }));
         },
         [
+            campaignIdSeleccionada,
+            categoryIdSeleccionada,
+            dynamicFormAnswers,
             handleInboundChildSelection,
             inboundChildOptions,
+            manualFlowActivo,
             setDynamicFormAnswers,
         ],
     );
@@ -293,6 +453,8 @@ export default function useDashboardAgenteState({
         estadoAgente,
         fetchSiguienteRegistro,
         inboundChildOptions,
+        inboundInteractionDetails,
+        inboundImageDrafts,
     });
 
     const handleCancelarGestion = useCallback(async () => {
@@ -377,6 +539,8 @@ export default function useDashboardAgenteState({
         menuItemIdSeleccionado,
         categoryIdSeleccionada,
         inboundChildOptions,
+        inboundInteractionDetails,
+        inboundImageDrafts,
         shouldShowQueueMessage,
         isHomeView,
         isGestionOutbound,
@@ -387,6 +551,12 @@ export default function useDashboardAgenteState({
         handleContestaTerceroAutofill,
         handleSurveyFieldChange,
         handleDynamicFormFieldChange,
+        handleAddInboundInteractionDetail,
+        handleRemoveInboundInteractionDetail,
+        handleInboundInteractionDetailChange,
+        handleAddInboundImageDraft,
+        handleRemoveInboundImageDraft,
+        handleInboundImageDraftChange,
         handleGuardarGestion,
         handleCancelarGestion,
         selectBaseCard,

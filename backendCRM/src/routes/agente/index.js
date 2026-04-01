@@ -146,7 +146,12 @@ async function saveDynamicResponseIfTemplateActive({
     const campaignIdToUse = String(campaignId || "").trim();
     const categoryIdToUse = String(categoryId || "").trim();
     const menuItemIdToUse = String(menuItemId || "").trim();
-    if (!campaignIdToUse && !menuItemIdToUse) return;
+    if (!campaignIdToUse && !menuItemIdToUse) {
+        return {
+            saved: false,
+            reason: "missing_campaign_or_menu_item",
+        };
+    }
 
     const templateRows = menuItemIdToUse
         ? await agenteDAO.getActiveTemplateByMenuItemAndType(
@@ -160,7 +165,10 @@ async function saveDynamicResponseIfTemplateActive({
           );
 
     if (templateRows.length === 0) {
-        return;
+        return {
+            saved: false,
+            reason: "template_not_found",
+        };
     }
 
     const template = templateRows[0];
@@ -174,6 +182,13 @@ async function saveDynamicResponseIfTemplateActive({
         String(agentUser || "").trim(),
         payloadJson,
     );
+
+    return {
+        saved: true,
+        templateId: template.template_id,
+        resolvedMenuItemId: String(template.menu_item_id || "").trim(),
+        formType,
+    };
 }
 
 function buildOutboundQuestionPayload(entries = []) {

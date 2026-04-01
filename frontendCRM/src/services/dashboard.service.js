@@ -96,6 +96,22 @@ export const guardarGestionInbound = (payload) =>
         body: JSON.stringify(payload),
     });
 
+export const fetchInboundClientByIdentification = ({
+    identification,
+    campaignId = "",
+}) =>
+    request(
+        `agente/buscar-cliente-inbound?identification=${encodeURIComponent(
+            identification,
+        )}&campaignId=${encodeURIComponent(campaignId)}`,
+    );
+
+export const uploadInboundImages = (formData) =>
+    request("agente/upload-inbound-images", {
+        method: "POST",
+        body: formData,
+    });
+
 export const guardarGestionOutbound = (payload) =>
     request("agente/guardar-gestion-outbound", {
         method: "POST",

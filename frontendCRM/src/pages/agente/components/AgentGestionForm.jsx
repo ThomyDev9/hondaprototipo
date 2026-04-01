@@ -15,27 +15,28 @@ import {
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 
-const INBOUND_FIXED_FIELDS_ROW = [
+const INBOUND_FIXED_FIELDS_PRIMARY_ROW = [
     {
         key: "__inbound_tipo_cliente",
         label: "Tipo cliente",
         type: "select",
         options: ["Titular", "Tercera persona"],
     },
-
     {
         key: "__inbound_tipo_identificacion",
         label: "Tipo de identificación",
         type: "select",
         options: ["Cédula", "Ruc", "Pasaporte"],
     },
-
     {
         key: "__inbound_tipo_canal",
         label: "Tipo de canal",
         type: "select",
         options: ["Inbound", "Outbound"],
     },
+];
+
+const INBOUND_FIXED_FIELDS_SECONDARY_ROW = [
     {
         key: "__inbound_relacion",
         label: "Relacion",
@@ -53,6 +54,245 @@ function buildUniqueOptions(values = []) {
         value: item,
         label: item,
     }));
+}
+
+function InboundInteractionDetailsSection({
+    details,
+    levels,
+    onAdd,
+    onRemove,
+    onChange,
+}) {
+    return (
+        <section className="agent-form-card agent-form-card--secondary">
+            <div className="agent-form-header-row agent-inbound-detail-header">
+                <p className="agent-form-card__title">Acciones de la llamada</p>
+            </div>
+
+            <div className="agent-inbound-detail-table">
+                {(details || []).map((detail, index) => {
+                    const selectedCategorizacion = String(
+                        detail?.categorizacion || "",
+                    ).trim();
+                    const selectedMotivo = String(detail?.motivo || "").trim();
+                    const categorizacionOptions = buildUniqueOptions(
+                        (levels || []).map((item) => item.description),
+                    );
+                    const motivoOptions = buildUniqueOptions(
+                        (levels || [])
+                            .filter(
+                                (item) =>
+                                    String(item?.description || "").trim() ===
+                                    selectedCategorizacion,
+                            )
+                            .map((item) => item.level1),
+                    );
+                    const submotivoOptions = buildUniqueOptions(
+                        (levels || [])
+                            .filter(
+                                (item) =>
+                                    String(item?.description || "").trim() ===
+                                        selectedCategorizacion &&
+                                    String(item?.level1 || "").trim() ===
+                                        selectedMotivo,
+                            )
+                            .map((item) => item.level2),
+                    );
+
+                    return (
+                        <div
+                            key={`inbound-detail-${index}`}
+                            className="agent-inbound-detail-row"
+                        >
+                            <div className="agent-inbound-detail-index">
+                                {index + 1}
+                            </div>
+                            <div className="agent-form-field">
+                                <span className="agent-dynamic-label">
+                                    Categorización
+                                </span>
+                                <select
+                                    className="agent-input agent-survey-input"
+                                    value={detail?.categorizacion || ""}
+                                    onChange={(event) =>
+                                        onChange(
+                                            index,
+                                            "categorizacion",
+                                            event.target.value,
+                                        )
+                                    }
+                                >
+                                    <option value="">Selecciona...</option>
+                                    {categorizacionOptions.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="agent-form-field">
+                                <span className="agent-dynamic-label">
+                                    Motivo de la interacción
+                                </span>
+                                <select
+                                    className="agent-input agent-survey-input"
+                                    value={detail?.motivo || ""}
+                                    onChange={(event) =>
+                                        onChange(
+                                            index,
+                                            "motivo",
+                                            event.target.value,
+                                        )
+                                    }
+                                >
+                                    <option value="">Selecciona...</option>
+                                    {motivoOptions.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="agent-form-field">
+                                <span className="agent-dynamic-label">
+                                    Submotivo de la interacción
+                                </span>
+                                <select
+                                    className="agent-input agent-survey-input"
+                                    value={detail?.submotivo || ""}
+                                    onChange={(event) =>
+                                        onChange(
+                                            index,
+                                            "submotivo",
+                                            event.target.value,
+                                        )
+                                    }
+                                >
+                                    <option value="">Selecciona...</option>
+                                    {submotivoOptions.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="agent-form-field agent-inbound-detail-observaciones">
+                                <span className="agent-dynamic-label">
+                                    Observaciones de la interacción
+                                </span>
+                                <textarea
+                                    className="agent-input agent-survey-input"
+                                    value={detail?.observaciones || ""}
+                                    onChange={(event) =>
+                                        onChange(
+                                            index,
+                                            "observaciones",
+                                            event.target.value,
+                                        )
+                                    }
+                                />
+                            </div>
+                            <div className="agent-inbound-detail-actions">
+                                {index === 0 && (
+                                    <Button
+                                        variant="secondary"
+                                        type="button"
+                                        onClick={onAdd}
+                                    >
+                                        Agregar accion
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="secondary"
+                                    type="button"
+                                    onClick={() => onRemove(index)}
+                                >
+                                    Quitar
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function InboundImagesSection({
+    items,
+    onAdd,
+    onRemove,
+    onChange,
+}) {
+    return (
+        <section className="agent-form-card agent-form-card--tertiary">
+            <div className="agent-form-header-row agent-inbound-detail-header">
+                <p className="agent-form-card__title">Capturas de soporte</p>
+            </div>
+
+            <div className="agent-inbound-image-table">
+                {(items || []).map((item, index) => (
+                    <div
+                        key={`inbound-image-${index}`}
+                        className="agent-inbound-image-row"
+                    >
+                        <div className="agent-inbound-detail-index">
+                            {index + 1}
+                        </div>
+                        <div className="agent-form-field">
+                            <span className="agent-dynamic-label">
+                                Imagen
+                            </span>
+                            <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                className="agent-input agent-survey-input"
+                                onChange={(event) =>
+                                    onChange(
+                                        index,
+                                        "file",
+                                        event.target.files?.[0] || null,
+                                    )
+                                }
+                            />
+                            {item?.file?.name ? (
+                                <span className="agent-file-chip">
+                                    {item.file.name}
+                                </span>
+                            ) : null}
+                        </div>
+                        <div className="agent-inbound-detail-actions">
+                            {index === 0 && (
+                                <Button
+                                    variant="secondary"
+                                    type="button"
+                                    onClick={onAdd}
+                                >
+                                    Agregar imagen
+                                </Button>
+                            )}
+                            <Button
+                                variant="secondary"
+                                type="button"
+                                onClick={() => onRemove(index)}
+                            >
+                                Quitar
+                            </Button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
 }
 
 function AgentGestionForm({
@@ -87,11 +327,22 @@ function AgentGestionForm({
     surveyFieldsToRender,
     surveyAnswers,
     onSurveyFieldChange,
+    inboundInteractionDetails,
+    inboundImageDrafts,
+    onAddInboundInteractionDetail,
+    onRemoveInboundInteractionDetail,
+    onInboundInteractionDetailChange,
+    onAddInboundImageDraft,
+    onRemoveInboundImageDraft,
+    onInboundImageDraftChange,
     onCancelarGestion,
     user,
 }) {
     const firstRender = useRef(true);
     const [activeTab, setActiveTab] = useState("gestion");
+    const isInboundManualFlow =
+        manualFlow &&
+        String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
 
     useEffect(() => {
         if (firstRender.current) {
@@ -142,69 +393,44 @@ function AgentGestionForm({
             return baseRows;
         }
 
-        const selectedCategorizacion = String(
-            dynamicFormAnswers?.__inbound_categorizacion || "",
-        ).trim();
-        const selectedMotivo = String(
-            dynamicFormAnswers?.__inbound_motivo || "",
-        ).trim();
-        const categorizacionOptions = buildUniqueOptions(
-            (levels || []).map((item) => item.description),
-        );
-        const motivoOptions = buildUniqueOptions(
-            (levels || [])
-                .filter(
-                    (item) =>
-                        String(item?.description || "").trim() ===
-                        selectedCategorizacion,
-                )
-                .map((item) => item.level1),
-        );
-        const submotivoOptions = buildUniqueOptions(
-            (levels || [])
-                .filter(
-                    (item) =>
-                        String(item?.description || "").trim() ===
-                            selectedCategorizacion &&
-                        String(item?.level1 || "").trim() === selectedMotivo,
-                )
-                .map((item) => item.level2),
+        const inboundFieldMap = new Map(
+            baseRows
+                .flat()
+                .filter(Boolean)
+                .filter((field) => field.key !== "CAMPO6")
+                .map((field) => [field.key, field]),
         );
 
-        const inboundDynamicFieldsRow = [
-            {
-                key: "__inbound_nombre_cliente",
-                label: "Nombre Cliente",
-                type: "select",
-                options: inboundChildOptions || [],
-            },
-            {
-                key: "__inbound_categorizacion",
-                label: "Categorización",
-                type: "select",
-                options: categorizacionOptions,
-            },
-            {
-                key: "__inbound_motivo",
-                label: "Motivo de la interacción",
-                type: "select",
-                options: motivoOptions,
-            },
-            {
-                key: "__inbound_submotivo",
-                label: "Submotivo de la interacción",
-                type: "select",
-                options: submotivoOptions,
-            },
-        ];
+        const pickField = (key) => inboundFieldMap.get(key) || null;
 
-        return [INBOUND_FIXED_FIELDS_ROW, inboundDynamicFieldsRow, ...baseRows];
+        const compactRows = [
+            INBOUND_FIXED_FIELDS_PRIMARY_ROW,
+            [
+                {
+                    key: "__inbound_nombre_cliente",
+                    label: "Nombre Cliente",
+                    type: "select",
+                    options: inboundChildOptions || [],
+                },
+                ...INBOUND_FIXED_FIELDS_SECONDARY_ROW,
+            ],
+            [pickField("IDENTIFICACION"), pickField("NOMBRE_CLIENTE")].filter(
+                Boolean,
+            ),
+            [
+                pickField("CAMPO1"),
+                pickField("CAMPO2"),
+                pickField("CAMPO3"),
+                pickField("CAMPO4"),
+                pickField("CAMPO5"),
+            ].filter(Boolean),
+        ].filter((row) => row.length > 0);
+
+        return compactRows;
     }, [
         categoryId,
-        dynamicFormAnswers,
         dynamicFormRowsWithValues,
         inboundChildOptions,
-        levels,
         manualFlow,
     ]);
 
@@ -248,8 +474,24 @@ function AgentGestionForm({
             dynamicFormDetail,
         });
 
+    const inboundPrimaryContent = showDynamicForm ? (
+        <AgentGestionDynamicSection
+            title={dynamicFormConfig?.title}
+            rows={inboundDynamicRows}
+            extraFields={extraFields}
+            getFieldValue={getDynamicFormValue}
+            editable={manualFlow}
+            values={dynamicFormAnswers}
+            onFieldChange={onDynamicFormFieldChange}
+        />
+    ) : null;
+
     const gestionContent = (
-        <div className="agent-form-stack">
+        <div
+            className={`agent-form-stack${
+                isInboundManualFlow ? " agent-form-stack--inbound" : ""
+            }`}
+        >
             {!manualFlow && (
                 <AgentGestionPrimarySection
                     levels={levels}
@@ -272,7 +514,7 @@ function AgentGestionForm({
                 />
             )}
 
-            {showDynamicForm && (
+            {!isInboundManualFlow && showDynamicForm && (
                 <>
                     {!manualFlow && (
                         <div
@@ -280,16 +522,31 @@ function AgentGestionForm({
                             aria-hidden="true"
                         />
                     )}
-                    <AgentGestionDynamicSection
-                        title={dynamicFormConfig?.title}
-                        rows={inboundDynamicRows}
-                        extraFields={extraFields}
-                        getFieldValue={getDynamicFormValue}
-                        editable={manualFlow}
-                        values={dynamicFormAnswers}
-                        onFieldChange={onDynamicFormFieldChange}
-                    />
+                    {inboundPrimaryContent}
                 </>
+            )}
+
+            {isInboundManualFlow && (
+                <section className="agent-form-card agent-form-card--secondary agent-inbound-shell">
+                    <div className="agent-inbound-shell__content">
+                        <div className="agent-inbound-shell__column">
+                            {inboundPrimaryContent}
+                            <InboundImagesSection
+                                items={inboundImageDrafts}
+                                onAdd={onAddInboundImageDraft}
+                                onRemove={onRemoveInboundImageDraft}
+                                onChange={onInboundImageDraftChange}
+                            />
+                        </div>
+                        <InboundInteractionDetailsSection
+                            details={inboundInteractionDetails}
+                            levels={levels}
+                            onAdd={onAddInboundInteractionDetail}
+                            onRemove={onRemoveInboundInteractionDetail}
+                            onChange={onInboundInteractionDetailChange}
+                        />
+                    </div>
+                </section>
             )}
 
             {manualFlow && !showDynamicForm && (
@@ -300,8 +557,7 @@ function AgentGestionForm({
                         </p>
                     </div>
                     <p className="agent-info-text">
-                        No se encontrÃ³ un Formulario 2 activo para esta
-                        opciÃ³n.
+                        No se encontró un Formulario 2 activo para esta opción.
                     </p>
                 </section>
             )}
@@ -333,7 +589,12 @@ function AgentGestionForm({
     ].filter(Boolean);
 
     return (
-        <form onSubmit={onSubmit} className="agent-gestion-form">
+        <form
+            onSubmit={onSubmit}
+            className={`agent-gestion-form${
+                isInboundManualFlow ? " agent-gestion-form--inbound" : ""
+            }`}
+        >
             <AgentScriptTabs
                 scriptEntries={scriptEntries}
                 activeScriptKey={activeScriptKey}
@@ -350,7 +611,7 @@ function AgentGestionForm({
 
             <div className="agent-form-actions">
                 <Button variant="primary" type="submit">
-                    {manualFlow ? "Guardar gestion" : "Guardar gestion"}
+                    Guardar gestion
                 </Button>
                 <Button
                     variant="secondary"
@@ -411,6 +672,14 @@ AgentGestionForm.propTypes = {
     surveyFieldsToRender: PropTypes.arrayOf(PropTypes.object).isRequired,
     surveyAnswers: PropTypes.object.isRequired,
     onSurveyFieldChange: PropTypes.func.isRequired,
+    inboundInteractionDetails: PropTypes.arrayOf(PropTypes.object),
+    inboundImageDrafts: PropTypes.arrayOf(PropTypes.object),
+    onAddInboundInteractionDetail: PropTypes.func,
+    onRemoveInboundInteractionDetail: PropTypes.func,
+    onInboundInteractionDetailChange: PropTypes.func,
+    onAddInboundImageDraft: PropTypes.func,
+    onRemoveInboundImageDraft: PropTypes.func,
+    onInboundImageDraftChange: PropTypes.func,
     onCancelarGestion: PropTypes.func.isRequired,
     user: PropTypes.shape({
         full_name: PropTypes.string,

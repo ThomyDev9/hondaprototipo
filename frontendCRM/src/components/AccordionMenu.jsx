@@ -261,6 +261,7 @@ function AccordionMenu({ onLeafSelect }) {
                         node?.categoryId || selectedCategoryId || "",
                     ).trim();
                     const isInboundNode = isInboundCategory(categoryId);
+                    const canExpand = hasChildren && !isInboundNode;
                     const bases = basesPorCampania[campaignId] || [];
                     const isLoadingBases = loadingBases[campaignId];
 
@@ -315,21 +316,10 @@ function AccordionMenu({ onLeafSelect }) {
                                         "rgba(255,255,255,0.12)";
                                 }}
                                 onClick={async () => {
-                                    if (hasChildren) {
+                                    if (canExpand) {
                                         setOpen((prev) =>
                                             toggleBranch(prev, key, parentKey),
                                         );
-
-                                        if (isInboundNode) {
-                                            onLeafSelect?.({
-                                                campaignId,
-                                                menuItemId,
-                                                categoryId,
-                                                leafLabel: label,
-                                                parentLabel: pathLabels.at(-1) || "",
-                                                manualFlow: true,
-                                            });
-                                        }
                                         return;
                                     }
 
@@ -423,7 +413,7 @@ function AccordionMenu({ onLeafSelect }) {
                                             fontWeight: 700,
                                         }}
                                     >
-                                        {getNodeMarker(hasChildren, isOpen)}
+                                        {getNodeMarker(canExpand, isOpen)}
                                     </span>
                                     <span
                                         style={{
@@ -519,7 +509,7 @@ function AccordionMenu({ onLeafSelect }) {
                                 </ul>
                             )}
 
-                            {hasChildren && isOpen && (
+                            {canExpand && isOpen && (
                                 <div>
                                     {renderTree(
                                         children,

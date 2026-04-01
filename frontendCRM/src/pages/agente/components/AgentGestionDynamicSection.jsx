@@ -34,15 +34,7 @@ function renderEditableInput(field, value, onFieldChange) {
 
     if (normalizedType === "radio") {
         return (
-            <div
-                style={{
-                    display: "flex",
-                    gap: "1rem",
-                    flexWrap: "wrap",
-                    minHeight: "40px",
-                    alignItems: "center",
-                }}
-            >
+            <div className="agent-radio-group">
                 {(field.options || []).map((option) => {
                     const optionValue =
                         typeof option === "string"
@@ -54,16 +46,7 @@ function renderEditableInput(field, value, onFieldChange) {
                             : option?.label || option?.value || "";
 
                     return (
-                        <label
-                            key={optionValue}
-                            style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.35rem",
-                                color: "#0f172a",
-                                fontSize: "0.9rem",
-                            }}
-                        >
+                        <label key={optionValue} className="agent-radio-option">
                             <input
                                 type="radio"
                                 name={field.key}

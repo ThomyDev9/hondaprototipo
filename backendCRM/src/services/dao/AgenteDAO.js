@@ -464,6 +464,12 @@ const GET_INBOUND_GESTION_FINAL_BY_CONTACT_ID = `
   LIMIT 1
 `;
 
+const COUNT_INBOUND_GESTIONES_BY_CONTACT_ID = `
+  SELECT COUNT(DISTINCT interaction_id) AS total
+  FROM gestionfinal_inbound
+  WHERE contact_id = ?
+`;
+
 const INSERT_INBOUND_GESTION_FINAL = `
   INSERT INTO gestionfinal_inbound (
     contact_id,
@@ -472,6 +478,7 @@ const INSERT_INBOUND_GESTION_FINAL = `
     category_id,
     menu_item_id,
     interaction_id,
+    action_order,
     agent,
     management_result_code,
     result_level1,
@@ -487,13 +494,35 @@ const INSERT_INBOUND_GESTION_FINAL = `
     tipo_canal,
     relacion,
     nombre_cliente_ref,
+    city,
+    email,
+    convencional,
+    ticket_id,
     payload_json,
     fields_meta_json,
+    PREGUNTA_1, PREGUNTA_2, PREGUNTA_3, PREGUNTA_4, PREGUNTA_5,
+    PREGUNTA_6, PREGUNTA_7, PREGUNTA_8, PREGUNTA_9, PREGUNTA_10,
+    PREGUNTA_11, PREGUNTA_12, PREGUNTA_13, PREGUNTA_14, PREGUNTA_15,
+    PREGUNTA_16, PREGUNTA_17, PREGUNTA_18, PREGUNTA_19, PREGUNTA_20,
+    PREGUNTA_21, PREGUNTA_22, PREGUNTA_23, PREGUNTA_24, PREGUNTA_25,
+    PREGUNTA_26, PREGUNTA_27, PREGUNTA_28, PREGUNTA_29, PREGUNTA_30,
+    RESPUESTA_1, RESPUESTA_2, RESPUESTA_3, RESPUESTA_4, RESPUESTA_5,
+    RESPUESTA_6, RESPUESTA_7, RESPUESTA_8, RESPUESTA_9, RESPUESTA_10,
+    RESPUESTA_11, RESPUESTA_12, RESPUESTA_13, RESPUESTA_14, RESPUESTA_15,
+    RESPUESTA_16, RESPUESTA_17, RESPUESTA_18, RESPUESTA_19, RESPUESTA_20,
+    RESPUESTA_21, RESPUESTA_22, RESPUESTA_23, RESPUESTA_24, RESPUESTA_25,
+    RESPUESTA_26, RESPUESTA_27, RESPUESTA_28, RESPUESTA_29, RESPUESTA_30,
     started_management,
     tmstmp,
     intentos
   )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+  )
 `;
 
 const UPDATE_INBOUND_GESTION_FINAL_BY_CONTACT_ID = `
@@ -518,8 +547,24 @@ const UPDATE_INBOUND_GESTION_FINAL_BY_CONTACT_ID = `
       tipo_canal = ?,
       relacion = ?,
       nombre_cliente_ref = ?,
+      city = ?,
+      email = ?,
+      convencional = ?,
+      ticket_id = ?,
       payload_json = ?,
       fields_meta_json = ?,
+      PREGUNTA_1 = ?, PREGUNTA_2 = ?, PREGUNTA_3 = ?, PREGUNTA_4 = ?, PREGUNTA_5 = ?,
+      PREGUNTA_6 = ?, PREGUNTA_7 = ?, PREGUNTA_8 = ?, PREGUNTA_9 = ?, PREGUNTA_10 = ?,
+      PREGUNTA_11 = ?, PREGUNTA_12 = ?, PREGUNTA_13 = ?, PREGUNTA_14 = ?, PREGUNTA_15 = ?,
+      PREGUNTA_16 = ?, PREGUNTA_17 = ?, PREGUNTA_18 = ?, PREGUNTA_19 = ?, PREGUNTA_20 = ?,
+      PREGUNTA_21 = ?, PREGUNTA_22 = ?, PREGUNTA_23 = ?, PREGUNTA_24 = ?, PREGUNTA_25 = ?,
+      PREGUNTA_26 = ?, PREGUNTA_27 = ?, PREGUNTA_28 = ?, PREGUNTA_29 = ?, PREGUNTA_30 = ?,
+      RESPUESTA_1 = ?, RESPUESTA_2 = ?, RESPUESTA_3 = ?, RESPUESTA_4 = ?, RESPUESTA_5 = ?,
+      RESPUESTA_6 = ?, RESPUESTA_7 = ?, RESPUESTA_8 = ?, RESPUESTA_9 = ?, RESPUESTA_10 = ?,
+      RESPUESTA_11 = ?, RESPUESTA_12 = ?, RESPUESTA_13 = ?, RESPUESTA_14 = ?, RESPUESTA_15 = ?,
+      RESPUESTA_16 = ?, RESPUESTA_17 = ?, RESPUESTA_18 = ?, RESPUESTA_19 = ?, RESPUESTA_20 = ?,
+      RESPUESTA_21 = ?, RESPUESTA_22 = ?, RESPUESTA_23 = ?, RESPUESTA_24 = ?, RESPUESTA_25 = ?,
+      RESPUESTA_26 = ?, RESPUESTA_27 = ?, RESPUESTA_28 = ?, RESPUESTA_29 = ?, RESPUESTA_30 = ?,
       started_management = ?,
       tmstmp = ?,
       intentos = ?,
@@ -536,6 +581,7 @@ const INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL = `
     category_id,
     menu_item_id,
     interaction_id,
+    action_order,
     agent,
     management_result_code,
     result_level1,
@@ -551,8 +597,24 @@ const INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL = `
     tipo_canal,
     relacion,
     nombre_cliente_ref,
+    city,
+    email,
+    convencional,
+    ticket_id,
     payload_json,
     fields_meta_json,
+    PREGUNTA_1, PREGUNTA_2, PREGUNTA_3, PREGUNTA_4, PREGUNTA_5,
+    PREGUNTA_6, PREGUNTA_7, PREGUNTA_8, PREGUNTA_9, PREGUNTA_10,
+    PREGUNTA_11, PREGUNTA_12, PREGUNTA_13, PREGUNTA_14, PREGUNTA_15,
+    PREGUNTA_16, PREGUNTA_17, PREGUNTA_18, PREGUNTA_19, PREGUNTA_20,
+    PREGUNTA_21, PREGUNTA_22, PREGUNTA_23, PREGUNTA_24, PREGUNTA_25,
+    PREGUNTA_26, PREGUNTA_27, PREGUNTA_28, PREGUNTA_29, PREGUNTA_30,
+    RESPUESTA_1, RESPUESTA_2, RESPUESTA_3, RESPUESTA_4, RESPUESTA_5,
+    RESPUESTA_6, RESPUESTA_7, RESPUESTA_8, RESPUESTA_9, RESPUESTA_10,
+    RESPUESTA_11, RESPUESTA_12, RESPUESTA_13, RESPUESTA_14, RESPUESTA_15,
+    RESPUESTA_16, RESPUESTA_17, RESPUESTA_18, RESPUESTA_19, RESPUESTA_20,
+    RESPUESTA_21, RESPUESTA_22, RESPUESTA_23, RESPUESTA_24, RESPUESTA_25,
+    RESPUESTA_26, RESPUESTA_27, RESPUESTA_28, RESPUESTA_29, RESPUESTA_30,
     started_management,
     tmstmp,
     intentos
@@ -565,6 +627,7 @@ const INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL = `
     category_id,
     menu_item_id,
     interaction_id,
+    action_order,
     agent,
     management_result_code,
     result_level1,
@@ -580,14 +643,51 @@ const INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL = `
     tipo_canal,
     relacion,
     nombre_cliente_ref,
+    city,
+    email,
+    convencional,
+    ticket_id,
     payload_json,
     fields_meta_json,
+    PREGUNTA_1, PREGUNTA_2, PREGUNTA_3, PREGUNTA_4, PREGUNTA_5,
+    PREGUNTA_6, PREGUNTA_7, PREGUNTA_8, PREGUNTA_9, PREGUNTA_10,
+    PREGUNTA_11, PREGUNTA_12, PREGUNTA_13, PREGUNTA_14, PREGUNTA_15,
+    PREGUNTA_16, PREGUNTA_17, PREGUNTA_18, PREGUNTA_19, PREGUNTA_20,
+    PREGUNTA_21, PREGUNTA_22, PREGUNTA_23, PREGUNTA_24, PREGUNTA_25,
+    PREGUNTA_26, PREGUNTA_27, PREGUNTA_28, PREGUNTA_29, PREGUNTA_30,
+    RESPUESTA_1, RESPUESTA_2, RESPUESTA_3, RESPUESTA_4, RESPUESTA_5,
+    RESPUESTA_6, RESPUESTA_7, RESPUESTA_8, RESPUESTA_9, RESPUESTA_10,
+    RESPUESTA_11, RESPUESTA_12, RESPUESTA_13, RESPUESTA_14, RESPUESTA_15,
+    RESPUESTA_16, RESPUESTA_17, RESPUESTA_18, RESPUESTA_19, RESPUESTA_20,
+    RESPUESTA_21, RESPUESTA_22, RESPUESTA_23, RESPUESTA_24, RESPUESTA_25,
+    RESPUESTA_26, RESPUESTA_27, RESPUESTA_28, RESPUESTA_29, RESPUESTA_30,
     started_management,
     tmstmp,
     intentos
   FROM gestionfinal_inbound
   WHERE contact_id = ?
   LIMIT 1
+`;
+
+const INSERT_INBOUND_GESTION_IMAGEN = `
+  INSERT INTO gestionfinal_inbound_imagenes (
+    gestionfinal_inbound_id,
+    interaction_id,
+    contact_id,
+    cliente_inbound_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    nombre_cliente_ref,
+    uploaded_by,
+    etiqueta_personalizada,
+    original_filename,
+    stored_filename,
+    relative_path,
+    mime_type,
+    file_size
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 export class AgenteDAO {
@@ -1049,6 +1149,14 @@ export class AgenteDAO {
         return rows[0] || null;
     }
 
+    async countInboundGestionesByContactId(contactId, executor = this.pool) {
+        const [rows] = await executor.query(
+            COUNT_INBOUND_GESTIONES_BY_CONTACT_ID,
+            [contactId],
+        );
+        return Number(rows[0]?.total || 0);
+    }
+
     async insertInboundGestionFinal(params, executor = this.pool) {
         return executor.query(INSERT_INBOUND_GESTION_FINAL, params);
     }
@@ -1064,6 +1172,10 @@ export class AgenteDAO {
         return executor.query(INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL, [
             contactId,
         ]);
+    }
+
+    async insertInboundGestionImagen(params, executor = this.pool) {
+        return executor.query(INSERT_INBOUND_GESTION_IMAGEN, params);
     }
 }
 

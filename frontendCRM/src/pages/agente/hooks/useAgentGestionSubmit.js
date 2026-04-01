@@ -1,7 +1,8 @@
-import { useCallback } from "react";
+﻿import { useCallback } from "react";
 import {
     guardarGestion,
     guardarGestionInbound,
+    uploadInboundImages,
 } from "../../../services/dashboard.service";
 
 const INBOUND_SPECIAL_FIELDS_META = [
@@ -10,9 +11,6 @@ const INBOUND_SPECIAL_FIELDS_META = [
     { name: "__inbound_tipo_canal", label: "Tipo de canal" },
     { name: "__inbound_relacion", label: "Relacion" },
     { name: "__inbound_nombre_cliente", label: "Nombre Cliente" },
-    { name: "__inbound_categorizacion", label: "Categorizacion" },
-    { name: "__inbound_motivo", label: "Motivo de la interaccion" },
-    { name: "__inbound_submotivo", label: "Submotivo de la interaccion" },
 ];
 
 function normalizeLookupKey(value) {
@@ -80,6 +78,8 @@ export default function useAgentGestionSubmit({
     estadoAgente,
     fetchSiguienteRegistro,
     inboundChildOptions,
+    inboundInteractionDetails,
+    inboundImageDrafts,
 }) {
     return useCallback(
         async (event) => {
@@ -108,6 +108,33 @@ export default function useAgentGestionSubmit({
                             ),
                     );
 
+                    const normalizedInteractionDetails = (
+                        inboundInteractionDetails || []
+                    )
+                        .map((detail, index) => ({
+                            orden: index + 1,
+                            categorizacion: String(
+                                detail?.categorizacion || "",
+                            ).trim(),
+                            motivo: String(detail?.motivo || "").trim(),
+                            submotivo: String(detail?.submotivo || "").trim(),
+                            observaciones: String(
+                                detail?.observaciones || "",
+                            ).trim(),
+                        }))
+                        .filter(
+                            (detail) =>
+                                detail.categorizacion ||
+                                detail.motivo ||
+                                detail.submotivo ||
+                                detail.observaciones,
+                        );
+
+                    const latestInteractionDetail =
+                        normalizedInteractionDetails[
+                            normalizedInteractionDetails.length - 1
+                        ] || {};
+
                     const inboundFormData = {
                         ...dynamicFormAnswers,
                         tipoCliente:
@@ -127,16 +154,16 @@ export default function useAgentGestionSubmit({
                             dynamicFormAnswers?.__inbound_nombre_cliente ||
                             "",
                         categorizacion:
-                            dynamicFormAnswers?.__inbound_categorizacion || "",
-                        motivoInteraccion:
-                            dynamicFormAnswers?.__inbound_motivo || "",
+                            latestInteractionDetail.categorizacion || "",
+                        motivoInteraccion: latestInteractionDetail.motivo || "",
                         submotivoInteraccion:
-                            dynamicFormAnswers?.__inbound_submotivo || "",
+                            latestInteractionDetail.submotivo || "",
                         observaciones:
-                            dynamicFormAnswers?.observaciones ||
+                            latestInteractionDetail.observaciones ||
                             observacion ||
                             "",
                     };
+
                     const campaignIdToUse =
                         String(selectedInboundOption?.campaignId || "").trim() ||
                         campaignIdSeleccionada;
@@ -173,6 +200,12 @@ export default function useAgentGestionSubmit({
                         menuItemId: menuItemIdToUse,
                         formData: inboundFormData,
                         fieldsMeta,
+                        interactionDetails: normalizedInteractionDetails,
+                        surveyPayload: surveyAnswers || {},
+                        surveyFieldsMeta: surveyFieldsToRender.map((field) => ({
+                            key: String(field?.key || "").trim(),
+                            label: String(field?.label || "").trim(),
+                        })),
                     });
 
                     if (status === 403) {
@@ -187,6 +220,61 @@ export default function useAgentGestionSubmit({
                                 "No se pudo guardar la gestion inbound",
                         );
                         return;
+                    }
+
+                    const imagesToUpload = (inboundImageDrafts || []).filter(
+                        (item) => item?.file instanceof File,
+                    );
+
+                    if (imagesToUpload.length > 0) {
+                        const formData = new FormData();
+                        formData.append(
+                            "interactionId",
+                            String(json?.interactionId || "").trim(),
+                        );
+                        formData.append(
+                            "contactId",
+                            String(json?.contactId || "").trim(),
+                        );
+                        formData.append(
+                            "clienteInboundId",
+                            String(json?.clienteInboundId || "").trim(),
+                        );
+                        formData.append(
+                            "gestionInboundId",
+                            String(json?.gestionInboundId || "").trim(),
+                        );
+                        formData.append("campaignId", campaignIdToUse);
+                        formData.append(
+                            "categoryId",
+                            String(categoryIdSeleccionada || "").trim(),
+                        );
+                        formData.append(
+                            "menuItemId",
+                            String(menuItemIdToUse || "").trim(),
+                        );
+                        formData.append(
+                            "nombreClienteRef",
+                            String(
+                                inboundFormData?.nombreCliente ||
+                                    selectedInboundOption?.label ||
+                                    "",
+                            ).trim(),
+                        );
+                        for (const item of imagesToUpload) {
+                            formData.append("images", item.file);
+                        }
+
+                        const uploadResponse = await uploadInboundImages(formData);
+
+                        if (!uploadResponse.ok) {
+                            setError(
+                                uploadResponse?.json?.detail ||
+                                    uploadResponse?.json?.error ||
+                                    "La gestión se guardó, pero falló la carga de imágenes.",
+                            );
+                            return;
+                        }
                     }
 
                     if (typeof onChangeAgentPage === "function") {
@@ -212,8 +300,7 @@ export default function useAgentGestionSubmit({
                     estado_final: level2Seleccionado || level1Seleccionado,
                     level1: level1Seleccionado,
                     level2: level2Seleccionado,
-                    campaign_id:
-                        registro?.campaign_id || campaignIdSeleccionada,
+                    campaign_id: registro?.campaign_id || campaignIdSeleccionada,
                     interactionId: interactionIdActual || null,
                     telefono_ad: telefonoSeleccionado || null,
                     comentarios: observacion || null,
@@ -264,6 +351,8 @@ export default function useAgentGestionSubmit({
             fetchSiguienteRegistro,
             handle403,
             inboundChildOptions,
+            inboundImageDrafts,
+            inboundInteractionDetails,
             interactionIdActual,
             level1Seleccionado,
             level2Seleccionado,

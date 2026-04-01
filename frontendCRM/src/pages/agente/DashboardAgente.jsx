@@ -54,6 +54,8 @@ export default function DashboardAgente({
         menuItemIdSeleccionado,
         categoryIdSeleccionada,
         inboundChildOptions,
+        inboundInteractionDetails,
+        inboundImageDrafts,
         shouldShowQueueMessage,
         isHomeView,
         isGestionOutbound,
@@ -64,6 +66,12 @@ export default function DashboardAgente({
         handleContestaTerceroAutofill,
         handleSurveyFieldChange,
         handleDynamicFormFieldChange,
+        handleAddInboundInteractionDetail,
+        handleRemoveInboundInteractionDetail,
+        handleInboundInteractionDetailChange,
+        handleAddInboundImageDraft,
+        handleRemoveInboundImageDraft,
+        handleInboundImageDraftChange,
         handleGuardarGestion,
         handleCancelarGestion,
         selectBaseCard,
@@ -193,13 +201,22 @@ export default function DashboardAgente({
                         </div>
                     )}
 
-                    {error && <p className="agent-error">{error}</p>}
+                    {error &&
+                        !(
+                            manualFlowActivo &&
+                            String(error || "")
+                                .toLowerCase()
+                                .includes("formulario 2 activo")
+                        ) && (
+                        <p className="agent-error">{error}</p>
+                    )}
 
-                    {loadingRegistro && !isHomeView && !isGestionOutbound && (
+                    {loadingRegistro &&
+                        !manualFlowActivo &&
+                        !isHomeView &&
+                        !isGestionOutbound && (
                         <p className="agent-info-text">
-                            {manualFlowActivo
-                                ? "Cargando formulario..."
-                                : "Asignando registro..."}
+                            Asignando registro...
                         </p>
                     )}
 
@@ -252,6 +269,28 @@ export default function DashboardAgente({
                             dynamicSurveyConfig={dynamicSurveyConfig}
                             surveyFieldsToRender={surveyFieldsToRender}
                             surveyAnswers={surveyAnswers}
+                            inboundInteractionDetails={
+                                inboundInteractionDetails
+                            }
+                            inboundImageDrafts={inboundImageDrafts}
+                            onAddInboundInteractionDetail={
+                                handleAddInboundInteractionDetail
+                            }
+                            onRemoveInboundInteractionDetail={
+                                handleRemoveInboundInteractionDetail
+                            }
+                            onInboundInteractionDetailChange={
+                                handleInboundInteractionDetailChange
+                            }
+                            onAddInboundImageDraft={
+                                handleAddInboundImageDraft
+                            }
+                            onRemoveInboundImageDraft={
+                                handleRemoveInboundImageDraft
+                            }
+                            onInboundImageDraftChange={
+                                handleInboundImageDraftChange
+                            }
                             onSurveyFieldChange={handleSurveyFieldChange}
                             onDynamicFormFieldChange={
                                 handleDynamicFormFieldChange

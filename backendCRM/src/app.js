@@ -31,6 +31,11 @@ const recordingsPath =
 app.use("/grabaciones", express.static(recordingsPath));
 // Servir archivos PDF desde /uploads
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+const inboundImagesPath =
+    process.env.INBOUND_IMAGES_PATH ||
+    path.join(process.cwd(), "storage", "inbound-images");
+fs.mkdirSync(inboundImagesPath, { recursive: true });
+app.use("/inbound-images", express.static(inboundImagesPath));
 
 // Healthcheck
 app.get("/", (req, res) => {
