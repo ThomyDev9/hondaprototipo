@@ -483,6 +483,7 @@ function AgentGestionForm({
             editable={manualFlow}
             values={dynamicFormAnswers}
             onFieldChange={onDynamicFormFieldChange}
+            variant={isInboundManualFlow ? "inbound" : "standard"}
         />
     ) : null;
 
@@ -549,18 +550,6 @@ function AgentGestionForm({
                 </section>
             )}
 
-            {manualFlow && !showDynamicForm && (
-                <section className="agent-form-card agent-form-card--secondary">
-                    <div className="agent-form-header-row">
-                        <p className="agent-form-card__title">
-                            Formulario Inbound
-                        </p>
-                    </div>
-                    <p className="agent-info-text">
-                        No se encontró un Formulario 2 activo para esta opción.
-                    </p>
-                </section>
-            )}
         </div>
     );
 

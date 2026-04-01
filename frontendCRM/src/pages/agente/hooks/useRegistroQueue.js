@@ -365,6 +365,17 @@ export default function useRegistroQueue({
                 if (status === 404) {
                     setRegistro(null);
                     resetDynamicState();
+                    const normalizedError = String(json?.error || "").trim();
+                    if (
+                        normalizedError ===
+                        "No hay registros disponibles en la base activa"
+                    ) {
+                        setError("");
+                        if (typeof onChangeAgentPage === "function") {
+                            onChangeAgentPage("inicio");
+                        }
+                        return;
+                    }
                     if (
                         json?.error === "No hay base activa para esta campaÃƒÂ±a" &&
                         esGestionOutbound(campaignIdToUse)
@@ -416,6 +427,7 @@ export default function useRegistroQueue({
             handle403,
             loadTemplatesAndCatalogs,
             marcarActividad,
+            onChangeAgentPage,
             resetDynamicState,
             setError,
         ],

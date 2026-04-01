@@ -693,6 +693,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
     const renderGestionForm = (cancelHandler = onBack) => (
         <div className="outmaquita-rrss__tab-panel">
             <FormularioDinamico
+                variant="outbound"
                 template={dynamicTemplate}
                 initialValues={rrssDraft}
                 onChangeCampo={(name, value) =>
@@ -1077,6 +1078,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                             </div>
                                         ) : null}
                                         <FormularioDinamico
+                                            variant="outbound"
                                             formAutoComplete="off"
                                             template={RRSS_DRIVE_TEMPLATE}
                                             initialValues={rrssDriveDraft}

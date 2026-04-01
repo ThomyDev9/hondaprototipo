@@ -660,6 +660,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         </button>
                                     </div>
                                     <FormularioDinamico
+                                        variant="outbound"
                                         template={dynamicTemplate}
                                         initialValues={initialValues}
                                         quickActions={quickActions}
@@ -737,6 +738,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         </button>
                                     </div>
                                     <FormularioDinamico
+                                        variant="outbound"
                                         template={dynamicTemplate}
                                         initialValues={initialValues}
                                         quickActions={quickActions}

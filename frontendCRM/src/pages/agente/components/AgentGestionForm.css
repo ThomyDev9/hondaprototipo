@@ -281,10 +281,74 @@
     gap: 0.18rem;
 }
 
+.agent-dynamic-card--standard {
+    padding: 0.45rem 0.55rem;
+    border-radius: 0.6rem;
+    background: linear-gradient(180deg, #f8fbff 0%, #edf5ff 100%);
+    border-color: rgba(37, 99, 235, 0.18);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+        0 6px 14px rgba(37, 99, 235, 0.06);
+}
+
+.agent-dynamic-card--standard .agent-form-card__title {
+    margin-bottom: 0.22rem;
+    font-size: 0.66rem;
+    color: #1e3a8a;
+}
+
+.agent-dynamic-section--standard {
+    gap: 0.08rem;
+}
+
 .agent-dynamic-row {
     display: grid;
     grid-template-columns: repeat(2, minmax(160px, 1fr));
     gap: 0.15rem 0.22rem;
+}
+
+.agent-dynamic-row--standard {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.06rem 0.08rem;
+}
+
+.agent-dynamic-row--standard .agent-form-field--standard {
+    flex: 0 0 clamp(132px, var(--agent-standard-width, 180px), 100%);
+    width: clamp(132px, var(--agent-standard-width, 180px), 100%);
+    min-width: 132px;
+    padding: 0;
+    border-radius: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    gap: 0.03rem;
+}
+
+.agent-dynamic-row--standard .agent-dynamic-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #24446b;
+    line-height: 1.05;
+}
+
+.agent-dynamic-row--standard .agent-input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 132px;
+    min-height: 28px;
+    padding: 0.18rem 0.3rem;
+    border-radius: 0.3rem;
+    font-size: 0.74rem;
+    display: block;
+    box-sizing: border-box;
+}
+
+.agent-dynamic-row--standard .agent-auto-textarea {
+    min-height: 36px;
+    min-width: 220px;
 }
 
 .agent-dynamic-row .agent-form-field {
