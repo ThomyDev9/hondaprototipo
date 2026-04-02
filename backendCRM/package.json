@@ -12,9 +12,12 @@
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.19.0",
+    "imapflow": "^1.2.18",
     "jsonwebtoken": "^9.0.3",
+    "mailcomposer": "^4.0.2",
     "multer": "^2.0.2",
     "mysql2": "^3.17.1",
+    "nodemailer": "^8.0.4",
     "ssh2-sftp-client": "^12.1.0",
     "uuid": "^13.0.0",
     "xlsx": "^0.18.5"

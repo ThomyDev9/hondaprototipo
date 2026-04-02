@@ -164,6 +164,12 @@ export const uploadInboundImages = (formData) =>
         body: formData,
     });
 
+export const sendInboundEmail = (formData) =>
+    request("agente/send-inbound-email", {
+        method: "POST",
+        body: formData,
+    });
+
 export const guardarGestionOutbound = (payload) =>
     request("agente/guardar-gestion-outbound", {
         method: "POST",

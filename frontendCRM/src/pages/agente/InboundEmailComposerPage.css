@@ -1,0 +1,202 @@
+.inbound-email-page {
+    min-height: 100vh;
+    padding: 24px;
+    background:
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.14), transparent 24%),
+        linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+    color: #0f172a;
+    box-sizing: border-box;
+}
+
+.inbound-email-page__shell {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.inbound-email-page__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.inbound-email-page__eyebrow {
+    margin: 0 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 0.72rem;
+    color: #1d4ed8;
+    font-weight: 700;
+}
+
+.inbound-email-page__title {
+    margin: 0;
+    font-size: clamp(1.8rem, 2vw, 2.5rem);
+}
+
+.inbound-email-page__actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.inbound-email-page__status {
+    padding: 12px 16px;
+    border-radius: 14px;
+    border: 1px solid;
+    font-weight: 600;
+}
+
+.inbound-email-page__status--success {
+    background: rgba(220, 252, 231, 0.9);
+    color: #166534;
+    border-color: rgba(34, 197, 94, 0.28);
+}
+
+.inbound-email-page__status--error {
+    background: rgba(254, 226, 226, 0.9);
+    color: #991b1b;
+    border-color: rgba(239, 68, 68, 0.28);
+}
+
+.inbound-email-page__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+    gap: 20px;
+}
+
+.inbound-email-page__panel,
+.inbound-email-page__preview,
+.inbound-email-page__empty {
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(37, 99, 235, 0.18);
+    border-radius: 20px;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(10px);
+}
+
+.inbound-email-page__panel {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.inbound-email-page__empty {
+    max-width: 720px;
+    margin: 64px auto;
+    padding: 28px;
+}
+
+.inbound-email-page__field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.inbound-email-page__field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.inbound-email-page__field span {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #1e3a8a;
+}
+
+.inbound-email-page__field input,
+.inbound-email-page__field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(148, 163, 184, 0.65);
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: #fff;
+    font: inherit;
+    color: #0f172a;
+    resize: vertical;
+}
+
+.inbound-email-page__hint {
+    color: #475569;
+    font-size: 0.8rem;
+}
+
+.inbound-email-page__attachments {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.inbound-email-page__attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1e3a8a;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.inbound-email-page__field input:focus,
+.inbound-email-page__field textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+.inbound-email-page__preview {
+    padding: 20px;
+}
+
+.inbound-email-card {
+    min-height: 100%;
+    border-radius: 18px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    overflow: hidden;
+}
+
+.inbound-email-card__meta {
+    padding: 18px 20px;
+    background: linear-gradient(180deg, #dbeafe 0%, #eff6ff 100%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.inbound-email-card__meta p,
+.inbound-email-card__content p {
+    margin: 0 0 10px;
+    line-height: 1.5;
+}
+
+.inbound-email-card__meta p:last-child,
+.inbound-email-card__content p:last-child {
+    margin-bottom: 0;
+}
+
+.inbound-email-card__content {
+    padding: 22px 20px;
+}
+
+@media (max-width: 920px) {
+    .inbound-email-page__layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .inbound-email-page {
+        padding: 14px;
+    }
+
+    .inbound-email-page__field-grid {
+        grid-template-columns: 1fr;
+    }
+}

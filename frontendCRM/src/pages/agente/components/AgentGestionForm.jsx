@@ -15,6 +15,7 @@ import {
 } from "./agentGestionForm.helpers";
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+const INBOUND_FROM_EMAIL = "ejecutivos@kimobill.com";
 
 const INBOUND_FIXED_FIELDS_PRIMARY_ROW = [
     {
@@ -58,6 +59,69 @@ function buildUniqueOptions(values = []) {
         value: item,
         label: item,
     }));
+}
+
+function buildInboundEmailDraft(dynamicFormAnswers = {}, user = {}) {
+    const clientName = String(
+        dynamicFormAnswers?.NOMBRE_CLIENTE ||
+            dynamicFormAnswers?.nombreCliente ||
+            dynamicFormAnswers?.__inbound_nombre_cliente_label ||
+            "",
+    ).trim();
+    const destinationEmail = String(
+        dynamicFormAnswers?.CAMPO2 ||
+            dynamicFormAnswers?.email ||
+            dynamicFormAnswers?.correo ||
+            "",
+    ).trim();
+    const city = String(dynamicFormAnswers?.CAMPO1 || "").trim();
+    const phone = String(dynamicFormAnswers?.CAMPO3 || "").trim();
+    const conventional = String(dynamicFormAnswers?.CAMPO4 || "").trim();
+    const ticketId = String(
+        dynamicFormAnswers?.CAMPO5 ||
+            dynamicFormAnswers?.ticketId ||
+            dynamicFormAnswers?.idLlamada ||
+            "",
+    ).trim();
+    const identification = String(
+        dynamicFormAnswers?.IDENTIFICACION || "",
+    ).trim();
+    const advisorName = String(
+        user?.full_name || user?.name || user?.username || "",
+    ).trim();
+
+    const detailLines = [
+        clientName ? `Cliente: ${clientName}` : "",
+        identification ? `Identificacion: ${identification}` : "",
+        phone ? `Celular: ${phone}` : "",
+        conventional ? `Convencional: ${conventional}` : "",
+        city ? `Ciudad: ${city}` : "",
+        ticketId ? `Ticket / Id llamada: ${ticketId}` : "",
+    ].filter(Boolean);
+
+    return {
+        from: INBOUND_FROM_EMAIL,
+        to: destinationEmail,
+        subject: clientName
+            ? `Seguimiento de solicitud inbound - ${clientName}`
+            : "Seguimiento de solicitud inbound",
+        header: clientName
+            ? `Estimado/a ${clientName},`
+            : "Estimado/a cliente,",
+        body: [
+            "Reciba un cordial saludo.",
+            "",
+            "Le contactamos para dar seguimiento a su solicitud registrada en nuestro canal inbound.",
+            ...(detailLines.length > 0 ? ["", ...detailLines] : []),
+            "",
+            "Quedamos atentos a su confirmacion o cualquier informacion adicional que desee compartir.",
+        ].join("\n"),
+        footer: [
+            "Saludos cordiales,",
+            advisorName || "Equipo Kimobill",
+            INBOUND_FROM_EMAIL,
+        ].join("\n"),
+    };
 }
 
 function InboundInteractionDetailsSection({
@@ -354,6 +418,29 @@ function AgentGestionForm({
         manualFlow &&
         String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
 
+    const handleOpenInboundEmailComposer = () => {
+        const draft = buildInboundEmailDraft(dynamicFormAnswers, user);
+        const draftId =
+            globalThis.crypto?.randomUUID?.() || String(Date.now());
+
+        try {
+            localStorage.setItem(
+                `inbound-email-draft:${draftId}`,
+                JSON.stringify(draft),
+            );
+        } catch (error) {
+            console.error(
+                "No se pudo guardar el borrador de correo inbound:",
+                error,
+            );
+        }
+
+        const url = new URL(window.location.href);
+        url.searchParams.set("standalone", "inbound-email");
+        url.searchParams.set("draftId", draftId);
+        window.open(url.toString(), "_blank", "noopener,noreferrer");
+    };
+
     useEffect(() => {
         if (firstRender.current) {
             firstRender.current = false;
@@ -619,6 +706,16 @@ function AgentGestionForm({
             </div>
 
             <div className="agent-form-actions">
+                {isInboundManualFlow && (
+                    <Button
+                        variant="secondary"
+                        type="button"
+                        className="agent-email-button"
+                        onClick={handleOpenInboundEmailComposer}
+                    >
+                        Enviar correo
+                    </Button>
+                )}
                 <Button variant="primary" type="submit">
                     Guardar gestion
                 </Button>

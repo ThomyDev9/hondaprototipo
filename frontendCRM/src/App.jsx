@@ -5,6 +5,7 @@ import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
 import GrabacionesOutboundPage from "./pages/supervisor/GrabacionesOutboundPage";
 import GrabacionesInboundPage from "./pages/supervisor/GrabacionesInboundPage";
 import DashboardAgente from "./pages/agente/DashboardAgente";
+import InboundEmailComposerPage from "./pages/agente/InboundEmailComposerPage";
 import AdministrarBases from "./pages/admin/AdministrarBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
@@ -22,6 +23,11 @@ import {
 const API_BASE = import.meta.env.VITE_API_BASE;
 
 function App() {
+    const standaloneMode =
+        typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("standalone")
+            : "";
+
     //const [username, setUsername] = useState("Akimobill1");
     //const [password, setPassword] = useState("lGpQEm194");
     const [username, setUsername] = useState("");
@@ -29,6 +35,10 @@ function App() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const { userInfo, setUserInfo } = useContext(AuthContext);
+
+    if (standaloneMode === "inbound-email") {
+        return <InboundEmailComposerPage />;
+    }
 
     // 'administrar-bases' | 'campanias' | 'management-levels' | 'users' | 'settings' | 'scripts'
     const [adminPage, setAdminPage] = useState("administrar-bases");

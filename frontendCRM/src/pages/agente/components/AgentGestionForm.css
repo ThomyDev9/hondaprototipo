@@ -602,6 +602,16 @@
     flex-wrap: wrap;
 }
 
+.agent-email-button {
+    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%);
+    border-color: #134e4a;
+    box-shadow: 0 8px 18px rgba(15, 118, 110, 0.24);
+}
+
+.agent-email-button:hover:not(:disabled) {
+    background: linear-gradient(180deg, #115e59 0%, #134e4a 100%);
+}
+
 .agent-primary-button {
     background: #2563eb;
     border-radius: 999px;

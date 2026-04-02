@@ -4,6 +4,12 @@ import fs from "node:fs";
 import path from "node:path";
 import multer from "multer";
 import { callCenterPool } from "../../services/db.multi.js";
+import {
+    appendInboundEmailToSent,
+    getInboundEmailLimits,
+    getInboundMailFromAddress,
+    sendInboundEmail,
+} from "../../services/inboundMail.service.js";
 
 const inboundImagesBasePath =
     process.env.INBOUND_IMAGES_PATH ||
@@ -82,6 +88,41 @@ const inboundImageUpload = multer({
     limits: {
         fileSize: 3 * 1024 * 1024,
         files: 10,
+    },
+});
+
+const inboundEmailLimits = getInboundEmailLimits();
+const inboundEmailAllowedMimeTypes = new Set([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "text/plain",
+]);
+
+const inboundEmailUpload = multer({
+    storage: multer.memoryStorage(),
+    fileFilter: (_req, file, cb) => {
+        const mimeType = String(file.mimetype || "").toLowerCase();
+        if (inboundEmailAllowedMimeTypes.has(mimeType)) {
+            cb(null, true);
+            return;
+        }
+
+        cb(
+            new Error(
+                "Adjunto no permitido. Usa PDF, Word, Excel, TXT o imagen",
+            ),
+        );
+    },
+    limits: {
+        fileSize: inboundEmailLimits.maxFileSizeBytes,
+        files: inboundEmailLimits.maxFiles,
     },
 });
 
@@ -211,6 +252,14 @@ function buildQuestionAnswerPayload(sections = []) {
     });
 
     return { preguntas, respuestas };
+}
+
+function buildInboundEmailAttachments(files = []) {
+    return files.map((file) => ({
+        filename: String(file.originalname || "adjunto").trim(),
+        content: file.buffer,
+        contentType: String(file.mimetype || "").trim(),
+    }));
 }
 
 export function registerInboundRoutes(
@@ -423,6 +472,122 @@ export function registerInboundRoutes(
                 console.error("Error en /agente/upload-inbound-images:", err);
                 return res.status(500).json({
                     error: "Error subiendo imágenes inbound",
+                    detail: err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.post(
+        "/send-inbound-email",
+        ...agenteMiddlewares,
+        (req, res, next) => {
+            inboundEmailUpload.array("attachments", inboundEmailLimits.maxFiles)(
+                req,
+                res,
+                (error) => {
+                    if (!error) {
+                        next();
+                        return;
+                    }
+
+                    if (error instanceof multer.MulterError) {
+                        return res.status(400).json({
+                            error:
+                                error.code === "LIMIT_FILE_SIZE"
+                                    ? `Cada adjunto puede pesar maximo ${Math.round(
+                                          inboundEmailLimits.maxFileSizeBytes /
+                                              (1024 * 1024),
+                                      )} MB`
+                                    : "No se pudieron procesar los adjuntos",
+                        });
+                    }
+
+                    return res.status(400).json({
+                        error: error.message || "Adjunto invalido",
+                    });
+                },
+            );
+        },
+        async (req, res) => {
+            try {
+                const to = String(req.body?.to || "").trim();
+                const subject = String(req.body?.subject || "").trim();
+                const header = String(req.body?.header || "").trim();
+                const body = String(req.body?.body || "").trim();
+                const footer = String(req.body?.footer || "").trim();
+                const files = Array.isArray(req.files) ? req.files : [];
+
+                if (!to || !subject || !body) {
+                    return res.status(400).json({
+                        error: "to, subject y body son requeridos",
+                    });
+                }
+
+                const totalSize = files.reduce(
+                    (sum, file) => sum + Number(file?.size || 0),
+                    0,
+                );
+
+                if (totalSize > inboundEmailLimits.maxTotalSizeBytes) {
+                    return res.status(400).json({
+                        error: `El peso total de adjuntos no puede superar ${Math.round(
+                            inboundEmailLimits.maxTotalSizeBytes /
+                                (1024 * 1024),
+                        )} MB`,
+                    });
+                }
+
+                const sendResult = await sendInboundEmail({
+                    to,
+                    subject,
+                    header,
+                    body,
+                    footer,
+                    attachments: buildInboundEmailAttachments(files),
+                });
+
+                let sentMailbox = "";
+                let savedToSent = false;
+                let saveToSentError = "";
+
+                try {
+                    const appendResult = await appendInboundEmailToSent({
+                        to,
+                        subject,
+                        header,
+                        body,
+                        footer,
+                        attachments: buildInboundEmailAttachments(files),
+                        date: new Date(),
+                        messageId: String(sendResult?.messageId || "").trim(),
+                    });
+                    savedToSent = Boolean(appendResult?.success);
+                    sentMailbox = String(appendResult?.mailbox || "").trim();
+                } catch (appendError) {
+                    saveToSentError = String(
+                        appendError?.message || "",
+                    ).trim();
+                    console.warn(
+                        "No se pudo guardar copia del correo en Sent:",
+                        appendError,
+                    );
+                }
+
+                return res.json({
+                    success: true,
+                    from: getInboundMailFromAddress(),
+                    to,
+                    messageId: String(sendResult?.messageId || "").trim(),
+                    attachmentsSent: files.length,
+                    savedToSent,
+                    sentMailbox,
+                    saveToSentError,
+                });
+            } catch (err) {
+                console.error("Error en /agente/send-inbound-email:", err);
+                return res.status(500).json({
+                    error: "No se pudo enviar el correo inbound",
                     detail: err?.message || "",
                 });
             }
