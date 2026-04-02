@@ -6,7 +6,10 @@ import {
     ensureImportStatsTable,
     recomputeImportStats,
 } from "../../services/bases.service.js";
-import { linkManagementToRecording } from "../../services/recording-link.service.js";
+import {
+    linkManagementToKnownRecording,
+    linkManagementToRecording,
+} from "../../services/recording-link.service.js";
 import {
     appendOutMaquitaRrssDriveData,
     isOutMaquitaCampaign,
@@ -29,15 +32,6 @@ const outboundSchema =
     process.env.MYSQL_DB_ENCUESTA ||
     "cck_dev_pruebas";
 const agenteDAO = new AgenteDAO(pool);
-
-// Estados operativos válidos del agente
-const ESTADOS_OPERATIVOS = new Set([
-    "disponible",
-    "baño",
-    "consulta",
-    "lunch",
-    "reunion",
-]);
 
 /**
  * Middleware: verifica que el agente NO esté bloqueado
@@ -227,7 +221,6 @@ registerQueueRoutes(router, {
     ensureImportStatsTable,
     recomputeStatsByContactId,
     getAgentActor,
-    ESTADOS_OPERATIVOS,
     requireAuth,
 });
 
@@ -274,6 +267,7 @@ registerInboundRoutes(router, {
     buildOutboundQuestionPayload,
     saveDynamicResponseIfTemplateActive,
     linkManagementToRecording,
+    linkManagementToKnownRecording,
 });
 
 export default router;

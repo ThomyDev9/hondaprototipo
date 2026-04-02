@@ -407,10 +407,10 @@ function AgentGestionForm({
             INBOUND_FIXED_FIELDS_PRIMARY_ROW,
             [
                 {
-                    key: "__inbound_nombre_cliente",
+                    key: "__inbound_nombre_cliente_label",
                     label: "Nombre Cliente",
-                    type: "select",
-                    options: inboundChildOptions || [],
+                    type: "text",
+                    readOnly: true,
                 },
                 ...INBOUND_FIXED_FIELDS_SECONDARY_ROW,
             ],
@@ -529,7 +529,7 @@ function AgentGestionForm({
 
             {isInboundManualFlow && (
                 <section className="agent-form-card agent-form-card--secondary agent-inbound-shell">
-                    <div className="agent-inbound-shell__content">
+                        <div className="agent-inbound-shell__content">
                         <div className="agent-inbound-shell__column">
                             {inboundPrimaryContent}
                             <InboundImagesSection

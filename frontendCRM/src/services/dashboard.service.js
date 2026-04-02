@@ -75,11 +75,56 @@ export const fetchFormTemplates = ({ campaignId }) =>
         `agente/form-templates?campaignId=${encodeURIComponent(campaignId)}`,
     );
 
-export const changeAgentStatus = ({ estado, registroId }) =>
+export const changeAgentStatus = ({
+    estado,
+    registroId,
+    tabSessionId = "",
+    agentNumber = "",
+}) =>
     request("agente/estado", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado, registro_id: registroId }),
+        body: JSON.stringify({
+            estado,
+            registro_id: registroId,
+            tabSessionId,
+            agentNumber,
+        }),
+    });
+
+export const fetchAgentStatusOptions = () =>
+    request("agente/estados-agente");
+
+export const fetchAgentSessionContext = (sessionId) =>
+    request(
+        `agente/session-context?sessionId=${encodeURIComponent(
+            String(sessionId || "").trim(),
+        )}`,
+    );
+
+export const startAgentSession = ({ sessionId, agentNumber = "" }) =>
+    request("agente/session-start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, agentNumber }),
+    });
+
+export const endAgentSession = ({ sessionId, agentNumber = "" }) =>
+    request("agente/session-end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, agentNumber }),
+    });
+
+export const upsertAgentSessionContext = ({
+    sessionId,
+    estado = "",
+    agentNumber = "",
+}) =>
+    request("agente/session-context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, estado, agentNumber }),
     });
 
 export const guardarGestion = (payload) =>
@@ -104,6 +149,13 @@ export const fetchInboundClientByIdentification = ({
         `agente/buscar-cliente-inbound?identification=${encodeURIComponent(
             identification,
         )}&campaignId=${encodeURIComponent(campaignId)}`,
+    );
+
+export const fetchInboundCurrentCall = ({ agentNumber }) =>
+    request(
+        `agente/inbound-current-call?agentNumber=${encodeURIComponent(
+            String(agentNumber || "").trim(),
+        )}`,
     );
 
 export const uploadInboundImages = (formData) =>

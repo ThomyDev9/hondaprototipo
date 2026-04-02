@@ -7,10 +7,307 @@ export function registerQueueRoutes(
         ensureImportStatsTable,
         recomputeStatsByContactId,
         getAgentActor,
-        ESTADOS_OPERATIVOS,
         requireAuth,
     },
 ) {
+    const normalizeAgentStatusOptions = (rows = []) =>
+        (Array.isArray(rows) ? rows : [])
+            .map((row) => {
+                const entries = Object.entries(row || {});
+                const readValue = (...keys) => {
+                    for (const key of keys) {
+                        const match = entries.find(
+                            ([entryKey, entryValue]) =>
+                                String(entryKey || "")
+                                    .trim()
+                                    .toLowerCase() ===
+                                    String(key || "")
+                                        .trim()
+                                        .toLowerCase() &&
+                                entryValue !== undefined &&
+                                entryValue !== null &&
+                                String(entryValue).trim() !== "",
+                        );
+                        if (match) {
+                            return String(match[1]).trim();
+                        }
+                    }
+                    return "";
+                };
+
+                const fallbackValues = entries
+                    .map(([, entryValue]) => String(entryValue || "").trim())
+                    .filter(Boolean);
+
+                const value =
+                    readValue("State", "Estado", "Code", "Codigo", "Id") ||
+                    fallbackValues[0] ||
+                    "";
+                const label =
+                    readValue(
+                        "Description",
+                        "Descripcion",
+                        "Label",
+                        "Nombre",
+                    ) ||
+                    fallbackValues[1] ||
+                    value;
+
+                return { value, label };
+            })
+            .filter((item) => item.value);
+
+    const resolveSessionStatus = async (requestedEstado = "") => {
+        const normalizedRequestedEstado = String(requestedEstado || "").trim();
+        const statusOptions = normalizeAgentStatusOptions(
+            await agenteDAO.getAgentStatusCatalog(),
+        );
+        const allowedStatusValues = new Set(
+            statusOptions.map((item) => item.value),
+        );
+
+        if (normalizedRequestedEstado) {
+            return {
+                estado: normalizedRequestedEstado,
+                allowedStatusValues,
+                isValid: allowedStatusValues.has(normalizedRequestedEstado),
+            };
+        }
+
+        return {
+            estado:
+                String(statusOptions[0]?.value || "").trim() || "Disponible",
+            allowedStatusValues,
+            isValid: true,
+        };
+    };
+
+    const syncAgentSessionState = async ({
+        sessionId,
+        agent,
+        agentNumber = "",
+        estado,
+        loginAt = null,
+        logoutAt = null,
+    }) => {
+        const normalizedSessionId = String(sessionId || "").trim();
+        const normalizedEstado = String(estado || "").trim();
+
+        if (!normalizedSessionId || !normalizedEstado) {
+            return null;
+        }
+
+        const changedAt = new Date();
+        const existingSession =
+            await agenteDAO.getAgentSessionById(normalizedSessionId);
+        const openStateLog =
+            await agenteDAO.getOpenAgentSessionStateLog(normalizedSessionId);
+        const sameEstado =
+            String(existingSession?.Estado || "").trim() === normalizedEstado;
+
+        if (openStateLog && !sameEstado) {
+            await agenteDAO.closeAgentSessionStateLog({
+                id: openStateLog.id,
+                estadoFin: changedAt,
+            });
+        }
+
+        await agenteDAO.upsertAgentSessionContext({
+            sessionId: normalizedSessionId,
+            agent,
+            agentNumber,
+            estado: normalizedEstado,
+            estadoInicio: sameEstado
+                ? existingSession?.EstadoInicio || changedAt
+                : changedAt,
+            estadoFin: sameEstado ? existingSession?.EstadoFin || null : null,
+            loginAt: loginAt || existingSession?.LoginAt || null,
+            logoutAt,
+            tmstmp: changedAt,
+        });
+
+        if (!openStateLog || !sameEstado) {
+            await agenteDAO.insertAgentSessionStateLog({
+                sessionId: normalizedSessionId,
+                agent,
+                agentNumber,
+                estado: normalizedEstado,
+                estadoInicio: changedAt,
+            });
+        }
+
+        return agenteDAO.getAgentSessionById(normalizedSessionId);
+    };
+
+    router.get("/estados-agente", ...agenteMiddlewares, async (_req, res) => {
+        try {
+            const rows = await agenteDAO.getAgentStatusCatalog();
+            return res.json({ data: normalizeAgentStatusOptions(rows) });
+        } catch (err) {
+            console.error("Error en /agente/estados-agente:", err);
+            return res.status(500).json({
+                error: "Error cargando estados del agente",
+            });
+        }
+    });
+
+    router.get("/session-context", ...agenteMiddlewares, async (req, res) => {
+        try {
+            const sessionId = String(req.query?.sessionId || "").trim();
+
+            if (!sessionId) {
+                return res.status(400).json({ error: "SessionId requerido" });
+            }
+
+            const sessionRow = await agenteDAO.getAgentSessionById(sessionId);
+            return res.json({ data: sessionRow || null });
+        } catch (err) {
+            console.error("Error en /agente/session-context:", err);
+            return res.status(500).json({
+                error: "Error consultando contexto de sesion",
+            });
+        }
+    });
+
+    router.post("/session-start", ...agenteMiddlewares, async (req, res) => {
+        try {
+            const sessionId = String(req.body?.sessionId || "").trim();
+            const agentNumber = String(req.body?.agentNumber || "").trim();
+            const agenteActor = getAgentActor(req);
+
+            if (!sessionId) {
+                return res.status(400).json({ error: "SessionId requerido" });
+            }
+
+            const existingSession =
+                await agenteDAO.getAgentSessionById(sessionId);
+
+            if (existingSession && !existingSession.LogoutAt) {
+                return res.json({ data: existingSession });
+            }
+
+            const startedAt = new Date();
+            await agenteDAO.upsertAgentSessionContext({
+                sessionId,
+                agent: agenteActor,
+                agentNumber,
+                estado: "Login",
+                estadoInicio: startedAt,
+                estadoFin: null,
+                loginAt: startedAt,
+                logoutAt: null,
+                tmstmp: startedAt,
+            });
+
+            await agenteDAO.insertAgentSessionStateLog({
+                sessionId,
+                agent: agenteActor,
+                agentNumber,
+                estado: "Login",
+                estadoInicio: startedAt,
+            });
+
+            const sessionRow = await agenteDAO.getAgentSessionById(sessionId);
+            return res.json({ data: sessionRow || null });
+        } catch (err) {
+            console.error("Error en /agente/session-start:", err);
+            return res.status(500).json({
+                error: "Error iniciando sesion del agente",
+            });
+        }
+    });
+
+    router.post("/session-end", ...agenteMiddlewares, async (req, res) => {
+        try {
+            const sessionId = String(req.body?.sessionId || "").trim();
+            const agentNumber = String(req.body?.agentNumber || "").trim();
+            const agenteActor = getAgentActor(req);
+
+            if (!sessionId) {
+                return res.status(400).json({ error: "SessionId requerido" });
+            }
+
+            const existingSession =
+                await agenteDAO.getAgentSessionById(sessionId);
+
+            if (!existingSession) {
+                return res.json({ data: null });
+            }
+
+            const endedAt = new Date();
+            const openStateLog =
+                await agenteDAO.getOpenAgentSessionStateLog(sessionId);
+
+            if (openStateLog) {
+                await agenteDAO.closeAgentSessionStateLog({
+                    id: openStateLog.id,
+                    estadoFin: endedAt,
+                });
+            }
+
+            await agenteDAO.upsertAgentSessionContext({
+                sessionId,
+                agent: agenteActor,
+                agentNumber,
+                estado: String(existingSession.Estado || "Logout").trim(),
+                estadoInicio: existingSession.EstadoInicio || existingSession.LoginAt || endedAt,
+                estadoFin: endedAt,
+                loginAt: existingSession.LoginAt || endedAt,
+                logoutAt: endedAt,
+                tmstmp: endedAt,
+            });
+
+            const sessionRow = await agenteDAO.getAgentSessionById(sessionId);
+            return res.json({ data: sessionRow || null });
+        } catch (err) {
+            console.error("Error en /agente/session-end:", err);
+            return res.status(500).json({
+                error: "Error cerrando sesion del agente",
+            });
+        }
+    });
+
+    router.post("/session-context", ...agenteMiddlewares, async (req, res) => {
+        try {
+            const sessionId = String(req.body?.sessionId || "").trim();
+            const agentNumber = String(req.body?.agentNumber || "").trim();
+            const agenteActor = getAgentActor(req);
+
+            if (!sessionId) {
+                return res.status(400).json({ error: "SessionId requerido" });
+            }
+
+            const existingSession =
+                await agenteDAO.getAgentSessionById(sessionId);
+            const {
+                estado: resolvedEstado,
+                allowedStatusValues,
+                isValid,
+            } = await resolveSessionStatus(
+                req.body?.estado || existingSession?.Estado || "",
+            );
+
+            if (!isValid || !allowedStatusValues.has(resolvedEstado)) {
+                return res
+                    .status(400)
+                    .json({ error: "Estado de agente no valido" });
+            }
+
+            const sessionRow = await syncAgentSessionState({
+                sessionId,
+                agent: String(existingSession?.Agent || agenteActor).trim(),
+                agentNumber,
+                estado: resolvedEstado,
+            });
+            return res.json({ data: sessionRow || null });
+        } catch (err) {
+            console.error("Error en /agente/session-context POST:", err);
+            return res.status(500).json({
+                error: "Error guardando contexto de sesion",
+            });
+        }
+    });
+
     router.post("/siguiente", ...agenteMiddlewares, async (req, res) => {
         try {
             const agenteActor = getAgentActor(req);
@@ -161,17 +458,22 @@ export function registerQueueRoutes(
     router.post("/estado", ...agenteMiddlewares, async (req, res) => {
         try {
             const { estado, registro_id } = req.body;
+            const tabSessionId = String(req.body?.tabSessionId || "").trim();
+            const agentNumber = String(req.body?.agentNumber || "").trim();
             const agenteActor = getAgentActor(req);
+            const {
+                estado: resolvedEstado,
+                allowedStatusValues: estadosOperativos,
+                isValid,
+            } = await resolveSessionStatus(estado);
 
-            if (!estado || !ESTADOS_OPERATIVOS.has(estado)) {
+            if (!resolvedEstado || !isValid || !estadosOperativos.has(resolvedEstado)) {
                 return res
                     .status(400)
                     .json({ error: "Estado de agente no valido" });
             }
 
-            const esPausa = ["baño", "consulta", "lunch", "reunion"].includes(
-                estado,
-            );
+            const esPausa = resolvedEstado !== "Disponible";
 
             if (esPausa && registro_id) {
                 const [releaseResult] = await pool.query(
@@ -189,7 +491,16 @@ export function registerQueueRoutes(
                 }
             }
 
-            return res.json({ estado });
+            if (tabSessionId) {
+                await syncAgentSessionState({
+                    sessionId: tabSessionId,
+                    agent: agenteActor,
+                    agentNumber,
+                    estado: resolvedEstado,
+                });
+            }
+
+            return res.json({ estado: resolvedEstado });
         } catch (err) {
             console.error("Error en /agente/estado:", err);
             return res

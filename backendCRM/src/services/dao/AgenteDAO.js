@@ -223,6 +223,75 @@ const GET_PHONE_STATUS_CATALOG = `
     ORDER BY Id ASC
 `;
 
+const GET_AGENT_STATUS_CATALOG = `
+    SELECT *
+    FROM userstates
+`;
+
+const GET_AGENT_SESSION_BY_ID = `
+    SELECT SessionId, Agent, AgentNumber, Estado, EstadoInicio, EstadoFin, LoginAt, LogoutAt, TmStmp
+    FROM session
+    WHERE SessionId = ?
+    LIMIT 1
+`;
+
+const UPSERT_AGENT_SESSION_CONTEXT = `
+    INSERT INTO session (
+        SessionId,
+        Agent,
+        AgentNumber,
+        Estado,
+        EstadoInicio,
+        EstadoFin,
+        LoginAt,
+        LogoutAt,
+        TmStmp
+    )
+    VALUES (?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+        Agent = VALUES(Agent),
+        AgentNumber = CASE
+            WHEN VALUES(AgentNumber) IS NULL THEN AgentNumber
+            ELSE VALUES(AgentNumber)
+        END,
+        Estado = VALUES(Estado),
+        EstadoInicio = VALUES(EstadoInicio),
+        EstadoFin = VALUES(EstadoFin),
+        LoginAt = VALUES(LoginAt),
+        LogoutAt = VALUES(LogoutAt),
+        TmStmp = VALUES(TmStmp)
+`;
+
+const GET_OPEN_AGENT_SESSION_STATE_LOG = `
+    SELECT id, SessionId, Agent, AgentNumber, Estado, EstadoInicio, EstadoFin
+    FROM session_estado_log
+    WHERE SessionId = ?
+      AND EstadoFin IS NULL
+    ORDER BY EstadoInicio DESC, id DESC
+    LIMIT 1
+`;
+
+const INSERT_AGENT_SESSION_STATE_LOG = `
+    INSERT INTO session_estado_log (
+        SessionId,
+        Agent,
+        AgentNumber,
+        Estado,
+        EstadoInicio,
+        EstadoFin,
+        CreatedAt,
+        UpdatedAt
+    )
+    VALUES (?, ?, NULLIF(?, ''), ?, ?, NULL, NOW(), NOW())
+`;
+
+const CLOSE_AGENT_SESSION_STATE_LOG = `
+    UPDATE session_estado_log
+    SET EstadoFin = ?,
+        UpdatedAt = NOW()
+    WHERE id = ?
+`;
+
 const GET_OTHER_ADVISORS = `
     SELECT Id
     FROM user
@@ -914,6 +983,70 @@ export class AgenteDAO {
     async getPhoneStatusCatalog(executor = this.pool) {
         const [rows] = await executor.query(GET_PHONE_STATUS_CATALOG);
         return rows;
+    }
+
+    async getAgentStatusCatalog(executor = this.pool) {
+        const [rows] = await executor.query(GET_AGENT_STATUS_CATALOG);
+        return rows;
+    }
+
+    async getAgentSessionById(sessionId, executor = this.pool) {
+        const [rows] = await executor.query(GET_AGENT_SESSION_BY_ID, [sessionId]);
+        return rows[0] || null;
+    }
+
+    async upsertAgentSessionContext(
+        {
+            sessionId,
+            agent,
+            agentNumber = "",
+            estado,
+            estadoInicio,
+            estadoFin = null,
+            loginAt = null,
+            logoutAt = null,
+            tmstmp,
+        },
+        executor = this.pool,
+    ) {
+        return executor.query(UPSERT_AGENT_SESSION_CONTEXT, [
+            sessionId,
+            agent,
+            agentNumber,
+            estado,
+            estadoInicio,
+            estadoFin,
+            loginAt,
+            logoutAt,
+            tmstmp,
+        ]);
+    }
+
+    async getOpenAgentSessionStateLog(sessionId, executor = this.pool) {
+        const [rows] = await executor.query(GET_OPEN_AGENT_SESSION_STATE_LOG, [
+            sessionId,
+        ]);
+        return rows[0] || null;
+    }
+
+    async insertAgentSessionStateLog(
+        { sessionId, agent, agentNumber = "", estado, estadoInicio },
+        executor = this.pool,
+    ) {
+        return executor.query(INSERT_AGENT_SESSION_STATE_LOG, [
+            sessionId,
+            agent,
+            agentNumber,
+            estado,
+            estadoInicio,
+        ]);
+    }
+
+    async closeAgentSessionStateLog(
+        { id, estadoFin },
+        executor = this.pool,
+    ) {
+        return executor.query(CLOSE_AGENT_SESSION_STATE_LOG, [estadoFin, id]);
     }
 
     async getOtherAdvisors(executor = this.pool) {

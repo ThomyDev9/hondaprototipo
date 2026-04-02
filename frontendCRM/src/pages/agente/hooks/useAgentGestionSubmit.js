@@ -331,7 +331,7 @@ export default function useAgentGestionSubmit({
                     return;
                 }
 
-                if (estadoAgente === "disponible") {
+                if (estadoAgente === "Disponible") {
                     await fetchSiguienteRegistro();
                 } else {
                     setRegistro(null);

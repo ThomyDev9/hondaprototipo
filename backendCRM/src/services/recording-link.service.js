@@ -126,6 +126,61 @@ export async function linkManagementToRecording({
     return cdr;
 }
 
+export async function linkManagementToKnownRecording({
+    schemaName = DEFAULT_OUTBOUND_SCHEMA,
+    contactId,
+    gestionRowId = "",
+    interactionId = "",
+    campaignId = "",
+    agent = "",
+    contactAddress = "",
+    managementTimestamp = new Date(),
+    recordingfile = "",
+    recordingPath = "",
+}) {
+    const normalizedContactId = normalizeValue(contactId);
+    const normalizedRecordingfile = normalizeValue(recordingfile);
+
+    if (!normalizedContactId || !normalizedRecordingfile) {
+        return null;
+    }
+
+    const normalizedSchema = normalizeValue(schemaName);
+    const normalizedInteractionId = normalizeValue(interactionId);
+    const normalizedTimestamp =
+        managementTimestamp instanceof Date
+            ? managementTimestamp
+            : new Date(managementTimestamp);
+    const resolvedRecordingPath =
+        normalizeValue(recordingPath) || normalizedRecordingfile;
+
+    await recordingLinkDAO.insertManagementRecordingLink({
+        schemaName: normalizedSchema,
+        contactId: normalizedContactId,
+        gestionRowId: normalizeValue(gestionRowId),
+        interactionId: normalizedInteractionId,
+        campaignId: normalizeValue(campaignId),
+        agent: normalizeValue(agent),
+        contactAddress: normalizeValue(contactAddress),
+        managementTimestamp: normalizedTimestamp,
+        cdr: {
+            uniqueid: "",
+            calldate: null,
+            src: "",
+            dst: normalizeValue(contactAddress),
+            disposition: "",
+            duration: 0,
+            recordingfile: normalizedRecordingfile,
+        },
+        recordingPath: resolvedRecordingPath,
+    });
+
+    return {
+        recordingfile: normalizedRecordingfile,
+        recording_path: resolvedRecordingPath,
+    };
+}
+
 export async function getLinkedRecordingsForManagements(managementRows = []) {
     const normalizedRows = Array.isArray(managementRows)
         ? managementRows

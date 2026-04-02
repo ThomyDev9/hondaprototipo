@@ -1,14 +1,12 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import AccordionMenu from "./AccordionMenu";
-
-const AGENT_STATUS_OPTIONS = [
-    { value: "disponible", label: "Disponible" },
-    { value: "baño", label: "Baño" },
-    { value: "consulta", label: "Consulta" },
-    { value: "lunch", label: "Lunch" },
-    { value: "reunion", label: "Reunión" },
-];
+import {
+    fetchAgentStatusOptions,
+    startAgentSession,
+    upsertAgentSessionContext,
+} from "../services/dashboard.service";
+import { getOrCreateTabSessionId } from "../pages/agente/dashboardAgente.helpers";
 
 const MENU_ICONS = {
     "administrar-bases": "\u{1F4C2}",
@@ -23,6 +21,7 @@ const MENU_ICONS = {
     inicio: "\u{1F3E0}",
     gestion: "\u260E\uFE0F",
     "grabaciones-outbound": "\u{1F399}\uFE0F",
+    "grabaciones-inbound": "\u{1F4DE}",
 };
 
 function Sidebar({
@@ -38,8 +37,13 @@ function Sidebar({
     onChangeAgentStatus,
 }) {
     const [collapsed, setCollapsed] = useState(false);
+    const [inboundAgentNumber, setInboundAgentNumber] = useState("");
+    const [agentStatusOptions, setAgentStatusOptions] = useState([]);
+    const [sessionStatus, setSessionStatus] = useState("");
+    const [sessionHydrated, setSessionHydrated] = useState(false);
     const effectiveRole = role || "ADMINISTRADOR";
     const prevAgentPageRef = useRef(agentPage);
+    const sessionIdRef = useRef("");
 
     useEffect(() => {
         if (
@@ -51,6 +55,141 @@ function Sidebar({
         }
         prevAgentPageRef.current = agentPage;
     }, [agentPage, effectiveRole]);
+
+    useEffect(() => {
+        sessionIdRef.current = getOrCreateTabSessionId();
+        const storedValue = sessionStorage.getItem("inbound_agent_number");
+        setInboundAgentNumber(String(storedValue || "").trim());
+    }, []);
+
+    useEffect(() => {
+        if (effectiveRole.toUpperCase() !== "ASESOR") return;
+
+        let cancelled = false;
+
+        const loadStatusOptions = async () => {
+            const { ok, json } = await fetchAgentStatusOptions();
+            if (cancelled || !ok) return;
+
+            const options = Array.isArray(json?.data) ? json.data : [];
+            setAgentStatusOptions(options);
+
+            if (
+                sessionHydrated &&
+                String(agentStatus || "").trim() &&
+                !options.some(
+                    (item) => String(item?.value || "") === String(agentStatus || ""),
+                )
+            ) {
+                onChangeAgentStatus?.(String(options[0]?.value || "").trim());
+            }
+        };
+
+        loadStatusOptions();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [agentStatus, effectiveRole, onChangeAgentStatus, sessionHydrated]);
+
+    useEffect(() => {
+        if (effectiveRole.toUpperCase() !== "ASESOR") return;
+
+        let cancelled = false;
+
+        const hydrateSessionContext = async () => {
+            const sessionId = String(sessionIdRef.current || "").trim();
+            if (!sessionId) {
+                setSessionHydrated(true);
+                return;
+            }
+
+            try {
+                const { ok, json } = await startAgentSession({
+                    sessionId,
+                    agentNumber: inboundAgentNumber,
+                });
+                if (cancelled) return;
+                if (!ok) {
+                    setSessionHydrated(true);
+                    return;
+                }
+
+                const sessionData = json?.data || null;
+                const nextAgentNumber = String(
+                    sessionData?.AgentNumber || "",
+                ).trim();
+                const nextEstado = String(sessionData?.Estado || "").trim();
+
+                if (nextAgentNumber) {
+                    setInboundAgentNumber(nextAgentNumber);
+                    sessionStorage.setItem(
+                        "inbound_agent_number",
+                        nextAgentNumber,
+                    );
+                }
+
+                if (nextEstado) {
+                    setSessionStatus(nextEstado);
+                    if (
+                        nextEstado !== "Login" &&
+                        String(agentStatus || "").trim() !== nextEstado
+                    ) {
+                        onChangeAgentStatus?.(nextEstado);
+                    }
+                }
+
+                setSessionHydrated(true);
+            } catch {
+                if (!cancelled) {
+                    setSessionHydrated(true);
+                }
+            }
+        };
+
+        hydrateSessionContext();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [effectiveRole, onChangeAgentStatus]);
+
+    useEffect(() => {
+        if (effectiveRole.toUpperCase() !== "ASESOR") return;
+
+        const sessionId = String(sessionIdRef.current || "").trim();
+        const resolvedEstado =
+            String(agentStatus || "").trim() ||
+            (String(sessionStatus || "").trim() === "Login"
+                ? ""
+                : String(sessionStatus || "").trim());
+
+        if (!sessionId || !resolvedEstado) return;
+
+        const timeoutId = window.setTimeout(() => {
+            upsertAgentSessionContext({
+                sessionId,
+                estado: resolvedEstado,
+                agentNumber: inboundAgentNumber,
+            }).then(({ ok, json }) => {
+                if (!ok) return;
+                const persistedEstado = String(json?.data?.Estado || "").trim();
+                if (persistedEstado) {
+                    setSessionStatus(persistedEstado);
+                }
+            });
+        }, 300);
+
+        return () => {
+            window.clearTimeout(timeoutId);
+        };
+    }, [
+        agentStatus,
+        agentStatusOptions,
+        effectiveRole,
+        inboundAgentNumber,
+        sessionStatus,
+    ]);
 
     const menuAdmin = [
         { label: "Administrar bases", key: "administrar-bases" },
@@ -65,6 +204,7 @@ function Sidebar({
         { label: "Agentes", key: "agents" },
         { label: "Reportes", key: "reports" },
         { label: "Grabaciones Outbound", key: "grabaciones-outbound" },
+        { label: "Grabaciones Inbound", key: "grabaciones-inbound" },
     ];
     const menuAgente = [{ label: "Inicio", key: "inicio" }];
 
@@ -104,7 +244,7 @@ function Sidebar({
 
         if (
             effectiveRole === "SUPERVISOR" &&
-            item.key === "grabaciones-outbound" &&
+            ["grabaciones-outbound", "grabaciones-inbound"].includes(item.key) &&
             onChangeAdminPage
         ) {
             onChangeAdminPage(item.key);
@@ -140,13 +280,14 @@ function Sidebar({
 
                     {effectiveRole.toUpperCase() === "ASESOR" && (
                         <select
-                            value={agentStatus || "disponible"}
+                            value={agentStatus || ""}
                             onChange={(e) =>
                                 onChangeAgentStatus?.(e.target.value)
                             }
                             style={styles.statusSelect}
                         >
-                            {AGENT_STATUS_OPTIONS.map((item) => (
+                            <option value="">Selecciona estado</option>
+                            {agentStatusOptions.map((item) => (
                                 <option key={item.value} value={item.value}>
                                     {item.label}
                                 </option>
@@ -198,6 +339,35 @@ function Sidebar({
 
             {effectiveRole.toUpperCase() === "ASESOR" && !collapsed && (
                 <div style={{ width: "100%", marginTop: "0.75rem" }}>
+                    <div style={styles.inboundAgentCard}>
+                        <label
+                            htmlFor="sidebar-inbound-agent-number"
+                            style={styles.inboundAgentLabel}
+                        >
+                            Código agente inbound
+                        </label>
+                        <input
+                            id="sidebar-inbound-agent-number"
+                            type="text"
+                            value={inboundAgentNumber}
+                            onChange={(event) => {
+                                const nextValue = String(
+                                    event.target.value || "",
+                                ).trim();
+                                setInboundAgentNumber(nextValue);
+                                sessionStorage.setItem(
+                                    "inbound_agent_number",
+                                    nextValue,
+                                );
+                            }}
+                            placeholder="Ej: 9001"
+                            style={styles.inboundAgentInput}
+                        />
+                        <span style={styles.inboundAgentHint}>
+                            Se usa para abrir inbound con la llamada activa ya
+                            identificada.
+                        </span>
+                    </div>
                     <AccordionMenu
                         onLeafSelect={({
                             campaignId,
@@ -342,6 +512,39 @@ const styles = {
         backgroundColor: "#ffffff",
         color: "#0F172A",
         fontSize: "0.8rem",
+    },
+    inboundAgentCard: {
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.35rem",
+        marginBottom: "0.75rem",
+        padding: "0.65rem",
+        borderRadius: "0.8rem",
+        background:
+            "linear-gradient(180deg, rgba(255,248,235,0.98) 0%, rgba(255,241,204,0.98) 100%)",
+        border: "1px solid rgba(245, 158, 11, 0.35)",
+        boxSizing: "border-box",
+    },
+    inboundAgentLabel: {
+        fontSize: "0.78rem",
+        fontWeight: 700,
+        color: "#7c4a03",
+    },
+    inboundAgentInput: {
+        width: "100%",
+        padding: "0.45rem 0.55rem",
+        borderRadius: "8px",
+        border: "1px solid rgba(217, 119, 6, 0.35)",
+        backgroundColor: "#ffffff",
+        color: "#0F172A",
+        fontSize: "0.8rem",
+        boxSizing: "border-box",
+    },
+    inboundAgentHint: {
+        fontSize: "0.72rem",
+        lineHeight: 1.25,
+        color: "#92400e",
     },
     logoutButton: {
         width: "100%",

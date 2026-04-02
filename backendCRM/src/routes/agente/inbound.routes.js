@@ -3,6 +3,7 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import multer from "multer";
+import { callCenterPool } from "../../services/db.multi.js";
 
 const inboundImagesBasePath =
     process.env.INBOUND_IMAGES_PATH ||
@@ -126,6 +127,54 @@ function getFirstFormValueByKeys(source = {}, candidateKeys = []) {
     return "";
 }
 
+function resolveInboundTicketValue(callRow = {}) {
+    const phone = String(callRow?.phone || "").trim();
+    const callEntryId = String(callRow?.id_call_entry || "").trim();
+
+    if (phone && callEntryId) {
+        return `${callEntryId}_${phone}`;
+    }
+
+    return callEntryId;
+}
+
+async function findInboundCurrentCallByAgent(agentNumber = "") {
+    const normalizedAgentNumber = String(agentNumber || "").trim();
+    if (!normalizedAgentNumber) {
+        return null;
+    }
+
+    const [rows] = await callCenterPool.query(
+        `
+        SELECT
+            a.name,
+            a.number,
+            cce.id_agent,
+            cce.id_call_entry,
+            ce.callerid,
+            SUBSTRING_INDEX(ce.callerid, '_', -1) AS phone,
+            cr.recordingfile
+            ,
+            qce.queue
+        FROM current_call_entry AS cce
+        LEFT JOIN agent AS a
+          ON a.id = cce.id_agent
+        LEFT JOIN call_entry AS ce
+          ON ce.id = cce.id_call_entry
+        LEFT JOIN call_recording AS cr
+          ON cr.id_call_incoming = cce.id_call_entry
+        LEFT JOIN queue_call_entry AS qce
+          ON qce.id = cce.id_queue_call_entry
+        WHERE TRIM(COALESCE(a.number, '')) = TRIM(?)
+        ORDER BY cce.id_call_entry DESC
+        LIMIT 1
+        `,
+        [normalizedAgentNumber],
+    );
+
+    return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
 function buildQuestionAnswerPayload(sections = []) {
     const preguntas = Array.from({ length: 30 }, () => "");
     const respuestas = Array.from({ length: 30 }, () => "");
@@ -173,6 +222,7 @@ export function registerInboundRoutes(
         getAgentActor,
         saveDynamicResponseIfTemplateActive,
         linkManagementToRecording,
+        linkManagementToKnownRecording,
     },
 ) {
     router.get(
@@ -234,6 +284,62 @@ export function registerInboundRoutes(
                 console.error("Error en /agente/buscar-cliente-inbound:", err);
                 return res.status(500).json({
                     error: "Error buscando cliente inbound",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.get(
+        "/inbound-current-call",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const agentNumber = String(
+                    req.query?.agentNumber ||
+                        req.query?.agent_extension ||
+                        req.query?.extension ||
+                        "",
+                ).trim();
+
+                if (!agentNumber) {
+                    return res.status(400).json({
+                        error: "agentNumber es requerido para buscar la llamada inbound activa",
+                    });
+                }
+
+                const currentCall = await findInboundCurrentCallByAgent(
+                    agentNumber,
+                );
+
+                if (!currentCall) {
+                    return res.status(404).json({
+                        error: "No se encontro una llamada inbound activa para el agente",
+                    });
+                }
+
+                return res.json({
+                    success: true,
+                    data: {
+                        agentName: String(currentCall.name || "").trim(),
+                        agentNumber: String(currentCall.number || "").trim(),
+                        idAgent: Number(currentCall.id_agent || 0),
+                        idCallEntry: String(
+                            currentCall.id_call_entry || "",
+                        ).trim(),
+                        ticketId: resolveInboundTicketValue(currentCall),
+                        callerId: String(currentCall.callerid || "").trim(),
+                        phone: String(currentCall.phone || "").trim(),
+                        queue: String(currentCall.queue || "").trim(),
+                        recordingfile: String(
+                            currentCall.recordingfile || "",
+                        ).trim(),
+                    },
+                });
+            } catch (err) {
+                console.error("Error en /agente/inbound-current-call:", err);
+                return res.status(500).json({
+                    error: "Error obteniendo la llamada inbound activa",
                     detail: err?.sqlMessage || err?.message || "",
                 });
             }
@@ -477,6 +583,10 @@ export function registerInboundRoutes(
                     "Id llamada/Nro. Ticket",
                     "CAMPO5",
                 ]);
+                const inboundRecordingfile = getFirstFormValueByKeys(formData, [
+                    "__inbound_current_call_recordingfile",
+                    "recordingfile",
+                ]);
                 const tipoCliente = String(
                     formData?.tipoCliente || formData?.__inbound_tipo_cliente || "",
                 ).trim();
@@ -680,16 +790,30 @@ export function registerInboundRoutes(
 
                 let linkedRecording = null;
                 try {
-                    linkedRecording = await linkManagementToRecording({
-                        schemaName: encuestaSchema,
-                        contactId,
-                        gestionRowId: contactId,
-                        interactionId,
-                        campaignId,
-                        agent: agenteActor,
-                        contactAddress: celular,
-                        managementTimestamp: tmstmp,
-                    });
+                    if (inboundRecordingfile) {
+                        linkedRecording = await linkManagementToKnownRecording({
+                            schemaName: encuestaSchema,
+                            contactId,
+                            gestionRowId: contactId,
+                            interactionId,
+                            campaignId,
+                            agent: agenteActor,
+                            contactAddress: celular,
+                            managementTimestamp: tmstmp,
+                            recordingfile: inboundRecordingfile,
+                        });
+                    } else {
+                        linkedRecording = await linkManagementToRecording({
+                            schemaName: encuestaSchema,
+                            contactId,
+                            gestionRowId: contactId,
+                            interactionId,
+                            campaignId,
+                            agent: agenteActor,
+                            contactAddress: celular,
+                            managementTimestamp: tmstmp,
+                        });
+                    }
                 } catch (linkErr) {
                     console.warn(
                         "[agente/guardar-gestion-inbound] no se pudo enlazar grabacion",

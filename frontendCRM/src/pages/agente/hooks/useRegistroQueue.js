@@ -60,7 +60,7 @@ export default function useRegistroQueue({
     const [dynamicSurveyConfig, setDynamicSurveyConfig] = useState(null);
     const [surveyAnswers, setSurveyAnswers] = useState({});
     const [inboundChildOptions, setInboundChildOptions] = useState([]);
-    const [estadoAgente, setEstadoAgente] = useState("disponible");
+    const [estadoAgente, setEstadoAgente] = useState("");
     const [observacion, setObservacion] = useState("");
 
     const lastActivityRef = useRef(Date.now());
@@ -136,6 +136,9 @@ export default function useRegistroQueue({
                                   child?.nombre || child?.campania || "",
                               ).trim(),
                               menuItemId: String(child?.id || "").trim(),
+                              inboundQueue: String(
+                                  child?.inboundQueue || "",
+                              ).trim(),
                               categoryId: normalizedCategoryId,
                               parentMenuItemId: String(
                                   rootNode?.id || "",
@@ -437,10 +440,16 @@ export default function useRegistroQueue({
         async (nuevoEstado) => {
             try {
                 setError("");
+                const tabSessionId = getOrCreateTabSessionId();
+                const agentNumber = String(
+                    sessionStorage.getItem("inbound_agent_number") || "",
+                ).trim();
 
                 const { status, ok, json } = await changeAgentStatus({
                     estado: nuevoEstado,
                     registroId: registro?.id ?? null,
+                    tabSessionId,
+                    agentNumber,
                 });
 
                 if (status === 403) {
@@ -460,15 +469,13 @@ export default function useRegistroQueue({
                 marcarActividad();
 
                 if (
-                    ["baÃƒÂ±o", "consulta", "lunch", "reunion"].includes(
-                        nuevoEstado,
-                    )
+                    nuevoEstado !== "Disponible"
                 ) {
                     setRegistro(null);
                 }
 
                 if (
-                    nuevoEstado === "disponible" &&
+                    nuevoEstado === "Disponible" &&
                     campaignIdSeleccionada &&
                     !manualFlowActivo
                 ) {
@@ -553,6 +560,8 @@ export default function useRegistroQueue({
                                 ...prev,
                                 __inbound_nombre_cliente:
                                     preselectedChild.menuItemId,
+                                __inbound_nombre_cliente_label:
+                                    preselectedChild.label || "",
                             }));
                         }
                     }),

@@ -2,6 +2,7 @@ import recordingSftpRouter from "./recording.sftp.js";
 import express from "express";
 import pool from "../../services/db.js";
 import { getRecordingsByPhone } from "./recordings-linked.controller.js";
+import { getInboundRecordings } from "./recordings-inbound.controller.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
     loadUserRoles,
@@ -16,6 +17,7 @@ router.use(requireRole(["SUPERVISOR"]));
 
 // Endpoint: grabaciones por número de teléfono
 router.get("/grabaciones", getRecordingsByPhone);
+router.get("/grabaciones-inbound", getInboundRecordings);
 router.use("/grabacion-sftp", recordingSftpRouter);
 
 // Dashboard supervisor: métricas globales

@@ -3,6 +3,7 @@ import { AuthContext } from "./context/AuthContext";
 import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
 import GrabacionesOutboundPage from "./pages/supervisor/GrabacionesOutboundPage";
+import GrabacionesInboundPage from "./pages/supervisor/GrabacionesInboundPage";
 import DashboardAgente from "./pages/agente/DashboardAgente";
 import AdministrarBases from "./pages/admin/AdministrarBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
@@ -10,6 +11,13 @@ import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
 import ConfiguracionAdmin from "./pages/admin/ConfiguracionAdmin";
 import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
 import ScriptsAdmin from "./pages/admin/ScriptsAdmin";
+import {
+    endAgentSession,
+} from "./services/dashboard.service";
+import {
+    getCurrentTabSessionId,
+    resetTabSessionId,
+} from "./pages/agente/dashboardAgente.helpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
@@ -33,8 +41,7 @@ function App() {
         manualFlow: false,
     });
     const [agentPage, setAgentPage] = useState("inicio");
-    const [selectedAgentStatus, setSelectedAgentStatus] =
-        useState("disponible");
+    const [selectedAgentStatus, setSelectedAgentStatus] = useState("");
 
     // ✅ Validar token al cargar la página
     useEffect(() => {
@@ -99,6 +106,8 @@ function App() {
             const accessToken = json.token;
             localStorage.setItem("access_token", accessToken);
             localStorage.setItem("import_user", username);
+            sessionStorage.removeItem("inbound_agent_number");
+            resetTabSessionId();
 
             // pedir datos del usuario
             const meResp = await fetch(`${API_BASE}/auth/me`, {
@@ -136,8 +145,25 @@ function App() {
     };
 
     const handleLogout = async () => {
+        if (userInfo?.roles?.includes("ASESOR")) {
+            const sessionId = getCurrentTabSessionId();
+            if (sessionId) {
+                try {
+                    await endAgentSession({
+                        sessionId,
+                        agentNumber: String(
+                            sessionStorage.getItem("inbound_agent_number") || "",
+                        ).trim(),
+                    });
+                } catch (err) {
+                    console.error("Error cerrando sesion del agente:", err);
+                }
+            }
+        }
+
         localStorage.removeItem("access_token");
         localStorage.removeItem("import_user");
+        sessionStorage.removeItem("inbound_agent_number");
         setSelectedAgentCampaign({
             campaignId: "",
             tick: 0,
@@ -147,8 +173,9 @@ function App() {
             manualFlow: false,
         });
         setAgentPage("inicio");
-        setSelectedAgentStatus("disponible");
+        setSelectedAgentStatus("");
         setUserInfo(null);
+        resetTabSessionId();
     };
 
     if (userInfo) {
@@ -210,6 +237,8 @@ function App() {
                 {userInfo.roles?.includes("SUPERVISOR") &&
                     (adminPage === "grabaciones-outbound" ? (
                         <GrabacionesOutboundPage />
+                    ) : adminPage === "grabaciones-inbound" ? (
+                        <GrabacionesInboundPage />
                     ) : (
                         <DashboardSupervisor />
                     ))}

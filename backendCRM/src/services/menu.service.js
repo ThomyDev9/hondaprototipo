@@ -75,6 +75,9 @@ export async function getMenuTreeDetailed(categoryId) {
                 id: row.subcampania_id,
                 nombre: row.subcampania,
                 categoryId: resolvedCategoryId,
+                inboundQueue: String(
+                    row.subcampania_inbound_queue || "",
+                ).trim(),
             });
         }
     }

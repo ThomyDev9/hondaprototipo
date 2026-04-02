@@ -224,7 +224,7 @@ export default function DashboardAgente({
                         !isHomeView &&
                         !isGestionOutbound && (
                             <p className="agent-info-text">
-                                {estadoAgente === "disponible"
+                                {estadoAgente === "Disponible"
                                     ? "No hay registros disponibles en tu cola en este momento."
                                     : 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'}
                             </p>

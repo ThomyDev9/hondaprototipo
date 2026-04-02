@@ -26,6 +26,16 @@ export function getOrCreateTabSessionId() {
     return sessionStorage.getItem(AGENTE_TAB_SESSION_KEY);
 }
 
+export function getCurrentTabSessionId() {
+    return String(sessionStorage.getItem(AGENTE_TAB_SESSION_KEY) || "").trim();
+}
+
+export function resetTabSessionId() {
+    const newId = uuidv4();
+    sessionStorage.setItem(AGENTE_TAB_SESSION_KEY, newId);
+    return newId;
+}
+
 export function buildInitialSurveyAnswers(surveyConfig) {
     if (!surveyConfig?.fields?.length) return {};
     return surveyConfig.fields.reduce((acc, field) => {

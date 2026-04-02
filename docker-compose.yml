@@ -8,8 +8,6 @@ services:
     env_file:
       - .env.docker
     environment:
-      MYSQL_DB: cck_dev
-      MYSQL_DB_ENCUESTA: bancopichinchaencuesta_dev
       UPLOADS_PATH: /app/uploads
     ports:
       - "4004:4004"

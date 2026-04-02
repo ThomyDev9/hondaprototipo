@@ -13,7 +13,8 @@ const GET_MENU_TREE = `
     p.id AS campania_id,
     p.nombre_item AS campania,
     s.id AS subcampania_id,
-    s.nombre_item AS subcampania
+    s.nombre_item AS subcampania,
+    s.inbound_queue AS subcampania_inbound_queue
   FROM menu_items p
   LEFT JOIN menu_items s ON s.id_padre = p.id
     AND s.id_categoria = ?
@@ -79,6 +80,7 @@ const GET_MENU_TREE_WITH_STATUS = `
     p.estado AS campania_estado,
     s.id AS subcampania_id,
     s.nombre_item AS subcampania,
+    s.inbound_queue AS subcampania_inbound_queue,
     s.estado AS subcampania_estado
   FROM menu_items p
   LEFT JOIN menu_items s ON s.id_padre = p.id

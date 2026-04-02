@@ -29,4 +29,16 @@ const isabelPool = mysql.createPool({
     charset: "utf8",
 });
 
-export { pool, isabelPool };
+const callCenterPool = mysql.createPool({
+    host: process.env.CL_HOST || "172.19.10.44",
+    port: Number(process.env.CL_PORT) || 3306,
+    user: process.env.CL_USER || "kimobill",
+    password: process.env.CL_PASSWORD || "sIst2m1s2020",
+    database: process.env.CL_DB || "call_center",
+    waitForConnections: true,
+    connectionLimit: 5,
+    queueLimit: 0,
+    charset: "utf8",
+});
+
+export { pool, isabelPool, callCenterPool };

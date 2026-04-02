@@ -63,8 +63,29 @@ function getStandardFieldWidth({ field, label, textValue, editable }) {
     return Math.max(labelWidth, valueWidth, 132);
 }
 
-function renderEditableInput(field, value, onFieldChange) {
+function renderEditableInput(field, value, onFieldChange, readOnly = false) {
     const normalizedType = String(field?.type || "text").trim().toLowerCase();
+
+    if (readOnly) {
+        if (normalizedType === "textarea") {
+            return (
+                <textarea
+                    className="agent-input agent-survey-input"
+                    value={value}
+                    readOnly
+                />
+            );
+        }
+
+        return (
+            <input
+                type="text"
+                className="agent-input agent-survey-input"
+                value={value}
+                readOnly
+            />
+        );
+    }
 
     if (normalizedType === "select") {
         return (
@@ -159,6 +180,15 @@ function DynamicField({ field, value, editable, onFieldChange, variant }) {
     const textValue = String(value ?? "");
     const label = String(field?.label || "");
     const normalizedLabel = label.trim().toLowerCase();
+    const normalizedKey = String(field?.key || "").trim().toLowerCase();
+    const explicitReadOnly = field?.readOnly === true;
+    const isTicketField =
+        variant === "inbound" &&
+        (normalizedKey === "campo5" ||
+            normalizedKey === "ticketid" ||
+            normalizedKey === "idllamada" ||
+            /ticket|id llamada|nro\. ticket/.test(normalizedLabel));
+    const isReadOnlyField = explicitReadOnly || isTicketField;
     const isLong = textValue.length > 28 || label.length > 28;
     const shouldUseStandardTextarea =
         variant === "standard" &&
@@ -193,7 +223,12 @@ function DynamicField({ field, value, editable, onFieldChange, variant }) {
         <div className={fieldClassName} style={fieldStyle}>
             <span className="agent-dynamic-label">{label}</span>
             {editable ? (
-                renderEditableInput(field, textValue, onFieldChange)
+                renderEditableInput(
+                    field,
+                    textValue,
+                    onFieldChange,
+                    isReadOnlyField,
+                )
             ) : shouldUseStandardTextarea || isLong ? (
                 <textarea
                     className="agent-input agent-auto-textarea"
