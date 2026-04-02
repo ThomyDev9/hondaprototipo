@@ -376,6 +376,24 @@ function Sidebar({
                             categoryId,
                             manualFlow,
                         }) => {
+                            const requiresInboundAgentCode =
+                                Boolean(manualFlow) &&
+                                String(categoryId || "").trim() ===
+                                    "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+                            const currentInboundAgentNumber = String(
+                                inboundAgentNumber || "",
+                            ).trim();
+
+                            if (
+                                requiresInboundAgentCode &&
+                                !currentInboundAgentNumber
+                            ) {
+                                alert(
+                                    "Debes ingresar el código agente inbound antes de abrir la gestión inbound.",
+                                );
+                                return;
+                            }
+
                             if (onSelectCampaign && campaignId) {
                                 onChangeAgentPage?.("gestion");
                                 onSelectCampaign(
