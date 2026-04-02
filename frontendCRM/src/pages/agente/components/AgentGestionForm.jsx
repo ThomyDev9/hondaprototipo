@@ -11,6 +11,7 @@ import AgentGestionSurveySection from "./AgentGestionSurveySection";
 import {
     buildDynamicFormRows,
     buildExtraFields,
+    parseAdditionalFields,
 } from "./agentGestionForm.helpers";
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
@@ -435,11 +436,17 @@ function AgentGestionForm({
     ]);
 
     const extraFields = useMemo(
-        () => buildExtraFields(dynamicFormDetail),
+        () => buildExtraFields(dynamicFormDetail, dynamicFormConfig),
+        [dynamicFormConfig, dynamicFormDetail],
+    );
+
+    const additionalDynamicValues = useMemo(
+        () => parseAdditionalFields(dynamicFormDetail),
         [dynamicFormDetail],
     );
 
-    const getDynamicFormValue = (key) => dynamicFormDetail?.[key] ?? "";
+    const getDynamicFormValue = (key) =>
+        dynamicFormDetail?.[key] ?? additionalDynamicValues?.[key] ?? "";
 
     const showDynamicForm =
         Boolean(dynamicFormConfig) && inboundDynamicRows.length > 0;

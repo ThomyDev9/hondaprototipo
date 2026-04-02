@@ -27,32 +27,48 @@ export function normalizeForComparison(value) {
     );
 }
 
+export function parseAdditionalFields(dynamicFormDetail) {
+    if (!dynamicFormDetail?.CamposAdicionalesJson) {
+        return {};
+    }
+
+    try {
+        const parsed = JSON.parse(dynamicFormDetail.CamposAdicionalesJson);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
 export function buildDynamicFormRows(dynamicFormConfig, dynamicFormDetail) {
     if (!dynamicFormConfig?.rows || !dynamicFormDetail) {
         return [];
     }
 
+    const additionalFields = parseAdditionalFields(dynamicFormDetail);
     const allFields = dynamicFormConfig.rows.flat().filter((field) => {
-        const value = dynamicFormDetail[field.key];
+        const value =
+            dynamicFormDetail[field.key] ?? additionalFields?.[field.key];
         return value !== undefined && value !== null && value !== "";
     });
 
     return chunkArray(allFields, 6);
 }
 
-export function buildExtraFields(dynamicFormDetail) {
-    if (!dynamicFormDetail?.CamposAdicionalesJson) {
+export function buildExtraFields(dynamicFormDetail, dynamicFormConfig) {
+    const additionalFields = parseAdditionalFields(dynamicFormDetail);
+    if (!Object.keys(additionalFields).length) {
         return [];
     }
 
-    let additionalFields = {};
-    try {
-        additionalFields = JSON.parse(dynamicFormDetail.CamposAdicionalesJson);
-    } catch {
-        additionalFields = {};
-    }
+    const configuredKeys = new Set(
+        flattenDynamicFormFields(dynamicFormConfig).map((field) =>
+            String(field?.key || "").trim(),
+        ),
+    );
 
     const normalizedFields = Object.entries(additionalFields)
+        .filter(([key]) => !configuredKeys.has(String(key || "").trim()))
         .filter(([, value]) => value !== undefined && value !== null && value !== "")
         .map(([key, value]) => ({ key, label: key, value }));
 

@@ -8,6 +8,7 @@ import {
     mapTemplateToForm2Config,
     mapTemplateToSurveyConfig,
 } from "../dashboardAgente.helpers";
+import { parseAdditionalFields } from "../components/agentGestionForm.helpers";
 import {
     fetchFormCatalogos,
     fetchNextRegistro,
@@ -218,12 +219,17 @@ export default function useRegistroQueue({
             setSurveyAnswers(buildInitialSurveyAnswers(nextSurveyConfig));
 
             const initialFormAnswers = {};
+            const additionalDetailValues = parseAdditionalFields(detail);
             for (const row of nextDynamicConfig?.rows || []) {
                 for (const field of row || []) {
                     const detailValue =
                         detail?.[field.key] !== undefined &&
                         detail?.[field.key] !== null
                             ? String(detail[field.key])
+                            : additionalDetailValues?.[field.key] !==
+                                    undefined &&
+                                  additionalDetailValues?.[field.key] !== null
+                                ? String(additionalDetailValues[field.key])
                             : "";
                     const currentValue =
                         currentAnswers?.[field.key] !== undefined &&
