@@ -5,12 +5,15 @@ export const formF2Template = [
         label: "Identificación",
         type: "text",
         required: true,
+        numericOnly: true,
+        inputMode: "numeric",
     },
     {
         name: "apellidosNombres",
         label: "Apellidos y Nombres",
         type: "text",
         required: true,
+        uppercase: true,
     },
     {
         name: "tipoCampana",
@@ -32,6 +35,8 @@ export const formF2Template = [
         label: "Celular",
         type: "text",
         required: true,
+        numericOnly: true,
+        inputMode: "numeric",
     },
     {
         name: "motivoInteraccion",

@@ -471,6 +471,7 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                 variant="outbound"
                 template={template}
                 initialValues={initialValues}
+                requireAllFields
                 quickActions={quickActions}
                 esUpdate={isUpdate}
                 onChangeCampo={(name, value) => {

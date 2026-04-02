@@ -1,5 +1,9 @@
 import PropTypes from "prop-types";
 import { getDynamicWidth } from "./agentGestionForm.helpers";
+import {
+    getFieldBehavior,
+    transformFieldValue,
+} from "../../../utils/formFieldBehavior";
 
 function getStandardFieldSpan({ field, label, textValue, editable }) {
     const normalizedType = String(field?.type || "text").trim().toLowerCase();
@@ -65,6 +69,12 @@ function getStandardFieldWidth({ field, label, textValue, editable }) {
 
 function renderEditableInput(field, value, onFieldChange, readOnly = false) {
     const normalizedType = String(field?.type || "text").trim().toLowerCase();
+    const behavior = getFieldBehavior(field);
+    const isRequired = Boolean(field?.required);
+    const datalistId =
+        behavior.suggestions.length > 0
+            ? `agent-dynamic-list-${String(field.key || field.name || "field")}`
+            : null;
 
     if (readOnly) {
         if (normalizedType === "textarea") {
@@ -92,6 +102,7 @@ function renderEditableInput(field, value, onFieldChange, readOnly = false) {
             <select
                 className="agent-input agent-survey-input"
                 value={value}
+                required={isRequired}
                 onChange={(event) => onFieldChange(event.target.value)}
             >
                 <option value="">Selecciona...</option>
@@ -134,6 +145,7 @@ function renderEditableInput(field, value, onFieldChange, readOnly = false) {
                                 type="radio"
                                 name={field.key}
                                 value={optionValue}
+                                required={isRequired}
                                 checked={String(value) === String(optionValue)}
                                 onChange={(event) =>
                                     onFieldChange(event.target.value)
@@ -149,12 +161,30 @@ function renderEditableInput(field, value, onFieldChange, readOnly = false) {
 
     if (normalizedType === "textarea") {
         return (
-            <textarea
-                className="agent-input agent-survey-input"
-                maxLength={field.maxLength || undefined}
-                value={value}
-                onChange={(event) => onFieldChange(event.target.value)}
-            />
+            <>
+                <textarea
+                    className="agent-input agent-survey-input"
+                    maxLength={field.maxLength || undefined}
+                    value={value}
+                    required={isRequired}
+                    onChange={(event) =>
+                        onFieldChange(
+                            transformFieldValue(
+                                field,
+                                event.target.value,
+                                "textarea",
+                            ),
+                        )
+                    }
+                />
+                {datalistId && (
+                    <datalist id={datalistId}>
+                        {behavior.suggestions.map((suggestion) => (
+                            <option key={suggestion} value={suggestion} />
+                        ))}
+                    </datalist>
+                )}
+            </>
         );
     }
 
@@ -166,13 +196,29 @@ function renderEditableInput(field, value, onFieldChange, readOnly = false) {
               : "text";
 
     return (
-        <input
-            type={inputType}
-            className="agent-input agent-survey-input"
-            maxLength={field.maxLength || undefined}
-            value={value}
-            onChange={(event) => onFieldChange(event.target.value)}
-        />
+        <>
+            <input
+                type={inputType}
+                className="agent-input agent-survey-input"
+                maxLength={field.maxLength || undefined}
+                value={value}
+                required={isRequired}
+                onChange={(event) =>
+                    onFieldChange(
+                        transformFieldValue(field, event.target.value, inputType),
+                    )
+                }
+                inputMode={behavior.inputMode}
+                list={datalistId || undefined}
+            />
+            {datalistId && (
+                <datalist id={datalistId}>
+                    {behavior.suggestions.map((suggestion) => (
+                        <option key={suggestion} value={suggestion} />
+                    ))}
+                </datalist>
+            )}
+        </>
     );
 }
 
@@ -221,7 +267,12 @@ function DynamicField({ field, value, editable, onFieldChange, variant }) {
 
     return (
         <div className={fieldClassName} style={fieldStyle}>
-            <span className="agent-dynamic-label">{label}</span>
+            <span className="agent-dynamic-label">
+                {label}
+                {field?.required ? (
+                    <span style={{ color: "red" }}> *</span>
+                ) : null}
+            </span>
             {editable ? (
                 renderEditableInput(
                     field,

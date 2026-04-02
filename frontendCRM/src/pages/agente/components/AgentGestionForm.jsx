@@ -21,18 +21,21 @@ const INBOUND_FIXED_FIELDS_PRIMARY_ROW = [
         key: "__inbound_tipo_cliente",
         label: "Tipo cliente",
         type: "select",
+        required: true,
         options: ["Titular", "Tercera persona"],
     },
     {
         key: "__inbound_tipo_identificacion",
         label: "Tipo de identificación",
         type: "select",
+        required: true,
         options: ["Cédula", "Ruc", "Pasaporte"],
     },
     {
         key: "__inbound_tipo_canal",
         label: "Tipo de canal",
         type: "select",
+        required: true,
         options: ["Inbound", "Outbound"],
     },
 ];
@@ -111,9 +114,11 @@ function InboundInteractionDetailsSection({
                             <div className="agent-form-field">
                                 <span className="agent-dynamic-label">
                                     Categorización
+                                    <span style={{ color: "red" }}> *</span>
                                 </span>
                                 <select
                                     className="agent-input agent-survey-input"
+                                    required
                                     value={detail?.categorizacion || ""}
                                     onChange={(event) =>
                                         onChange(
@@ -137,9 +142,11 @@ function InboundInteractionDetailsSection({
                             <div className="agent-form-field">
                                 <span className="agent-dynamic-label">
                                     Motivo de la interacción
+                                    <span style={{ color: "red" }}> *</span>
                                 </span>
                                 <select
                                     className="agent-input agent-survey-input"
+                                    required
                                     value={detail?.motivo || ""}
                                     onChange={(event) =>
                                         onChange(
@@ -163,9 +170,11 @@ function InboundInteractionDetailsSection({
                             <div className="agent-form-field">
                                 <span className="agent-dynamic-label">
                                     Submotivo de la interacción
+                                    <span style={{ color: "red" }}> *</span>
                                 </span>
                                 <select
                                     className="agent-input agent-survey-input"
+                                    required
                                     value={detail?.submotivo || ""}
                                     onChange={(event) =>
                                         onChange(
@@ -403,6 +412,10 @@ function AgentGestionForm({
         );
 
         const pickField = (key) => inboundFieldMap.get(key) || null;
+        const pickRequiredField = (key) => {
+            const field = pickField(key);
+            return field ? { ...field, required: true } : null;
+        };
 
         const compactRows = [
             INBOUND_FIXED_FIELDS_PRIMARY_ROW,
@@ -421,9 +434,9 @@ function AgentGestionForm({
             [
                 pickField("CAMPO1"),
                 pickField("CAMPO2"),
-                pickField("CAMPO3"),
+                pickRequiredField("CAMPO3"),
                 pickField("CAMPO4"),
-                pickField("CAMPO5"),
+                pickRequiredField("CAMPO5"),
             ].filter(Boolean),
         ].filter((row) => row.length > 0);
 

@@ -1,5 +1,9 @@
 import React from "react";
 import "./FormularioDinamico.css";
+import {
+    getFieldBehavior,
+    transformFieldValue,
+} from "../utils/formFieldBehavior";
 
 export default function FormularioDinamico({
     template,
@@ -13,6 +17,7 @@ export default function FormularioDinamico({
     formAutoComplete,
     variant = "default",
     className = "",
+    requireAllFields = false,
 }) {
     const initialValuesKey = JSON.stringify(initialValues || {});
     const templateFieldsKey = JSON.stringify(
@@ -69,7 +74,9 @@ export default function FormularioDinamico({
 
     const handleChange = (e, customOnChange) => {
         const { name, value, type, checked } = e.target;
-        const resolvedValue = type === "checkbox" ? checked : value;
+        const field = template.find((item) => item.name === name);
+        const rawValue = type === "checkbox" ? checked : value;
+        const resolvedValue = transformFieldValue(field, rawValue, type);
         setForm((f) => ({ ...f, [name]: resolvedValue }));
         if (typeof customOnChange === "function") {
             customOnChange(e);
@@ -79,13 +86,18 @@ export default function FormularioDinamico({
         }
     };
 
-    const handleGuardar = (e) => {
+    const isFieldRequired = (field) =>
+        Boolean(requireAllFields || field?.required);
+
+    const handleSubmit = (e) => {
         e.preventDefault();
+
+        if (esUpdate) {
+            onActualizar?.(form);
+            return;
+        }
+
         onGuardar?.(form);
-    };
-    const handleActualizar = (e) => {
-        e.preventDefault();
-        onActualizar?.(form);
     };
     const handleCancelar = (e) => {
         e.preventDefault();
@@ -118,7 +130,11 @@ export default function FormularioDinamico({
         .join(" ");
 
     return (
-        <form className={formClassName} autoComplete={formAutoComplete}>
+        <form
+            className={formClassName}
+            autoComplete={formAutoComplete}
+            onSubmit={handleSubmit}
+        >
             {quickActions.length > 0 && (
                 <div className="formulario-dinamico__quick-actions">
                     {quickActions.map((action) => (
@@ -135,9 +151,18 @@ export default function FormularioDinamico({
             )}
             {template.map((field) => (
                 <div key={field.name} className="formulario-dinamico__field">
+                    {(() => {
+                        const behavior = getFieldBehavior(field);
+                        const datalistId =
+                            behavior.suggestions.length > 0
+                                ? `formulario-dinamico-list-${field.name}`
+                                : null;
+
+                        return (
+                            <>
                     <label className="formulario-dinamico__label">
                         {field.label}
-                        {field.required && (
+                        {isFieldRequired(field) && (
                             <span style={{ color: "red" }}> *</span>
                         )}
                     </label>
@@ -147,9 +172,12 @@ export default function FormularioDinamico({
                             name={field.name}
                             value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
-                            required={field.required}
+                            required={isFieldRequired(field)}
                             className="formulario-dinamico__input"
                             readOnly={field.readOnly}
+                            inputMode={behavior.inputMode}
+                            maxLength={field.maxLength || undefined}
+                            list={datalistId || undefined}
                         />
                     )}
                     {field.type === "number" && (
@@ -158,8 +186,10 @@ export default function FormularioDinamico({
                             name={field.name}
                             value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
-                            required={field.required}
+                            required={isFieldRequired(field)}
                             className="formulario-dinamico__input"
+                            inputMode={behavior.inputMode}
+                            maxLength={field.maxLength || undefined}
                         />
                     )}
                     {field.type === "date" && (
@@ -168,7 +198,7 @@ export default function FormularioDinamico({
                             name={field.name}
                             value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
-                            required={field.required}
+                            required={isFieldRequired(field)}
                             className="formulario-dinamico__input"
                         />
                     )}
@@ -177,7 +207,7 @@ export default function FormularioDinamico({
                             name={field.name}
                             value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
-                            required={field.required}
+                            required={isFieldRequired(field)}
                             className="formulario-dinamico__select"
                         >
                             <option value="">Seleccione...</option>
@@ -196,9 +226,10 @@ export default function FormularioDinamico({
                             name={field.name}
                             value={form[field.name] ?? ""}
                             onChange={(e) => handleChange(e, field.onChange)}
-                            required={field.required}
+                            required={isFieldRequired(field)}
                             className="formulario-dinamico__textarea"
                             readOnly={field.readOnly}
+                            maxLength={field.maxLength || undefined}
                         />
                     )}
                     {field.type === "checkbox" && (
@@ -214,14 +245,20 @@ export default function FormularioDinamico({
                             </span>
                         </label>
                     )}
+                    {datalistId && (
+                        <datalist id={datalistId}>
+                            {behavior.suggestions.map((suggestion) => (
+                                <option key={suggestion} value={suggestion} />
+                            ))}
+                        </datalist>
+                    )}
+                            </>
+                        );
+                    })()}
                 </div>
             ))}
             <div className="formulario-dinamico__actions">
-                <button
-                    type="button"
-                    className="formulario-dinamico__submit"
-                    onClick={esUpdate ? handleActualizar : handleGuardar}
-                >
+                <button type="submit" className="formulario-dinamico__submit">
                     Guardar gestión
                 </button>
                 <button
