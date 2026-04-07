@@ -357,6 +357,14 @@ export default function useAgentGestionSubmit({
 
                     inboundFormData.identificacion = identificationToUse;
 
+                    if (!isRedesManualFlow) {
+                        Object.keys(inboundFormData).forEach((key) => {
+                            if (String(key || "").startsWith("__redes_")) {
+                                delete inboundFormData[key];
+                            }
+                        });
+                    }
+
                     const manualSubmitSignature = buildManualSubmitSignature({
                         campaignId: campaignIdToUse,
                         categoryId: categoryIdSeleccionada,

@@ -180,21 +180,16 @@ function normalizeFlowText(value) {
 function isRedesFormFlow({
     campaignId = "",
     menuItemId = "",
-    formData = {},
     categoryId = "",
 }) {
     const normalizedCampaignId = normalizeFlowText(campaignId);
     const normalizedMenuItemId = normalizeFlowText(menuItemId);
     const normalizedCategoryId = normalizeFlowText(categoryId);
-    const formKeys = Object.keys(formData || {}).map((key) =>
-        String(key || "").trim(),
-    );
 
     return (
         normalizedCampaignId === "gestion redes" ||
         normalizedMenuItemId === "gestion redes" ||
-        normalizedCategoryId === "gestion redes" ||
-        formKeys.some((key) => key.startsWith("__redes_"))
+        normalizedCategoryId === "gestion redes"
     );
 }
 
