@@ -561,6 +561,7 @@ function AgentGestionForm({
     onCancelarGestion,
     user,
     isSaving = false,
+    secureInboundManual = false,
 }) {
     const firstRender = useRef(true);
     const [activeTab, setActiveTab] = useState("gestion");
@@ -569,11 +570,14 @@ function AgentGestionForm({
         String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
     const isEditableTicketInboundManualFlow =
         isInboundManualFlow &&
-        isEditableTicketInboundFlow(
-            campaignLabel,
-            campaignId,
-            dynamicFormAnswers?.__inbound_nombre_cliente_label,
-            dynamicFormConfig?.title,
+        (
+            secureInboundManual ||
+            isEditableTicketInboundFlow(
+                campaignLabel,
+                campaignId,
+                dynamicFormAnswers?.__inbound_nombre_cliente_label,
+                dynamicFormConfig?.title,
+            )
         );
     const isRedesManualFlow =
         manualFlow &&
@@ -589,10 +593,13 @@ function AgentGestionForm({
         : isInboundManualFlow
           ? "inbound"
           : "standard";
+    const manualInboundDisplayTitle = String(
+        campaignLabel || dynamicFormConfig?.title || "Gestion Inbound",
+    ).trim();
     const dynamicSectionHeaderTitle = isRedesManualFlow
         ? "Gestion Redes"
         : isInboundManualFlow
-          ? `Formulario Inbound - ${dynamicFormConfig?.title || "Formulario 2"}`
+          ? manualInboundDisplayTitle
           : `Formulario 2 - ${dynamicFormConfig?.title || "Formulario 2"}`;
 
     const handleOpenEmailComposer = () => {
@@ -761,16 +768,30 @@ function AgentGestionForm({
             const field = pickField(key);
             return field ? { ...field, required: true } : null;
         };
+        const inboundClientOptions = (inboundChildOptions || [])
+            .map((item) => ({
+                value: String(item?.menuItemId || item?.value || "").trim(),
+                label: String(item?.label || item?.campaignId || "").trim(),
+            }))
+            .filter((item) => item.value && item.label);
 
         const compactRows = [
             INBOUND_FIXED_FIELDS_PRIMARY_ROW,
             [
-                {
-                    key: "__inbound_nombre_cliente_label",
-                    label: "Nombre Cliente",
-                    type: "text",
-                    readOnly: true,
-                },
+                secureInboundManual
+                    ? {
+                          key: "__inbound_nombre_cliente",
+                          label: "Nombre Cliente",
+                          type: "select",
+                          required: true,
+                          options: inboundClientOptions,
+                      }
+                    : {
+                          key: "__inbound_nombre_cliente_label",
+                          label: "Nombre Cliente",
+                          type: "text",
+                          readOnly: true,
+                      },
                 ...INBOUND_FIXED_FIELDS_SECONDARY_ROW,
             ],
             [pickField("IDENTIFICACION"), pickField("NOMBRE_CLIENTE")].filter(
@@ -788,11 +809,13 @@ function AgentGestionForm({
         return compactRows;
     }, [
         categoryId,
+        inboundChildOptions,
         isEditableTicketInboundManualFlow,
         isRedesManualFlow,
         dynamicFormRowsWithValues,
         inboundChildOptions,
         manualFlow,
+        secureInboundManual,
     ]);
 
     const extraFields = useMemo(
@@ -937,7 +960,7 @@ function AgentGestionForm({
                 ? manualFlow
                     ? isRedesManualFlow
                         ? "Gestion Redes"
-                        : `Formulario Inbound - ${dynamicFormConfig?.title}`
+                        : manualInboundDisplayTitle
                     : `F1 - F2 - ${dynamicFormConfig?.title}`
                 : "Formulario 1",
             content: gestionContent,
@@ -1070,4 +1093,5 @@ AgentGestionForm.propTypes = {
         username: PropTypes.string,
     }),
     isSaving: PropTypes.bool,
+    secureInboundManual: PropTypes.bool,
 };

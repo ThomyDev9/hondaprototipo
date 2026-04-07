@@ -1,3 +1,5 @@
+import { formatLocalDateTime } from "../../utils/dateTime.js";
+
 function normalizeLookupKey(value) {
     return String(value || "")
         .normalize("NFD")
@@ -166,8 +168,8 @@ export function registerRedesRoutes(
                 }
 
                 const now = new Date();
-                const tmstmp = now;
-                const startedManagement = now;
+                const tmstmp = formatLocalDateTime(now);
+                const startedManagement = formatLocalDateTime(now);
                 const interactionId = `RED-${Date.now()}-${Math.floor(
                     Math.random() * 100000,
                 )}`;

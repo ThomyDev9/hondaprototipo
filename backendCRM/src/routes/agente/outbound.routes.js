@@ -1,3 +1,5 @@
+import { formatLocalDateTime } from "../../utils/dateTime.js";
+
 export function registerOutboundRoutes(
     router,
     {
@@ -237,8 +239,8 @@ export function registerOutboundRoutes(
                     ).trim() ||
                     `OUT-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
                 const now = new Date();
-                const startedManagement = now;
-                const tmstmp = now;
+                const startedManagement = formatLocalDateTime(now);
+                const tmstmp = formatLocalDateTime(now);
                 const level1ToUse = String(
                     formData?.motivoInteraccion || "",
                 ).trim();

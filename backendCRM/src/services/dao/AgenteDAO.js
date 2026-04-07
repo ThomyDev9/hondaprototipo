@@ -621,7 +621,7 @@ const INSERT_INBOUND_GESTION_FINAL = `
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, NOW()), COALESCE(?, NOW()), ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
   )
 `;
 
@@ -665,8 +665,8 @@ const UPDATE_INBOUND_GESTION_FINAL_BY_CONTACT_ID = `
       RESPUESTA_16 = ?, RESPUESTA_17 = ?, RESPUESTA_18 = ?, RESPUESTA_19 = ?, RESPUESTA_20 = ?,
       RESPUESTA_21 = ?, RESPUESTA_22 = ?, RESPUESTA_23 = ?, RESPUESTA_24 = ?, RESPUESTA_25 = ?,
       RESPUESTA_26 = ?, RESPUESTA_27 = ?, RESPUESTA_28 = ?, RESPUESTA_29 = ?, RESPUESTA_30 = ?,
-      started_management = COALESCE(?, NOW()),
-      tmstmp = COALESCE(?, NOW()),
+      started_management = ?,
+      tmstmp = ?,
       intentos = ?,
       updated_at = CURRENT_TIMESTAMP
   WHERE contact_id = ?
@@ -810,7 +810,7 @@ const LIST_INBOUND_HISTORICO_ROWS = `
     result_level1,
     result_level2,
     observaciones,
-    tmstmp,
+    DATE_FORMAT(tmstmp, '%Y-%m-%d %H:%i:%s') AS tmstmp,
     nombre_cliente_ref
   FROM gestionfinal_inbound
   WHERE (? = '' OR campaign_id = ?)

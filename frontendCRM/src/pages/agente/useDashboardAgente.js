@@ -8,6 +8,7 @@ import {
 import {
     buildInitialSurveyAnswers,
     findOptionIgnoreCase,
+    getTodayLocalDate,
 } from "./dashboardAgente.helpers";
 import useBaseCards from "./hooks/useBaseCards";
 import useAgentGestionSubmit from "./hooks/useAgentGestionSubmit";
@@ -22,6 +23,7 @@ export default function useDashboardAgenteState({
     selectedMenuItemId,
     selectedCategoryId,
     selectedManualFlow,
+    selectedSecureInboundManual,
     requestedAgentStatus,
     onAgentStatusSync,
     agentPage,
@@ -128,6 +130,7 @@ export default function useDashboardAgenteState({
         selectedMenuItemId,
         selectedCategoryId,
         selectedManualFlow,
+        selectedSecureInboundManual,
         agentPage,
         bloqueado,
         handle403,
@@ -382,7 +385,7 @@ export default function useDashboardAgenteState({
                     String(prev?.__redes_tipo_cliente || "").trim() || "Asesor",
                 __redes_fecha_gestion:
                     String(prev?.__redes_fecha_gestion || "").trim() ||
-                    new Date().toISOString().slice(0, 10),
+                    getTodayLocalDate(),
                 __redes_estado_conversacion:
                     String(prev?.__redes_estado_conversacion || "").trim() ||
                     "Finalizado",
@@ -529,7 +532,7 @@ export default function useDashboardAgenteState({
                 const selectedOption = (inboundChildOptions || []).find(
                     (item) => String(item.value) === String(value),
                 );
-                const today = new Date().toISOString().slice(0, 10);
+                const today = getTodayLocalDate();
 
                 setDynamicFormAnswers((prev) => ({
                     ...prev,
@@ -582,6 +585,17 @@ export default function useDashboardAgenteState({
                     childMenuItemId: selectedOption?.menuItemId || "",
                     childCampaignId: selectedOption?.campaignId || "",
                 });
+                if (selectedSecureInboundManual) {
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __inbound_nombre_cliente:
+                            selectedOption?.menuItemId || String(value || ""),
+                        __inbound_nombre_cliente_label: String(
+                            selectedOption?.label || "",
+                        ).trim(),
+                    }));
+                    return;
+                }
                 const currentCall = await hydrateInboundCurrentCall();
                 const queueMatchedChild = resolveInboundChildByQueue(
                     currentCall?.queue,
@@ -807,6 +821,7 @@ export default function useDashboardAgenteState({
             inboundChildOptions,
             manualFlowActivo,
             menuItemIdSeleccionado,
+            selectedSecureInboundManual,
             resolveInboundChildByQueue,
             setDynamicFormAnswers,
             setError,
@@ -826,7 +841,7 @@ export default function useDashboardAgenteState({
             return;
         }
 
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getTodayLocalDate();
         setDynamicFormAnswers((prev) => ({
             ...prev,
             __redes_tipo_cliente:
@@ -930,6 +945,7 @@ export default function useDashboardAgenteState({
             manualFlowActivo &&
             String(categoryIdSeleccionada || "").trim() ===
                 INBOUND_MENU_CATEGORY_ID &&
+            !selectedSecureInboundManual &&
             !allowsOpenWithoutCall &&
             agentPage !== "inicio";
 
@@ -966,6 +982,7 @@ export default function useDashboardAgenteState({
         onChangeAgentPage,
         selectedCampaignId,
         selectedCampaignLabel,
+        selectedSecureInboundManual,
         setError,
     ]);
 

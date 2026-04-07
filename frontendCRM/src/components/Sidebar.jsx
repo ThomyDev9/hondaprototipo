@@ -54,6 +54,8 @@ function isInboundHistoricoAction({ campaignId = "", menuItemId = "" }) {
     );
 }
 
+const SECURE_INBOUND_MANUAL_CODE = "KMB$221133";
+
 function Sidebar({
     user,
     role,
@@ -456,7 +458,12 @@ function Sidebar({
                             categoryId,
                             manualFlow,
                             leafLabel,
+                            secureInboundManual,
+                            followupInboundManual,
                         }) => {
+                            const isUnlockedInboundManual =
+                                Boolean(secureInboundManual) ||
+                                Boolean(followupInboundManual);
                             const allowsOpenWithoutCall =
                                 allowsInboundOpenWithoutCall(
                                     leafLabel,
@@ -478,6 +485,7 @@ function Sidebar({
                             if (
                                 requiresInboundAgentCode &&
                                 !isHistoricoInbound &&
+                                !isUnlockedInboundManual &&
                                 !currentInboundAgentNumber
                             ) {
                                 alert(
@@ -486,9 +494,26 @@ function Sidebar({
                                 return;
                             }
 
+                            if (secureInboundManual) {
+                                const enteredCode = String(
+                                    window.prompt(
+                                        "Ingresa el código de seguridad para abrir la gestión inbound manual:",
+                                        "",
+                                    ) || "",
+                                ).trim();
+
+                                if (enteredCode !== SECURE_INBOUND_MANUAL_CODE) {
+                                    alert(
+                                        "Código de seguridad inválido para la gestión inbound manual.",
+                                    );
+                                    return;
+                                }
+                            }
+
                             if (
                                 requiresInboundAgentCode &&
                                 !isHistoricoInbound &&
+                                !isUnlockedInboundManual &&
                                 !allowsOpenWithoutCall
                             ) {
                                 const { ok, json } =
@@ -513,6 +538,8 @@ function Sidebar({
                                     categoryId,
                                     manualFlow,
                                     leafLabel || campaignId || "",
+                                    secureInboundManual,
+                                    followupInboundManual,
                                 );
                             }
                         }}

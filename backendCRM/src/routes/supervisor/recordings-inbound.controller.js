@@ -64,7 +64,7 @@ export async function getInboundRecordings(req, res) {
                 id,
                 contact_id AS ContactId,
                 interaction_id AS InteractionId,
-                tmstmp AS TmStmp,
+                DATE_FORMAT(tmstmp, '%Y-%m-%d %H:%i:%s') AS TmStmp,
                 campaign_id AS CampaignId,
                 category_id AS CategoryId,
                 menu_item_id AS MenuItemId,
@@ -159,4 +159,3 @@ export async function getInboundRecordings(req, res) {
         });
     }
 }
-

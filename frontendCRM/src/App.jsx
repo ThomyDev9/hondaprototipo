@@ -50,6 +50,8 @@ function App() {
         menuItemId: "",
         categoryId: "",
         manualFlow: false,
+        secureInboundManual: false,
+        followupInboundManual: false,
     });
     const [agentPage, setAgentPage] = useState("inicio");
     const [selectedAgentStatus, setSelectedAgentStatus] = useState("");
@@ -76,15 +78,17 @@ function App() {
                     console.warn("⚠️ Username no disponible en sesión actual");
                 }
 
-                setSelectedAgentCampaign({
-                    campaignId: "",
-                    campaignLabel: "",
-                    tick: 0,
-                    importId: "",
-                    menuItemId: "",
-                    categoryId: "",
-                    manualFlow: false,
-                });
+                    setSelectedAgentCampaign({
+                        campaignId: "",
+                        campaignLabel: "",
+                        tick: 0,
+                        importId: "",
+                        menuItemId: "",
+                        categoryId: "",
+                        manualFlow: false,
+                        secureInboundManual: false,
+                        followupInboundManual: false,
+                    });
                 setAgentPage("inicio");
                 setUserInfo(meJson.user);
             } catch (err) {
@@ -146,6 +150,8 @@ function App() {
                 menuItemId: "",
                 categoryId: "",
                 manualFlow: false,
+                secureInboundManual: false,
+                followupInboundManual: false,
             });
             setAgentPage("inicio");
             setUserInfo(meJson.user);
@@ -185,6 +191,8 @@ function App() {
             menuItemId: "",
             categoryId: "",
             manualFlow: false,
+            secureInboundManual: false,
+            followupInboundManual: false,
         });
         setAgentPage("inicio");
         setSelectedAgentStatus("");
@@ -208,6 +216,8 @@ function App() {
                     categoryId,
                     manualFlow = false,
                     campaignLabel = "",
+                    secureInboundManual = false,
+                    followupInboundManual = false,
                 ) => {
                     setAgentPage("gestion");
                     setSelectedAgentCampaign({
@@ -218,6 +228,8 @@ function App() {
                         menuItemId: menuItemId || "",
                         categoryId: categoryId || "",
                         manualFlow: Boolean(manualFlow),
+                        secureInboundManual: Boolean(secureInboundManual),
+                        followupInboundManual: Boolean(followupInboundManual),
                     });
                 }}
                 agentPage={agentPage}
@@ -232,6 +244,8 @@ function App() {
                             menuItemId: "",
                             categoryId: "",
                             manualFlow: false,
+                            secureInboundManual: false,
+                            followupInboundManual: false,
                         });
                     }
                 }}
@@ -272,6 +286,12 @@ function App() {
                         selectedMenuItemId={selectedAgentCampaign.menuItemId}
                         selectedCategoryId={selectedAgentCampaign.categoryId}
                         selectedManualFlow={selectedAgentCampaign.manualFlow}
+                        selectedSecureInboundManual={
+                            selectedAgentCampaign.secureInboundManual
+                        }
+                        selectedFollowupInboundManual={
+                            selectedAgentCampaign.followupInboundManual
+                        }
                         requestedAgentStatus={selectedAgentStatus}
                         onAgentStatusSync={setSelectedAgentStatus}
                         agentPage={agentPage}
@@ -282,6 +302,7 @@ function App() {
                             categoryId,
                             manualFlow = false,
                             campaignLabel = "",
+                            secureInboundManual = false,
                         ) => {
                             setAgentPage("gestion");
                             setSelectedAgentCampaign({
@@ -292,6 +313,9 @@ function App() {
                                 menuItemId: menuItemId || "",
                                 categoryId: categoryId || "",
                                 manualFlow: Boolean(manualFlow),
+                                secureInboundManual: Boolean(
+                                    secureInboundManual,
+                                ),
                             });
                         }}
                         onChangeAgentPage={setAgentPage}

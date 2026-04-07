@@ -18,6 +18,8 @@ const INBOUND_QUICK_ACCESS_LABELS = [
     "kullki wasi",
     "atm oscus",
 ];
+const SECURE_INBOUND_MANUAL_LABEL = "Gestion Inbound Manual";
+const FOLLOWUP_INBOUND_MANUAL_LABEL = "Seguimiento Inbound";
 
 const styles = {
     menu: {
@@ -334,6 +336,9 @@ function AccordionMenu({ onLeafSelect, hiddenNormalizedLabels = [] }) {
                           ),
                   )
             : [];
+    const secureInboundManualEntry = inboundQuickAccessNodes.find(
+        (entry) => entry.normalizedLabel === "gestion inbound",
+    );
 
     function renderTree(nodes, level = 0, parentKey = "", pathLabels = []) {
         const visibleNodes = (Array.isArray(nodes) ? nodes : []).filter((node) => {
@@ -826,6 +831,106 @@ function AccordionMenu({ onLeafSelect, hiddenNormalizedLabels = [] }) {
                                                         </button>
                                                     );
                                                 },
+                                            )}
+                                            {secureInboundManualEntry && (
+                                                <button
+                                                    key="inbound-quick-followup-manual"
+                                                    type="button"
+                                                    style={{
+                                                        ...styles.menuItem,
+                                                        paddingLeft: 12,
+                                                        paddingRight: 12,
+                                                        paddingTop: 9,
+                                                        paddingBottom: 9,
+                                                        border:
+                                                            "1px solid rgba(96, 165, 250, 0.4)",
+                                                        backgroundColor:
+                                                            "rgba(30, 64, 175, 0.28)",
+                                                        width: "100%",
+                                                    }}
+                                                    onClick={() =>
+                                                        onLeafSelect?.({
+                                                            campaignId:
+                                                                resolveCampaignId(
+                                                                    secureInboundManualEntry.label,
+                                                                    secureInboundManualEntry.node,
+                                                                ),
+                                                            menuItemId: String(
+                                                                secureInboundManualEntry.node?.id ||
+                                                                    "",
+                                                            ).trim(),
+                                                            categoryId: String(
+                                                                secureInboundManualEntry.node?.categoryId ||
+                                                                    selectedCategoryId ||
+                                                                    "",
+                                                            ).trim(),
+                                                            leafLabel:
+                                                                FOLLOWUP_INBOUND_MANUAL_LABEL,
+                                                            parentLabel:
+                                                                secureInboundManualEntry.parentLabel ||
+                                                                "",
+                                                            manualFlow: true,
+                                                            followupInboundManual: true,
+                                                        })
+                                                    }
+                                                    title={
+                                                        FOLLOWUP_INBOUND_MANUAL_LABEL
+                                                    }
+                                                >
+                                                    {
+                                                        FOLLOWUP_INBOUND_MANUAL_LABEL
+                                                    }
+                                                </button>
+                                            )}
+                                            {secureInboundManualEntry && (
+                                                <button
+                                                    key="inbound-quick-secure-manual"
+                                                    type="button"
+                                                    style={{
+                                                        ...styles.menuItem,
+                                                        paddingLeft: 12,
+                                                        paddingRight: 12,
+                                                        paddingTop: 9,
+                                                        paddingBottom: 9,
+                                                        border:
+                                                            "1px solid rgba(251, 191, 36, 0.45)",
+                                                        backgroundColor:
+                                                            "rgba(120, 53, 15, 0.35)",
+                                                        width: "100%",
+                                                    }}
+                                                    onClick={() =>
+                                                        onLeafSelect?.({
+                                                            campaignId:
+                                                                resolveCampaignId(
+                                                                    secureInboundManualEntry.label,
+                                                                    secureInboundManualEntry.node,
+                                                                ),
+                                                            menuItemId: String(
+                                                                secureInboundManualEntry.node?.id ||
+                                                                    "",
+                                                            ).trim(),
+                                                            categoryId: String(
+                                                                secureInboundManualEntry.node?.categoryId ||
+                                                                    selectedCategoryId ||
+                                                                    "",
+                                                            ).trim(),
+                                                            leafLabel:
+                                                                secureInboundManualEntry.label,
+                                                            parentLabel:
+                                                                secureInboundManualEntry.parentLabel ||
+                                                                "",
+                                                            manualFlow: true,
+                                                            secureInboundManual: true,
+                                                        })
+                                                    }
+                                                    title={
+                                                        SECURE_INBOUND_MANUAL_LABEL
+                                                    }
+                                                >
+                                                    {
+                                                        SECURE_INBOUND_MANUAL_LABEL
+                                                    }
+                                                </button>
                                             )}
                                             <button
                                                 key="inbound-quick-historico"

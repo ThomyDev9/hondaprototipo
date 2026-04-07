@@ -14,6 +14,7 @@ const pool = mysql.createPool({
     connectionLimit: 10,
     queueLimit: 0,
     charset: "utf8",
+    dateStrings: true,
 });
 
 // Pool para la base de datos de la PBX Isabel
@@ -27,6 +28,7 @@ const isabelPool = mysql.createPool({
     connectionLimit: 5,
     queueLimit: 0,
     charset: "utf8",
+    dateStrings: true,
 });
 
 const callCenterPool = mysql.createPool({
@@ -39,6 +41,7 @@ const callCenterPool = mysql.createPool({
     connectionLimit: 5,
     queueLimit: 0,
     charset: "utf8",
+    dateStrings: true,
 });
 
 export { pool, isabelPool, callCenterPool };

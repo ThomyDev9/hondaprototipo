@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import multer from "multer";
 import { callCenterPool } from "../../services/db.multi.js";
+import { formatLocalDateTime } from "../../utils/dateTime.js";
 import {
     appendInboundEmailToSent,
     findInboundAdvisorSignature,
@@ -750,8 +751,8 @@ export function registerInboundRoutes(
                 }
 
                 const now = new Date();
-                const tmstmp = now;
-                const startedManagement = now;
+                const tmstmp = formatLocalDateTime(now);
+                const startedManagement = formatLocalDateTime(now);
                 const interactionId = `INB-${Date.now()}-${Math.floor(
                     Math.random() * 100000,
                 )}`;

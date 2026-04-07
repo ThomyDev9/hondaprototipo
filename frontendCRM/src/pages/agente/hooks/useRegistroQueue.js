@@ -6,6 +6,7 @@ import { INBOUND_HISTORICO_MENU_ITEM_ID } from "../../../components/AccordionMen
 import {
     buildInitialSurveyAnswers,
     getOrCreateTabSessionId,
+    getTodayLocalDate,
     mapTemplateToForm2Config,
     mapTemplateToSurveyConfig,
 } from "../dashboardAgente.helpers";
@@ -86,6 +87,7 @@ export default function useRegistroQueue({
     selectedMenuItemId,
     selectedCategoryId,
     selectedManualFlow,
+    selectedSecureInboundManual,
     agentPage,
     bloqueado,
     handle403,
@@ -674,7 +676,7 @@ export default function useRegistroQueue({
                 });
 
                 if (isRedesManualFlow) {
-                    const today = new Date().toISOString().slice(0, 10);
+                    const today = getTodayLocalDate();
                     setDynamicFormAnswers((prev) => ({
                         ...prev,
                         __redes_tipo_cliente:
@@ -689,6 +691,15 @@ export default function useRegistroQueue({
                             String(
                                 prev?.__redes_estado_conversacion || "",
                             ).trim() || "Finalizado",
+                    }));
+                    return;
+                }
+
+                if (selectedSecureInboundManual) {
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __inbound_nombre_cliente: "",
+                        __inbound_nombre_cliente_label: "",
                     }));
                     return;
                 }
@@ -792,6 +803,7 @@ export default function useRegistroQueue({
         selectedMenuItemId,
         selectedCategoryId,
         selectedManualFlow,
+        selectedSecureInboundManual,
         loadTemplatesAndCatalogs,
         loadInboundChildOptions,
         resetDynamicState,

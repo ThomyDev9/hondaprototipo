@@ -1,3 +1,5 @@
+import { formatLocalDateTime } from "../../utils/dateTime.js";
+
 export function registerGestionRoutes(
     router,
     {
@@ -178,8 +180,8 @@ export function registerGestionRoutes(
             }
 
             const now = new Date();
-            const startedManagement = now;
-            const tmstmp = now;
+            const startedManagement = formatLocalDateTime(now);
+            const tmstmp = formatLocalDateTime(now);
             const intentosPrevios = Number(contactRows[0]?.Number || 0);
             const intentos = intentosPrevios + 1;
 
