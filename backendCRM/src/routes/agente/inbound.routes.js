@@ -871,7 +871,6 @@ export function registerInboundRoutes(
                 ]);
                 const tipoCliente = String(
                     formData?.tipoCliente ||
-                        formData?.__redes_tipo_cliente ||
                         formData?.__inbound_tipo_cliente ||
                         "",
                 ).trim();
@@ -888,19 +887,14 @@ export function registerInboundRoutes(
                 ).trim();
                 const nombreClienteRef = String(
                     formData?.nombreCliente ||
-                        formData?.__redes_nombre_cliente ||
                         formData?.__inbound_nombre_cliente ||
                         "",
                 ).trim();
                 const fechaGestion = String(
-                    formData?.fechaGestion ||
-                        formData?.__redes_fecha_gestion ||
-                        "",
+                    formData?.fechaGestion || "",
                 ).trim();
                 const estadoConversacion = String(
-                    formData?.estadoConversacion ||
-                        formData?.__redes_estado_conversacion ||
-                        "",
+                    formData?.estadoConversacion || "",
                 ).trim();
                 const categorizacion = String(
                     latestInteractionDetail.categorizacion ||
