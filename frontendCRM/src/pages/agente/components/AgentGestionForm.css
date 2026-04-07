@@ -436,11 +436,22 @@
 }
 
 .agent-inbound-shell--redes .agent-inbound-shell__content {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.95fr);
+    grid-template-columns: 1fr;
+    gap: 0.18rem;
 }
 
 .agent-inbound-shell--redes .agent-dynamic-card--redes {
     padding: 0.3rem 0.34rem;
+}
+
+.agent-inbound-shell--redes .agent-inbound-shell__column {
+    width: 100%;
+}
+
+.agent-inbound-shell--redes .agent-inbound-detail-table,
+.agent-inbound-shell--redes .agent-inbound-detail-row,
+.agent-inbound-shell--redes .agent-form-card--secondary {
+    width: 100%;
 }
 
 .agent-inbound-shell--redes .agent-dynamic-row,

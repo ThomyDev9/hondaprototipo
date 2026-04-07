@@ -119,14 +119,20 @@ export function registerOutboundRoutes(
                 }
 
                 const campaignLike = campaignId ? `${campaignId}%` : "";
-                const row = campaignId
+                const rowByCampaign = campaignId
                     ? await agenteDAO.getClienteByIdentificationAndCampaign(
                           identification,
                           campaignLike,
                       )
                     : null;
+                const rowByIdOrIdentification =
+                    await agenteDAO.getOutboundClientBaseByIdOrIdentification(
+                        identification,
+                    );
+                const rowByIdentification =
+                    await agenteDAO.getClienteByIdentification(identification);
                 const resolvedRow =
-                    row || (await agenteDAO.getClienteByIdentification(identification));
+                    rowByCampaign || rowByIdOrIdentification || rowByIdentification;
 
                 if (!resolvedRow) {
                     return res.status(404).json({

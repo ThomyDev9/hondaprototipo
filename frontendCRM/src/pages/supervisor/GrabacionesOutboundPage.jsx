@@ -5,6 +5,9 @@ import { PageContainer } from "../../components/common";
 
 const getAuthToken = () => localStorage.getItem("access_token") || "";
 
+function getRecordingFilename(recordingfile) {
+    return String(recordingfile || "").split("/").pop() || "grabacion.wav";
+}
 function toLocalDateString(value) {
     if (!value) return "";
     const date = new Date(value);
@@ -70,18 +73,35 @@ export default function GrabacionesOutboundPage() {
         const token = getAuthToken();
         try {
             const res = await fetch(
-                `${API_BASE}/supervisor/grabacion-sftp/${recordingfile}`,
+                `${API_BASE}/supervisor/grabacion-sftp/${recordingfile}?flow=outbound`,
                 {
                     headers: { Authorization: `Bearer ${token}` },
                 },
             );
-            if (!res.ok) throw new Error("No autorizado o error de descarga");
+            if (!res.ok) {
+                let backendMessage = "";
+                try {
+                    const errorData = await res.json();
+                    backendMessage =
+                        String(errorData?.error || "").trim() ||
+                        String(errorData?.message || "").trim();
+                } catch {
+                    backendMessage = "";
+                }
+
+                throw new Error(
+                    backendMessage ||
+                        (res.status === 401 || res.status === 403
+                            ? "No autorizado"
+                            : "Error al descargar la grabacion"),
+                );
+            }
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             setAudioUrls((prev) => ({ ...prev, [recordingfile]: url }));
             return url;
         } catch (err) {
-            alert("No se pudo obtener la grabación: " + err.message);
+            alert("No se pudo obtener la grabacion: " + err.message);
             return null;
         }
     };
@@ -157,7 +177,7 @@ export default function GrabacionesOutboundPage() {
                 if (url) {
                     const a = document.createElement("a");
                     a.href = url;
-                    a.download = g.recordingfile;
+                    a.download = getRecordingFilename(g.recordingfile);
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -538,7 +558,9 @@ export default function GrabacionesOutboundPage() {
                                                                     a.href =
                                                                         url;
                                                                     a.download =
-                                                                        g.recordingfile;
+                                                                        getRecordingFilename(
+                                                                            g.recordingfile,
+                                                                        );
                                                                     document.body.appendChild(
                                                                         a,
                                                                     );
@@ -597,3 +619,5 @@ export default function GrabacionesOutboundPage() {
         </PageContainer>
     );
 }
+
+
