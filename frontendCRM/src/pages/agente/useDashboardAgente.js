@@ -3,6 +3,7 @@ import { esGestionOutbound } from "../../utils/gestionOutbound";
 import {
     fetchInboundClientByIdentification,
     fetchInboundCurrentCall,
+    fetchRedesClientByIdentification,
 } from "../../services/dashboard.service";
 import {
     buildInitialSurveyAnswers,
@@ -16,6 +17,7 @@ import useRegistroQueue from "./hooks/useRegistroQueue";
 export default function useDashboardAgenteState({
     user,
     selectedCampaignId,
+    selectedCampaignLabel,
     selectedCampaignTick,
     selectedMenuItemId,
     selectedCategoryId,
@@ -27,6 +29,27 @@ export default function useDashboardAgenteState({
     selectedImportId,
 }) {
     const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+    const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
+    const REDES_SHARED_LABEL = "gestion redes";
+    const normalizeFlowLabel = (value) =>
+        String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim()
+            .toLowerCase();
+    const allowsInboundOpenWithoutCall = (...values) => {
+        const normalizedValues = values.map(normalizeFlowLabel);
+
+        return (
+            normalizedValues.includes("kullki wasi") ||
+            normalizedValues.includes("atm") ||
+            normalizedValues.includes("oscus") ||
+            normalizedValues.includes("atm oscus")
+        );
+    };
+    const isGestionRedesFlow = ({ menuItemId = "", campaignId = "" }) =>
+        String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
+        normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL;
     const roles = user?.roles || [];
     const isAgente = roles.includes("ASESOR");
 
@@ -47,6 +70,7 @@ export default function useDashboardAgenteState({
             file: null,
         },
     ]);
+    const [isSavingGestion, setIsSavingGestion] = useState(false);
 
     const {
         activeBaseCards,
@@ -98,6 +122,7 @@ export default function useDashboardAgenteState({
         setSurveyAnswers,
     } = useRegistroQueue({
         selectedCampaignId,
+        selectedCampaignLabel,
         selectedCampaignTick,
         selectedImportId,
         selectedMenuItemId,
@@ -110,6 +135,27 @@ export default function useDashboardAgenteState({
         onChangeAgentPage,
         onAgentStatusSync,
     });
+
+    const findDynamicFieldKeyByLabels = useCallback(
+        (labels = []) => {
+            const normalizedLabels = labels.map(normalizeFlowLabel);
+            const allRows = Array.isArray(dynamicFormConfig?.rows)
+                ? dynamicFormConfig.rows
+                : [];
+
+            for (const row of allRows) {
+                for (const field of row || []) {
+                    const normalizedLabel = normalizeFlowLabel(field?.label);
+                    if (normalizedLabels.includes(normalizedLabel)) {
+                        return String(field?.key || "").trim();
+                    }
+                }
+            }
+
+            return "";
+        },
+        [dynamicFormConfig],
+    );
 
     const {
         telefonoSeleccionado,
@@ -318,6 +364,55 @@ export default function useDashboardAgenteState({
         );
     }, []);
 
+    const resetManualGestionDraft = useCallback(() => {
+        const isRedesManualFlow =
+            manualFlowActivo &&
+            isGestionRedesFlow({
+                menuItemId: menuItemIdSeleccionado,
+                campaignId: campaignIdSeleccionada,
+            });
+
+        setDynamicFormAnswers((prev) => {
+            if (!isRedesManualFlow) {
+                return {};
+            }
+
+            return {
+                __redes_tipo_cliente:
+                    String(prev?.__redes_tipo_cliente || "").trim() || "Asesor",
+                __redes_fecha_gestion:
+                    String(prev?.__redes_fecha_gestion || "").trim() ||
+                    new Date().toISOString().slice(0, 10),
+                __redes_estado_conversacion:
+                    String(prev?.__redes_estado_conversacion || "").trim() ||
+                    "Finalizado",
+            };
+        });
+        setSurveyAnswers(buildInitialSurveyAnswers(dynamicSurveyConfig));
+        setObservacion("");
+        setLevel1SeleccionadoBase("");
+        setLevel2Seleccionado("");
+        setInboundInteractionDetails([
+            {
+                categorizacion: "",
+                motivo: "",
+                submotivo: "",
+                observaciones: "",
+            },
+        ]);
+        setInboundImageDrafts([{ file: null }]);
+    }, [
+        campaignIdSeleccionada,
+        dynamicSurveyConfig,
+        manualFlowActivo,
+        menuItemIdSeleccionado,
+        setDynamicFormAnswers,
+        setLevel1SeleccionadoBase,
+        setLevel2Seleccionado,
+        setObservacion,
+        setSurveyAnswers,
+    ]);
+
     const resolveInboundAgentNumber = useCallback(() => {
         const candidates = [
             dynamicFormAnswers?.__inbound_agent_number,
@@ -385,26 +480,85 @@ export default function useDashboardAgenteState({
         return currentCall;
     }, [resolveInboundAgentNumber, setDynamicFormAnswers]);
 
+    const normalizeInboundQueueValue = useCallback((value) => {
+        return String(value || "")
+            .trim()
+            .replace(/\.0+$/, "")
+            .replace(/[^\d]/g, "");
+    }, []);
+
     const resolveInboundChildByQueue = useCallback(
         (queueValue) => {
-            const normalizedQueue = String(queueValue || "").trim();
+            const normalizedQueue = normalizeInboundQueueValue(queueValue);
             if (!normalizedQueue) {
                 return null;
             }
 
             return (
                 (inboundChildOptions || []).find(
-                    (item) =>
-                        String(item?.inboundQueue || "").trim() ===
-                        normalizedQueue,
+                    (item) => {
+                        const queueTokens = String(item?.inboundQueue || "")
+                            .split(/[;,|]/)
+                            .flatMap((entry) =>
+                                String(entry || "")
+                                    .split(/\s+/)
+                                    .map((token) =>
+                                        normalizeInboundQueueValue(token),
+                                    ),
+                            )
+                            .filter(Boolean);
+
+                        return queueTokens.includes(normalizedQueue);
+                    },
                 ) || null
             );
         },
-        [inboundChildOptions],
+        [inboundChildOptions, normalizeInboundQueueValue],
     );
 
     const handleDynamicFormFieldChange = useCallback(
         async (fieldKey, value) => {
+            const isRedesManualFlow =
+                manualFlowActivo &&
+                isGestionRedesFlow({
+                    menuItemId: menuItemIdSeleccionado,
+                    campaignId: campaignIdSeleccionada,
+                });
+
+            if (fieldKey === "__redes_nombre_cliente") {
+                const selectedOption = (inboundChildOptions || []).find(
+                    (item) => String(item.value) === String(value),
+                );
+                const today = new Date().toISOString().slice(0, 10);
+
+                setDynamicFormAnswers((prev) => ({
+                    ...prev,
+                    __redes_nombre_cliente: String(value || ""),
+                    __redes_tipo_cliente: "Asesor",
+                    __redes_tipo_red_social:
+                        String(prev?.__redes_tipo_red_social || "").trim(),
+                    __redes_fecha_gestion:
+                        String(prev?.__redes_fecha_gestion || "").trim() ||
+                        today,
+                    __redes_estado_conversacion: "Finalizado",
+                }));
+                setInboundInteractionDetails([
+                    {
+                        categorizacion: "",
+                        motivo: "",
+                        submotivo: "",
+                        observaciones: "",
+                    },
+                ]);
+
+                await handleInboundChildSelection({
+                    childMenuItemId: selectedOption?.menuItemId || "",
+                    childCampaignId: selectedOption?.campaignId || "",
+                    preserveCurrentTemplate: true,
+                });
+                return;
+            }
+
             if (fieldKey === "__inbound_nombre_cliente") {
                 const selectedOption = (inboundChildOptions || []).find(
                     (item) => String(item.value) === String(value),
@@ -464,13 +618,99 @@ export default function useDashboardAgenteState({
                 [fieldKey]: nextValue,
             }));
 
+            const isRedesIdentificationField =
+                isRedesManualFlow && fieldKey === "IDENTIFICACION";
+
+            if (isRedesIdentificationField) {
+                const identification = nextValue.trim();
+                if (identification.length < 5) {
+                    return;
+                }
+
+                const selectedRedesChildMenuItemId = String(
+                    dynamicFormAnswers?.__redes_nombre_cliente || "",
+                ).trim();
+                const selectedRedesChild = (inboundChildOptions || []).find(
+                    (item) =>
+                        String(item.menuItemId || item.value || "").trim() ===
+                        selectedRedesChildMenuItemId,
+                );
+
+                const { ok, status, json } =
+                    await fetchRedesClientByIdentification({
+                        identification,
+                        campaignId:
+                            String(selectedRedesChild?.campaignId || "").trim() ||
+                            String(campaignIdSeleccionada || "").trim(),
+                    });
+
+                if (status === 404 || !json?.data || !ok) {
+                    return;
+                }
+
+                const client = json.data;
+                const fullNameFieldKey = findDynamicFieldKeyByLabels([
+                    "Apellidos y Nombres",
+                    "Nombre Cliente",
+                ]);
+                const celularFieldKey = findDynamicFieldKeyByLabels([
+                    "Celular",
+                    "Telefono celular",
+                    "Teléfono celular",
+                ]);
+
+                setDynamicFormAnswers((prev) => ({
+                    ...prev,
+                    IDENTIFICACION: identification,
+                    NOMBRE_CLIENTE:
+                        String(prev?.NOMBRE_CLIENTE || "").trim() ||
+                        String(prev?.ApellidosNombres || "").trim() ||
+                        String(client.fullName || "").trim(),
+                    ApellidosNombres:
+                        String(client.fullName || "").trim() ||
+                        String(prev?.ApellidosNombres || "").trim(),
+                    apellidosNombres:
+                        String(client.fullName || "").trim() ||
+                        String(prev?.apellidosNombres || "").trim(),
+                    CAMPO3:
+                        String(prev?.CAMPO3 || "").trim() ||
+                        String(client.celular || "").trim(),
+                    celular:
+                        String(client.celular || "").trim() ||
+                        String(prev?.celular || "").trim(),
+                    ...(fullNameFieldKey
+                        ? {
+                              [fullNameFieldKey]:
+                                  String(client.fullName || "").trim() ||
+                                  String(prev?.[fullNameFieldKey] || "").trim(),
+                          }
+                        : {}),
+                    ...(celularFieldKey
+                        ? {
+                              [celularFieldKey]:
+                                  String(client.celular || "").trim() ||
+                                  String(prev?.[celularFieldKey] || "").trim(),
+                          }
+                        : {}),
+                    __redes_tipo_cliente:
+                        String(client.tipoCliente || "").trim() ||
+                        prev.__redes_tipo_cliente ||
+                        "Asesor",
+                    __redes_tipo_red_social:
+                        String(client.tipoRedSocial || "").trim() ||
+                        prev.__redes_tipo_red_social ||
+                        "",
+                }));
+                return;
+            }
+
             const isInboundIdentificationField =
                 manualFlowActivo &&
                 String(categoryIdSeleccionada || "").trim() ===
                     INBOUND_MENU_CATEGORY_ID &&
                 fieldKey === "IDENTIFICACION";
 
-            if (!isInboundIdentificationField) {
+            if (!isInboundIdentificationField || isRedesManualFlow) {
                 return;
             }
 
@@ -566,10 +806,40 @@ export default function useDashboardAgenteState({
             handleInboundChildSelection,
             inboundChildOptions,
             manualFlowActivo,
+            menuItemIdSeleccionado,
             resolveInboundChildByQueue,
             setDynamicFormAnswers,
+            setError,
+            findDynamicFieldKeyByLabels,
         ],
     );
+
+    useEffect(() => {
+        const isRedesManualFlow =
+            manualFlowActivo &&
+            isGestionRedesFlow({
+                menuItemId: menuItemIdSeleccionado,
+                campaignId: campaignIdSeleccionada,
+            });
+
+        if (!isRedesManualFlow) {
+            return;
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        setDynamicFormAnswers((prev) => ({
+            ...prev,
+            __redes_tipo_cliente:
+                String(prev?.__redes_tipo_cliente || "").trim() || "Asesor",
+            __redes_tipo_red_social:
+                String(prev?.__redes_tipo_red_social || "").trim(),
+            __redes_fecha_gestion:
+                String(prev?.__redes_fecha_gestion || "").trim() || today,
+            __redes_estado_conversacion:
+                String(prev?.__redes_estado_conversacion || "").trim() ||
+                "Finalizado",
+        }));
+    }, [manualFlowActivo, menuItemIdSeleccionado, setDynamicFormAnswers]);
 
     useEffect(() => {
         const shouldAutoselectInboundChild =
@@ -587,13 +857,16 @@ export default function useDashboardAgenteState({
 
         const autoselectByActiveCallQueue = async () => {
             const currentCall = await hydrateInboundCurrentCall();
-            if (cancelled || !currentCall?.queue) {
+            const resolvedQueue =
+                currentCall?.queue ||
+                dynamicFormAnswers?.__inbound_current_call_queue ||
+                "";
+
+            if (cancelled || !resolvedQueue) {
                 return;
             }
 
-            const queueMatchedChild = resolveInboundChildByQueue(
-                currentCall.queue,
-            );
+            const queueMatchedChild = resolveInboundChildByQueue(resolvedQueue);
 
             if (!queueMatchedChild?.menuItemId) {
                 return;
@@ -608,7 +881,7 @@ export default function useDashboardAgenteState({
 
             if (
                 currentSelectedChild === queueMatchedChild.menuItemId &&
-                currentResolvedQueue === String(currentCall.queue || "").trim()
+                currentResolvedQueue === String(resolvedQueue || "").trim()
             ) {
                 return;
             }
@@ -622,13 +895,13 @@ export default function useDashboardAgenteState({
                 return;
             }
 
-            setDynamicFormAnswers((prev) => ({
-                ...prev,
-                __inbound_nombre_cliente: queueMatchedChild.menuItemId,
-                __inbound_nombre_cliente_label:
-                    queueMatchedChild.label || "",
-            }));
-        };
+        setDynamicFormAnswers((prev) => ({
+            ...prev,
+            __inbound_nombre_cliente: queueMatchedChild.menuItemId,
+            __inbound_nombre_cliente_label:
+                queueMatchedChild.label || "",
+        }));
+    };
 
         autoselectByActiveCallQueue();
 
@@ -645,6 +918,55 @@ export default function useDashboardAgenteState({
         manualFlowActivo,
         resolveInboundChildByQueue,
         setDynamicFormAnswers,
+    ]);
+
+    useEffect(() => {
+        const allowsOpenWithoutCall = allowsInboundOpenWithoutCall(
+            selectedCampaignLabel,
+            selectedCampaignId,
+            campaignIdSeleccionada,
+        );
+        const shouldValidateInboundAccess =
+            manualFlowActivo &&
+            String(categoryIdSeleccionada || "").trim() ===
+                INBOUND_MENU_CATEGORY_ID &&
+            !allowsOpenWithoutCall &&
+            agentPage !== "inicio";
+
+        if (!shouldValidateInboundAccess) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const validateInboundCurrentCall = async () => {
+            const currentCall = await hydrateInboundCurrentCall();
+
+            if (cancelled || currentCall?.queue) {
+                return;
+            }
+
+            setError(
+                "No tienes una llamada inbound activa asignada. La gestión inbound solo se puede abrir con una llamada en curso.",
+            );
+            onChangeAgentPage?.("inicio");
+        };
+
+        validateInboundCurrentCall();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        agentPage,
+        campaignIdSeleccionada,
+        categoryIdSeleccionada,
+        hydrateInboundCurrentCall,
+        manualFlowActivo,
+        onChangeAgentPage,
+        selectedCampaignId,
+        selectedCampaignLabel,
+        setError,
     ]);
 
     const handleGuardarGestion = useAgentGestionSubmit({
@@ -672,6 +994,8 @@ export default function useDashboardAgenteState({
         inboundChildOptions,
         inboundInteractionDetails,
         inboundImageDrafts,
+        setIsSavingGestion,
+        resetManualGestionDraft,
     });
 
     const handleCancelarGestion = useCallback(async () => {
@@ -758,6 +1082,7 @@ export default function useDashboardAgenteState({
         inboundChildOptions,
         inboundInteractionDetails,
         inboundImageDrafts,
+        isSavingGestion,
         shouldShowQueueMessage,
         isHomeView,
         isGestionOutbound,

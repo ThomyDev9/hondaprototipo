@@ -49,10 +49,7 @@ export class AdminFormsDAO {
                   AND mi.estado = 'activo'
                   AND (
                         mi.id_padre IS NOT NULL
-                        OR (
-                            mi.id_padre IS NULL
-                            AND LOWER(COALESCE(mc.nombre_categoria, '')) LIKE '%inbound%'
-                        )
+                        OR mi.id_padre IS NULL
                   )
                   AND (mi.id_padre IS NULL OR p.estado = 'activo')
                   ${assignmentFilter}
@@ -204,11 +201,7 @@ export class AdminFormsDAO {
               AND mi.estado = 'activo'
               AND (
                     mi.id_padre IS NOT NULL
-                    OR (
-                        ? = 'F2'
-                        AND mi.id_padre IS NULL
-                        AND LOWER(COALESCE(mc.nombre_categoria, '')) LIKE '%inbound%'
-                    )
+                    OR (? = 'F2' AND mi.id_padre IS NULL)
               )
             LIMIT 1
             `,

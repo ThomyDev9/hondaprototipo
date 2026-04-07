@@ -217,6 +217,26 @@ const GET_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3 = `
     LIMIT 1
 `;
 
+const GET_REDES_MANAGEMENT_LEVELS = `
+    SELECT DISTINCT Description AS description, level1, level2, level3, code
+    FROM campaignresultmanagement
+    WHERE COALESCE(State, '1') = '1'
+      AND CAST(code AS UNSIGNED) > 2000
+    ORDER BY code ASC, Description ASC, level1 ASC, level2 ASC, level3 ASC
+`;
+
+const GET_REDES_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3 = `
+    SELECT code
+    FROM campaignresultmanagement
+    WHERE COALESCE(State, '1') = '1'
+      AND CAST(code AS UNSIGNED) > 2000
+      AND level1 = ?
+      AND level2 = ?
+      AND (level3 IS NULL OR level3 = '')
+    ORDER BY CAST(code AS UNSIGNED) ASC
+    LIMIT 1
+`;
+
 const GET_PHONE_STATUS_CATALOG = `
     SELECT Descripcion
     FROM statephones
@@ -483,7 +503,7 @@ const INSERT_INBOUND_CLIENT = `
     tipo_identificacion,
     full_name,
     city,
-    email,
+    cantidad_mensajes,
     celular,
     convencional,
     ticket_id,
@@ -511,7 +531,7 @@ const UPDATE_INBOUND_CLIENT_BY_ID = `
       tipo_identificacion = ?,
       full_name = ?,
       city = ?,
-      email = ?,
+      cantidad_mensajes = ?,
       celular = ?,
       convencional = ?,
       ticket_id = ?,
@@ -566,7 +586,7 @@ const INSERT_INBOUND_GESTION_FINAL = `
     relacion,
     nombre_cliente_ref,
     city,
-    email,
+    cantidad_mensajes,
     convencional,
     ticket_id,
     payload_json,
@@ -619,7 +639,7 @@ const UPDATE_INBOUND_GESTION_FINAL_BY_CONTACT_ID = `
       relacion = ?,
       nombre_cliente_ref = ?,
       city = ?,
-      email = ?,
+      cantidad_mensajes = ?,
       convencional = ?,
       ticket_id = ?,
       payload_json = ?,
@@ -669,7 +689,7 @@ const INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL = `
     relacion,
     nombre_cliente_ref,
     city,
-    email,
+    cantidad_mensajes,
     convencional,
     ticket_id,
     payload_json,
@@ -715,7 +735,7 @@ const INSERT_INBOUND_GESTION_HISTORICA_FROM_FINAL = `
     relacion,
     nombre_cliente_ref,
     city,
-    email,
+    cantidad_mensajes,
     convencional,
     ticket_id,
     payload_json,
@@ -759,6 +779,265 @@ const INSERT_INBOUND_GESTION_IMAGEN = `
     file_size
   )
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+const LIST_INBOUND_HISTORICO_CLIENT_OPTIONS = `
+  SELECT DISTINCT
+    TRIM(nombre_cliente_ref) AS value
+  FROM gestionfinal_inbound
+  WHERE (? = '' OR campaign_id = ?)
+    AND COALESCE(TRIM(nombre_cliente_ref), '') <> ''
+  ORDER BY value ASC
+`;
+
+const LIST_INBOUND_HISTORICO_ROWS = `
+  SELECT
+    campaign_id,
+    agent,
+    identification,
+    full_name,
+    celular,
+    categorizacion,
+    result_level1,
+    result_level2,
+    observaciones,
+    tmstmp,
+    nombre_cliente_ref
+  FROM gestionfinal_inbound
+  WHERE (? = '' OR campaign_id = ?)
+    AND (? = '' OR TRIM(nombre_cliente_ref) = ?)
+    AND (
+      ? = ''
+      OR TRIM(identification) = ?
+      OR LOWER(COALESCE(TRIM(full_name), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(nombre_cliente_ref), '')) LIKE CONCAT('%', LOWER(?), '%')
+    )
+    AND (? = '' OR DATE(tmstmp) >= DATE(?))
+    AND (? = '' OR DATE(tmstmp) <= DATE(?))
+  ORDER BY tmstmp DESC, id DESC
+  LIMIT 500
+`;
+
+const GET_REDES_CLIENT_BY_IDENTIFICATION_AND_CAMPAIGN = `
+  SELECT *
+  FROM clientes_redes
+  WHERE identification = ?
+    AND campaign_id = ?
+  ORDER BY id DESC
+  LIMIT 1
+`;
+
+const GET_REDES_CLIENT_BY_IDENTIFICATION = `
+  SELECT *
+  FROM clientes_redes
+  WHERE identification = ?
+  ORDER BY id DESC
+  LIMIT 1
+`;
+
+const INSERT_REDES_CLIENT = `
+  INSERT INTO clientes_redes (
+    contact_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    identification,
+    tipo_identificacion,
+    full_name,
+    cantidad_mensajes,
+    celular,
+    tipo_cliente,
+    tipo_red_social,
+    estado_conversacion,
+    fecha_gestion,
+    nombre_cliente_ref,
+    categorizacion,
+    level1,
+    level2,
+    observaciones,
+    payload_json,
+    created_by
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+const UPDATE_REDES_CLIENT_BY_ID = `
+  UPDATE clientes_redes
+  SET contact_id = ?,
+      campaign_id = ?,
+      category_id = ?,
+      menu_item_id = ?,
+      identification = ?,
+      tipo_identificacion = ?,
+      full_name = ?,
+      cantidad_mensajes = ?,
+      celular = ?,
+      tipo_cliente = ?,
+      tipo_red_social = ?,
+      estado_conversacion = ?,
+      fecha_gestion = ?,
+      nombre_cliente_ref = ?,
+      categorizacion = ?,
+      level1 = ?,
+      level2 = ?,
+      observaciones = ?,
+      payload_json = ?,
+      created_by = ?
+  WHERE id = ?
+`;
+
+const GET_REDES_GESTION_BY_CONTACT_ID = `
+  SELECT *
+  FROM gestion_redes
+  WHERE contact_id = ?
+  LIMIT 1
+`;
+
+const COUNT_REDES_GESTIONES_BY_CONTACT_ID = `
+  SELECT COUNT(DISTINCT interaction_id) AS total
+  FROM gestion_redes
+  WHERE contact_id = ?
+`;
+
+const INSERT_REDES_GESTION_FINAL = `
+  INSERT INTO gestion_redes (
+    contact_id,
+    cliente_redes_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    interaction_id,
+    action_order,
+    agent,
+    management_result_code,
+    result_level1,
+    result_level2,
+    categorizacion,
+    level1,
+    level2,
+    observaciones,
+    identification,
+    full_name,
+    celular,
+    tipo_cliente,
+    tipo_red_social,
+    tipo_identificacion,
+    nombre_cliente_ref,
+    estado_conversacion,
+    fecha_gestion,
+    cantidad_mensajes,
+    payload_json,
+    fields_meta_json,
+    started_management,
+    tmstmp,
+    intentos
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`;
+
+const UPDATE_REDES_GESTION_FINAL_BY_CONTACT_ID = `
+  UPDATE gestion_redes
+  SET cliente_redes_id = ?,
+      campaign_id = ?,
+      category_id = ?,
+      menu_item_id = ?,
+      interaction_id = ?,
+      agent = ?,
+      management_result_code = ?,
+      result_level1 = ?,
+      result_level2 = ?,
+      categorizacion = ?,
+      level1 = ?,
+      level2 = ?,
+      observaciones = ?,
+      identification = ?,
+      full_name = ?,
+      celular = ?,
+      tipo_cliente = ?,
+      tipo_red_social = ?,
+      tipo_identificacion = ?,
+      nombre_cliente_ref = ?,
+      estado_conversacion = ?,
+      fecha_gestion = ?,
+      cantidad_mensajes = ?,
+      payload_json = ?,
+      fields_meta_json = ?,
+      started_management = ?,
+      tmstmp = ?,
+      intentos = ?,
+      updated_at = CURRENT_TIMESTAMP
+  WHERE contact_id = ?
+`;
+
+const INSERT_REDES_GESTION_HISTORICA_FROM_FINAL = `
+  INSERT INTO gestionhistorica_redes (
+    gestion_redes_id,
+    contact_id,
+    cliente_redes_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    interaction_id,
+    action_order,
+    agent,
+    management_result_code,
+    result_level1,
+    result_level2,
+    categorizacion,
+    level1,
+    level2,
+    observaciones,
+    identification,
+    full_name,
+    celular,
+    tipo_cliente,
+    tipo_red_social,
+    tipo_identificacion,
+    nombre_cliente_ref,
+    estado_conversacion,
+    fecha_gestion,
+    cantidad_mensajes,
+    payload_json,
+    fields_meta_json,
+    started_management,
+    tmstmp,
+    intentos
+  )
+  SELECT
+    id,
+    contact_id,
+    cliente_redes_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    interaction_id,
+    action_order,
+    agent,
+    management_result_code,
+    result_level1,
+    result_level2,
+    categorizacion,
+    level1,
+    level2,
+    observaciones,
+    identification,
+    full_name,
+    celular,
+    tipo_cliente,
+    tipo_red_social,
+    tipo_identificacion,
+    nombre_cliente_ref,
+    estado_conversacion,
+    fecha_gestion,
+    cantidad_mensajes,
+    payload_json,
+    fields_meta_json,
+    started_management,
+    tmstmp,
+    intentos
+  FROM gestion_redes
+  WHERE contact_id = ?
+  LIMIT 1
 `;
 
 export class AgenteDAO {
@@ -976,6 +1255,23 @@ export class AgenteDAO {
         const [rows] = await executor.query(
             GET_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3,
             [campaignId, level1, level2],
+        );
+        return rows[0] || null;
+    }
+
+    async getRedesManagementLevels(executor = this.pool) {
+        const [rows] = await executor.query(GET_REDES_MANAGEMENT_LEVELS);
+        return rows;
+    }
+
+    async getRedesManagementCodeByLevelsWithoutLevel3(
+        level1,
+        level2,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            GET_REDES_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3,
+            [level1, level2],
         );
         return rows[0] || null;
     }
@@ -1311,6 +1607,103 @@ export class AgenteDAO {
 
     async insertInboundGestionImagen(params, executor = this.pool) {
         return executor.query(INSERT_INBOUND_GESTION_IMAGEN, params);
+    }
+
+    async listInboundHistoricoClientOptions(campaignId, executor = this.pool) {
+        const [rows] = await executor.query(
+            LIST_INBOUND_HISTORICO_CLIENT_OPTIONS,
+            [campaignId, campaignId],
+        );
+        return rows;
+    }
+
+    async listInboundHistoricoRows(
+        {
+            campaignId,
+            clientName = "",
+            searchText = "",
+            startDate = "",
+            endDate = "",
+        },
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(LIST_INBOUND_HISTORICO_ROWS, [
+            campaignId,
+            campaignId,
+            clientName,
+            clientName,
+            searchText,
+            searchText,
+            searchText,
+            searchText,
+            startDate,
+            startDate,
+            endDate,
+            endDate,
+        ]);
+        return rows;
+    }
+
+    async getRedesClientByIdentificationAndCampaign(
+        identification,
+        campaignId,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            GET_REDES_CLIENT_BY_IDENTIFICATION_AND_CAMPAIGN,
+            [identification, campaignId],
+        );
+        return rows[0] || null;
+    }
+
+    async getRedesClientByIdentification(
+        identification,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(GET_REDES_CLIENT_BY_IDENTIFICATION, [
+            identification,
+        ]);
+        return rows[0] || null;
+    }
+
+    async insertRedesClient(params, executor = this.pool) {
+        return executor.query(INSERT_REDES_CLIENT, params);
+    }
+
+    async updateRedesClientById(params, executor = this.pool) {
+        return executor.query(UPDATE_REDES_CLIENT_BY_ID, params);
+    }
+
+    async getRedesGestionByContactId(contactId, executor = this.pool) {
+        const [rows] = await executor.query(GET_REDES_GESTION_BY_CONTACT_ID, [
+            contactId,
+        ]);
+        return rows[0] || null;
+    }
+
+    async countRedesGestionesByContactId(contactId, executor = this.pool) {
+        const [rows] = await executor.query(
+            COUNT_REDES_GESTIONES_BY_CONTACT_ID,
+            [contactId],
+        );
+        return Number(rows[0]?.total || 0);
+    }
+
+    async insertRedesGestionFinal(params, executor = this.pool) {
+        return executor.query(INSERT_REDES_GESTION_FINAL, params);
+    }
+
+    async updateRedesGestionFinalByContactId(params, executor = this.pool) {
+        return executor.query(UPDATE_REDES_GESTION_FINAL_BY_CONTACT_ID, params);
+    }
+
+    async insertRedesGestionHistoricaFromFinal(
+        contactId,
+        executor = this.pool,
+    ) {
+        return executor.query(INSERT_REDES_GESTION_HISTORICA_FROM_FINAL, [
+            contactId,
+        ]);
     }
 }
 

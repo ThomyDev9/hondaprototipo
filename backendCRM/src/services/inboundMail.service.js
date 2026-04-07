@@ -1,8 +1,16 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import nodemailer from "nodemailer";
 import { ImapFlow } from "imapflow";
 import MailComposer from "nodemailer/lib/mail-composer/index.js";
 
 let cachedTransporter = null;
+const serviceDirname = path.dirname(fileURLToPath(import.meta.url));
+const SIGNATURES_BASE_PATH =
+    String(process.env.INBOUND_EMAIL_SIGNATURES_PATH || "").trim() ||
+    path.resolve(serviceDirname, "..", "..", "firmas_asesores");
+const SIGNATURE_CONTENT_ID = "firma-asesor@kimobill";
 
 function normalizeBooleanEnv(value, fallback = false) {
     if (value === undefined || value === null || value === "") {
@@ -104,21 +112,148 @@ function sectionToHtml(value) {
     return escapeHtml(value).replace(/\n/g, "<br />");
 }
 
+function hasHtmlMarkup(value) {
+    return /<[^>]+>/.test(String(value || ""));
+}
+
+function sanitizeBodyHtml(value) {
+    return String(value || "")
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+        .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, "")
+        .replace(/\son[a-z]+\s*=\s*[^ >]+/gi, "")
+        .replace(/javascript:/gi, "")
+        .trim();
+}
+
+function bodyToHtml(value) {
+    const normalizedValue = String(value || "").trim();
+    if (!normalizedValue) {
+        return "";
+    }
+
+    if (hasHtmlMarkup(normalizedValue)) {
+        return sanitizeBodyHtml(normalizedValue);
+    }
+
+    return `<p style="margin:0 0 16px;line-height:1.6;color:#0f172a;font-family:Segoe UI,Arial,sans-serif;font-size:14px;">${sectionToHtml(
+        normalizedValue,
+    )}</p>`;
+}
+
+function sectionText(value) {
+    return String(value || "")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/p>/gi, "\n")
+        .replace(/<\/tr>/gi, "\n")
+        .replace(/<\/td>/gi, "\t")
+        .replace(/<\/th>/gi, "\t")
+        .replace(/<[^>]+>/g, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+}
+
+function normalizeSignatureLookup(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function resolveSignatureContentType(filePath = "") {
+    const normalizedExtension = path.extname(String(filePath || "")).toLowerCase();
+    if (normalizedExtension === ".jpg" || normalizedExtension === ".jpeg") {
+        return "image/jpeg";
+    }
+    if (normalizedExtension === ".webp") {
+        return "image/webp";
+    }
+    if (normalizedExtension === ".gif") {
+        return "image/gif";
+    }
+    return "image/png";
+}
+
+export async function findInboundAdvisorSignature(user = {}) {
+    const candidates = [user?.username]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+
+    if (candidates.length === 0) {
+        return null;
+    }
+
+    let files = [];
+    try {
+        files = await fs.readdir(SIGNATURES_BASE_PATH, {
+            withFileTypes: true,
+        });
+    } catch {
+        return null;
+    }
+
+    const normalizedCandidates = candidates
+        .map((value) => normalizeSignatureLookup(value))
+        .filter(Boolean);
+
+    const matchedFile = files.find((entry) => {
+        if (!entry.isFile()) return false;
+        const normalizedFilename = normalizeSignatureLookup(
+            path.parse(entry.name).name,
+        );
+        return normalizedCandidates.includes(normalizedFilename);
+    });
+
+    if (!matchedFile) {
+        return null;
+    }
+
+    const fullPath = path.join(SIGNATURES_BASE_PATH, matchedFile.name);
+    const content = await fs.readFile(fullPath);
+
+    return {
+        filename: matchedFile.name,
+        content,
+        contentType: resolveSignatureContentType(matchedFile.name),
+        cid: SIGNATURE_CONTENT_ID,
+        disposition: "inline",
+    };
+}
+
 export function buildInboundEmailHtml({
     header = "",
     body = "",
     footer = "",
+    signatureCid = "",
 }) {
-    const sections = [header, body, footer]
-        .map((item) => String(item || "").trim())
+    const sections = [
+        String(header || "").trim()
+            ? `<p style="margin:0 0 16px;line-height:1.6;color:#0f172a;font-family:Segoe UI,Arial,sans-serif;font-size:14px;">${sectionToHtml(
+                  header,
+              )}</p>`
+            : "",
+        bodyToHtml(body),
+        String(footer || "").trim()
+            ? `<p style="margin:16px 0 0;line-height:1.6;color:#0f172a;font-family:Segoe UI,Arial,sans-serif;font-size:14px;">${sectionToHtml(
+                  footer,
+              )}</p>`
+            : "",
+    ]
         .filter(Boolean)
-        .map(
-            (item) =>
-                `<p style="margin:0 0 16px;line-height:1.6;color:#0f172a;font-family:Segoe UI,Arial,sans-serif;font-size:14px;">${sectionToHtml(
-                    item,
-                )}</p>`,
-        )
         .join("");
+    const signatureSection = String(signatureCid || "").trim()
+        ? `
+                <div style="margin-top:8px;">
+                    <img
+                        src="cid:${escapeHtml(signatureCid)}"
+                        alt="Firma del asesor"
+                        style="display:block;max-width:320px;width:100%;height:auto;border:0;"
+                    />
+                </div>
+            `
+        : "";
 
     return `
         <div style="background:#eff6ff;padding:24px;">
@@ -128,6 +263,7 @@ export function buildInboundEmailHtml({
                 </div>
                 <div style="padding:22px;">
                     ${sections}
+                    ${signatureSection}
                 </div>
             </div>
         </div>
@@ -141,21 +277,31 @@ export async function sendInboundEmail({
     body,
     footer,
     attachments = [],
+    signatureAttachment = null,
 }) {
     const config = getInboundMailConfig();
     const transporter = getInboundMailTransporter();
     const text = [header, body, footer]
-        .map((item) => String(item || "").trim())
+        .map((item) => sectionText(item))
         .filter(Boolean)
         .join("\n\n");
+
+    const allAttachments = signatureAttachment
+        ? [...attachments, signatureAttachment]
+        : attachments;
 
     return transporter.sendMail({
         from: config.from,
         to: String(to || "").trim(),
         subject: String(subject || "").trim(),
         text,
-        html: buildInboundEmailHtml({ header, body, footer }),
-        attachments,
+        html: buildInboundEmailHtml({
+            header,
+            body,
+            footer,
+            signatureCid: signatureAttachment?.cid || "",
+        }),
+        attachments: allAttachments,
     });
 }
 
@@ -171,21 +317,31 @@ async function createRawInboundMessage({
     body,
     footer,
     attachments = [],
+    signatureAttachment = null,
     date = new Date(),
     messageId = "",
 }) {
     const text = [header, body, footer]
-        .map((item) => String(item || "").trim())
+        .map((item) => sectionText(item))
         .filter(Boolean)
         .join("\n\n");
+
+    const allAttachments = signatureAttachment
+        ? [...attachments, signatureAttachment]
+        : attachments;
 
     const composer = new MailComposer({
         from,
         to,
         subject,
         text,
-        html: buildInboundEmailHtml({ header, body, footer }),
-        attachments,
+        html: buildInboundEmailHtml({
+            header,
+            body,
+            footer,
+            signatureCid: signatureAttachment?.cid || "",
+        }),
+        attachments: allAttachments,
         date,
         messageId: String(messageId || "").trim() || undefined,
     });
@@ -200,6 +356,7 @@ export async function appendInboundEmailToSent({
     body,
     footer,
     attachments = [],
+    signatureAttachment = null,
     date = new Date(),
     messageId = "",
 }) {
@@ -257,6 +414,7 @@ export async function appendInboundEmailToSent({
             body,
             footer,
             attachments,
+            signatureAttachment,
             date,
             messageId,
         });

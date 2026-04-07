@@ -6,6 +6,7 @@ import multer from "multer";
 import { callCenterPool } from "../../services/db.multi.js";
 import {
     appendInboundEmailToSent,
+    findInboundAdvisorSignature,
     getInboundEmailLimits,
     getInboundMailFromAddress,
     sendInboundEmail,
@@ -168,6 +169,35 @@ function getFirstFormValueByKeys(source = {}, candidateKeys = []) {
     return "";
 }
 
+function normalizeFlowText(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function isRedesFormFlow({
+    campaignId = "",
+    menuItemId = "",
+    formData = {},
+    categoryId = "",
+}) {
+    const normalizedCampaignId = normalizeFlowText(campaignId);
+    const normalizedMenuItemId = normalizeFlowText(menuItemId);
+    const normalizedCategoryId = normalizeFlowText(categoryId);
+    const formKeys = Object.keys(formData || {}).map((key) =>
+        String(key || "").trim(),
+    );
+
+    return (
+        normalizedCampaignId === "gestion redes" ||
+        normalizedMenuItemId === "gestion redes" ||
+        normalizedCategoryId === "gestion redes" ||
+        formKeys.some((key) => key.startsWith("__redes_"))
+    );
+}
+
 function resolveInboundTicketValue(callRow = {}) {
     const phone = String(callRow?.phone || "").trim();
     const callEntryId = String(callRow?.id_call_entry || "").trim();
@@ -274,6 +304,71 @@ export function registerInboundRoutes(
         linkManagementToKnownRecording,
     },
 ) {
+    router.get(
+        "/inbound-historico-clientes",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const campaignId = String(req.query?.campaignId || "").trim();
+
+                const rows =
+                    await agenteDAO.listInboundHistoricoClientOptions(
+                        campaignId,
+                    );
+
+                return res.json({
+                    success: true,
+                    data: rows.map((row) => ({
+                        value: String(row?.value || "").trim(),
+                        label: String(row?.value || "").trim(),
+                    })),
+                });
+            } catch (err) {
+                console.error(
+                    "Error en /agente/inbound-historico-clientes:",
+                    err,
+                );
+                return res.status(500).json({
+                    error: "Error obteniendo clientes del historico inbound",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.get(
+        "/inbound-historico",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const campaignId = String(req.query?.campaignId || "").trim();
+                const clientName = String(req.query?.clientName || "").trim();
+                const searchText = String(req.query?.searchText || "").trim();
+                const startDate = String(req.query?.startDate || "").trim();
+                const endDate = String(req.query?.endDate || "").trim();
+
+                const rows = await agenteDAO.listInboundHistoricoRows({
+                    campaignId,
+                    clientName,
+                    searchText,
+                    startDate,
+                    endDate,
+                });
+
+                return res.json({
+                    success: true,
+                    data: rows,
+                });
+            } catch (err) {
+                console.error("Error en /agente/inbound-historico:", err);
+                return res.status(500).json({
+                    error: "Error obteniendo historico inbound",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
     router.get(
         "/buscar-cliente-inbound",
         ...agenteMiddlewares,
@@ -517,10 +612,23 @@ export function registerInboundRoutes(
                 const body = String(req.body?.body || "").trim();
                 const footer = String(req.body?.footer || "").trim();
                 const files = Array.isArray(req.files) ? req.files : [];
+                const signatureAttachment =
+                    await findInboundAdvisorSignature(req.user);
+                const advisorUsername = String(
+                    req.user?.username || "",
+                ).trim();
 
                 if (!to || !subject || !body) {
                     return res.status(400).json({
                         error: "to, subject y body son requeridos",
+                    });
+                }
+
+                if (!signatureAttachment) {
+                    return res.status(400).json({
+                        error: advisorUsername
+                            ? `No se encontro la firma del asesor ${advisorUsername}. Debe existir un archivo con ese mismo username en firmas_asesores.`
+                            : "No se encontro la firma del asesor. Debe existir un archivo con el mismo username en firmas_asesores.",
                     });
                 }
 
@@ -545,6 +653,7 @@ export function registerInboundRoutes(
                     body,
                     footer,
                     attachments: buildInboundEmailAttachments(files),
+                    signatureAttachment,
                 });
 
                 let sentMailbox = "";
@@ -559,6 +668,7 @@ export function registerInboundRoutes(
                         body,
                         footer,
                         attachments: buildInboundEmailAttachments(files),
+                        signatureAttachment,
                         date: new Date(),
                         messageId: String(sendResult?.messageId || "").trim(),
                     });
@@ -580,6 +690,7 @@ export function registerInboundRoutes(
                     to,
                     messageId: String(sendResult?.messageId || "").trim(),
                     attachmentsSent: files.length,
+                    signatureApplied: Boolean(signatureAttachment),
                     savedToSent,
                     sentMailbox,
                     saveToSentError,
@@ -651,6 +762,12 @@ export function registerInboundRoutes(
                 )}`;
                 const payloadJson = null;
                 const fieldsMetaJson = null;
+                const isRedesFlow = isRedesFormFlow({
+                    campaignId,
+                    menuItemId,
+                    categoryId,
+                    formData,
+                });
 
                 const normalizedInteractionDetails = interactionDetails
                     .map((detail, index) => ({
@@ -753,7 +870,10 @@ export function registerInboundRoutes(
                     "recordingfile",
                 ]);
                 const tipoCliente = String(
-                    formData?.tipoCliente || formData?.__inbound_tipo_cliente || "",
+                    formData?.tipoCliente ||
+                        formData?.__redes_tipo_cliente ||
+                        formData?.__inbound_tipo_cliente ||
+                        "",
                 ).trim();
                 const tipoIdentificacion = String(
                     formData?.tipoIdentificacion ||
@@ -768,7 +888,18 @@ export function registerInboundRoutes(
                 ).trim();
                 const nombreClienteRef = String(
                     formData?.nombreCliente ||
+                        formData?.__redes_nombre_cliente ||
                         formData?.__inbound_nombre_cliente ||
+                        "",
+                ).trim();
+                const fechaGestion = String(
+                    formData?.fechaGestion ||
+                        formData?.__redes_fecha_gestion ||
+                        "",
+                ).trim();
+                const estadoConversacion = String(
+                    formData?.estadoConversacion ||
+                        formData?.__redes_estado_conversacion ||
                         "",
                 ).trim();
                 const categorizacion = String(
@@ -776,6 +907,230 @@ export function registerInboundRoutes(
                         formData?.categorizacion ||
                         "",
                 ).trim();
+
+                if (isRedesFlow) {
+                    const existingClientByCampaign =
+                        await agenteDAO.getRedesClientByIdentificationAndCampaign(
+                            identification,
+                            campaignId,
+                        );
+                    const existingClient =
+                        existingClientByCampaign ||
+                        (await agenteDAO.getRedesClientByIdentification(
+                            identification,
+                        ));
+                    const contactId =
+                        String(existingClient?.contact_id || "").trim() ||
+                        `REDCL-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
+
+                    const clientParams = [
+                        contactId,
+                        campaignId,
+                        categoryId,
+                        menuItemId,
+                        identification,
+                        tipoIdentificacion,
+                        fullName,
+                        city,
+                        email,
+                        celular,
+                        convencional,
+                        ticketId,
+                        tipoCliente,
+                        estadoConversacion,
+                        fechaGestion,
+                        nombreClienteRef,
+                        categorizacion,
+                        level1ToUse,
+                        level2ToUse,
+                        observaciones,
+                        payloadJson,
+                        agenteActor,
+                    ];
+
+                    let clienteRedesId = Number(existingClient?.id || 0);
+                    if (!clienteRedesId) {
+                        const [insertClientResult] =
+                            await agenteDAO.insertRedesClient(clientParams);
+                        clienteRedesId = Number(
+                            insertClientResult?.insertId || 0,
+                        );
+                    } else {
+                        await agenteDAO.updateRedesClientById([
+                            ...clientParams,
+                            clienteRedesId,
+                        ]);
+                    }
+
+                    let detailManagementResultCode = "";
+                    if (campaignId && level1ToUse && level2ToUse) {
+                        const codeRow =
+                            await agenteDAO.getManagementCodeByLevelsWithoutLevel3(
+                                campaignId,
+                                level1ToUse,
+                                level2ToUse,
+                            );
+                        detailManagementResultCode = String(
+                            codeRow?.code || "",
+                        ).trim();
+                    }
+
+                    const existingGestion =
+                        await agenteDAO.getRedesGestionByContactId(contactId);
+                    const nextIntentos =
+                        Number(existingGestion?.intentos || 0) + 1;
+                    const { preguntas, respuestas } = buildQuestionAnswerPayload([
+                        { fields: surveyFieldsMeta, payload: surveyPayload },
+                    ]);
+
+                    const gestionParams = [
+                        contactId,
+                        clienteRedesId,
+                        campaignId,
+                        categoryId,
+                        menuItemId,
+                        interactionId,
+                        1,
+                        agenteActor,
+                        detailManagementResultCode ||
+                            level2ToUse ||
+                            level1ToUse ||
+                            "sin_gestion",
+                        level1ToUse,
+                        level2ToUse,
+                        categorizacion,
+                        level1ToUse,
+                        level2ToUse,
+                        observaciones,
+                        identification,
+                        fullName,
+                        celular,
+                        tipoCliente,
+                        tipoIdentificacion,
+                        nombreClienteRef,
+                        estadoConversacion,
+                        fechaGestion,
+                        city,
+                        email,
+                        convencional,
+                        ticketId,
+                        payloadJson,
+                        fieldsMetaJson,
+                        ...preguntas,
+                        ...respuestas,
+                        startedManagement,
+                        tmstmp,
+                        nextIntentos,
+                    ];
+
+                    let gestionRedesId = Number(existingGestion?.id || 0);
+
+                    if (!gestionRedesId) {
+                        const [insertGestionResult] =
+                            await agenteDAO.insertRedesGestionFinal(
+                                gestionParams,
+                            );
+                        gestionRedesId = Number(
+                            insertGestionResult?.insertId || 0,
+                        );
+                    } else {
+                        await agenteDAO.insertRedesGestionHistoricaFromFinal(
+                            contactId,
+                        );
+                        await agenteDAO.updateRedesGestionFinalByContactId([
+                            clienteRedesId,
+                            campaignId,
+                            categoryId,
+                            menuItemId,
+                            interactionId,
+                            agenteActor,
+                            detailManagementResultCode ||
+                                level2ToUse ||
+                                level1ToUse ||
+                                "sin_gestion",
+                            level1ToUse,
+                            level2ToUse,
+                            categorizacion,
+                            level1ToUse,
+                            level2ToUse,
+                            observaciones,
+                            identification,
+                            fullName,
+                            celular,
+                            tipoCliente,
+                            tipoIdentificacion,
+                            nombreClienteRef,
+                            estadoConversacion,
+                            fechaGestion,
+                            city,
+                            email,
+                            convencional,
+                            ticketId,
+                            payloadJson,
+                            fieldsMetaJson,
+                            ...preguntas,
+                            ...respuestas,
+                            startedManagement,
+                            tmstmp,
+                            nextIntentos,
+                            contactId,
+                        ]);
+                    }
+
+                    let form2SaveResult = {
+                        saved: false,
+                        reason: "empty_form_data",
+                    };
+                    let form3SaveResult = {
+                        saved: false,
+                        reason: "empty_survey_payload",
+                    };
+
+                    if (Object.keys(formData || {}).length > 0) {
+                        form2SaveResult =
+                            await saveDynamicResponseIfTemplateActive({
+                                campaignId,
+                                categoryId,
+                                menuItemId,
+                                formType: "F2",
+                                contactId,
+                                agentUser: agenteActor,
+                                payload: {
+                                    ...formData,
+                                    __fieldsMeta: fieldsMeta,
+                                },
+                            });
+                    }
+
+                    if (Object.keys(surveyPayload || {}).length > 0) {
+                        form3SaveResult =
+                            await saveDynamicResponseIfTemplateActive({
+                                campaignId,
+                                categoryId,
+                                menuItemId,
+                                formType: "F3",
+                                contactId,
+                                agentUser: agenteActor,
+                                payload: {
+                                    ...surveyPayload,
+                                    __fieldsMeta: surveyFieldsMeta,
+                                },
+                            });
+                    }
+
+                    return res.json({
+                        success: true,
+                        flowType: "redes",
+                        contactId,
+                        clienteRedesId,
+                        gestionRedesId,
+                        interactionId,
+                        formResponses: {
+                            form2: form2SaveResult,
+                            form3: form3SaveResult,
+                        },
+                    });
+                }
 
                 const existingClientByCampaign =
                     await agenteDAO.getInboundClientByIdentificationAndCampaign(

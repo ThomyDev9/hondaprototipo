@@ -1,8 +1,12 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import AccordionMenu from "./AccordionMenu";
+import AccordionMenu, {
+    INBOUND_HISTORICO_CAMPAIGN_ID,
+    INBOUND_HISTORICO_MENU_ITEM_ID,
+} from "./AccordionMenu";
 import {
     fetchAgentStatusOptions,
+    fetchInboundCurrentCall,
     startAgentSession,
     upsertAgentSessionContext,
 } from "../services/dashboard.service";
@@ -24,6 +28,32 @@ const MENU_ICONS = {
     "grabaciones-inbound": "\u{1F4DE}",
 };
 
+function normalizeInboundAccessLabel(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function allowsInboundOpenWithoutCall(...values) {
+    const normalizedValues = values.map(normalizeInboundAccessLabel);
+
+    return (
+        normalizedValues.includes("kullki wasi") ||
+        normalizedValues.includes("atm") ||
+        normalizedValues.includes("oscus") ||
+        normalizedValues.includes("atm oscus")
+    );
+}
+
+function isInboundHistoricoAction({ campaignId = "", menuItemId = "" }) {
+    return (
+        String(campaignId || "").trim() === INBOUND_HISTORICO_CAMPAIGN_ID ||
+        String(menuItemId || "").trim() === INBOUND_HISTORICO_MENU_ITEM_ID
+    );
+}
+
 function Sidebar({
     user,
     role,
@@ -38,6 +68,7 @@ function Sidebar({
 }) {
     const [collapsed, setCollapsed] = useState(false);
     const [inboundAgentNumber, setInboundAgentNumber] = useState("");
+    const [hasActiveInboundCall, setHasActiveInboundCall] = useState(false);
     const [agentStatusOptions, setAgentStatusOptions] = useState([]);
     const [sessionStatus, setSessionStatus] = useState("");
     const [sessionHydrated, setSessionHydrated] = useState(false);
@@ -190,6 +221,45 @@ function Sidebar({
         inboundAgentNumber,
         sessionStatus,
     ]);
+
+    useEffect(() => {
+        if (effectiveRole.toUpperCase() !== "ASESOR") return;
+
+        let cancelled = false;
+
+        const syncInboundCallState = async () => {
+            const currentInboundAgentNumber = String(
+                inboundAgentNumber || "",
+            ).trim();
+
+            if (!currentInboundAgentNumber) {
+                if (!cancelled) {
+                    setHasActiveInboundCall(false);
+                }
+                return;
+            }
+
+            try {
+                const { ok, json } = await fetchInboundCurrentCall({
+                    agentNumber: currentInboundAgentNumber,
+                });
+
+                if (!cancelled) {
+                    setHasActiveInboundCall(Boolean(ok && json?.data));
+                }
+            } catch {
+                if (!cancelled) {
+                    setHasActiveInboundCall(false);
+                }
+            }
+        };
+
+        syncInboundCallState();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [effectiveRole, inboundAgentNumber, agentPage]);
 
     const menuAdmin = [
         { label: "Administrar bases", key: "administrar-bases" },
@@ -369,13 +439,34 @@ function Sidebar({
                         </span>
                     </div>
                     <AccordionMenu
-                        onLeafSelect={({
+                        hiddenNormalizedLabels={
+                            hasActiveInboundCall
+                                ? [
+                                      "kullki wasi",
+                                      "atm",
+                                      "oscus",
+                                      "atm oscus",
+                                  ]
+                                : []
+                        }
+                        onLeafSelect={async ({
                             campaignId,
                             importId,
                             menuItemId,
                             categoryId,
                             manualFlow,
+                            leafLabel,
                         }) => {
+                            const allowsOpenWithoutCall =
+                                allowsInboundOpenWithoutCall(
+                                    leafLabel,
+                                    campaignId,
+                                );
+                            const isHistoricoInbound =
+                                isInboundHistoricoAction({
+                                    campaignId,
+                                    menuItemId,
+                                });
                             const requiresInboundAgentCode =
                                 Boolean(manualFlow) &&
                                 String(categoryId || "").trim() ===
@@ -386,12 +477,31 @@ function Sidebar({
 
                             if (
                                 requiresInboundAgentCode &&
+                                !isHistoricoInbound &&
                                 !currentInboundAgentNumber
                             ) {
                                 alert(
                                     "Debes ingresar el código agente inbound antes de abrir la gestión inbound.",
                                 );
                                 return;
+                            }
+
+                            if (
+                                requiresInboundAgentCode &&
+                                !isHistoricoInbound &&
+                                !allowsOpenWithoutCall
+                            ) {
+                                const { ok, json } =
+                                    await fetchInboundCurrentCall({
+                                        agentNumber: currentInboundAgentNumber,
+                                    });
+
+                                if (!ok || !json?.data) {
+                                    alert(
+                                        "No tienes una llamada inbound activa asignada. Solo puedes abrir la gestión inbound cuando tengas una llamada en curso.",
+                                    );
+                                    return;
+                                }
                             }
 
                             if (onSelectCampaign && campaignId) {
@@ -402,6 +512,7 @@ function Sidebar({
                                     menuItemId,
                                     categoryId,
                                     manualFlow,
+                                    leafLabel || campaignId || "",
                                 );
                             }
                         }}

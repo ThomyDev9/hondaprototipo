@@ -44,6 +44,7 @@ function App() {
     const [adminPage, setAdminPage] = useState("administrar-bases");
     const [selectedAgentCampaign, setSelectedAgentCampaign] = useState({
         campaignId: "",
+        campaignLabel: "",
         tick: 0,
         importId: "",
         menuItemId: "",
@@ -77,6 +78,7 @@ function App() {
 
                 setSelectedAgentCampaign({
                     campaignId: "",
+                    campaignLabel: "",
                     tick: 0,
                     importId: "",
                     menuItemId: "",
@@ -138,6 +140,7 @@ function App() {
 
             setSelectedAgentCampaign({
                 campaignId: "",
+                campaignLabel: "",
                 tick: 0,
                 importId: "",
                 menuItemId: "",
@@ -176,6 +179,7 @@ function App() {
         sessionStorage.removeItem("inbound_agent_number");
         setSelectedAgentCampaign({
             campaignId: "",
+            campaignLabel: "",
             tick: 0,
             importId: "",
             menuItemId: "",
@@ -203,10 +207,12 @@ function App() {
                     menuItemId,
                     categoryId,
                     manualFlow = false,
+                    campaignLabel = "",
                 ) => {
                     setAgentPage("gestion");
                     setSelectedAgentCampaign({
                         campaignId,
+                        campaignLabel: campaignLabel || campaignId || "",
                         tick: Date.now(),
                         importId: importId || "",
                         menuItemId: menuItemId || "",
@@ -220,6 +226,7 @@ function App() {
                     if (nextPage === "inicio") {
                         setSelectedAgentCampaign({
                             campaignId: "",
+                            campaignLabel: "",
                             tick: 0,
                             importId: "",
                             menuItemId: "",
@@ -257,6 +264,9 @@ function App() {
                     <DashboardAgente
                         user={userInfo}
                         selectedCampaignId={selectedAgentCampaign.campaignId}
+                        selectedCampaignLabel={
+                            selectedAgentCampaign.campaignLabel
+                        }
                         selectedCampaignTick={selectedAgentCampaign.tick}
                         selectedImportId={selectedAgentCampaign.importId}
                         selectedMenuItemId={selectedAgentCampaign.menuItemId}
@@ -271,10 +281,12 @@ function App() {
                             menuItemId,
                             categoryId,
                             manualFlow = false,
+                            campaignLabel = "",
                         ) => {
                             setAgentPage("gestion");
                             setSelectedAgentCampaign({
                                 campaignId,
+                                campaignLabel: campaignLabel || campaignId || "",
                                 tick: Date.now(),
                                 importId: importId || "",
                                 menuItemId: menuItemId || "",

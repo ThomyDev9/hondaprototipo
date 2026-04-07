@@ -9,6 +9,15 @@ import { esGestionOutbound } from "../utils/gestionOutbound";
 
 const MENU_CACHE_TTL_MS = 60_000;
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
+const REDES_SHARED_LABEL = "gestion redes";
+export const INBOUND_HISTORICO_MENU_ITEM_ID = "__inbound_historico__";
+export const INBOUND_HISTORICO_CAMPAIGN_ID = "__inbound_historico__";
+const INBOUND_QUICK_ACCESS_LABELS = [
+    "gestion inbound",
+    "kullki wasi",
+    "atm oscus",
+];
 
 const styles = {
     menu: {
@@ -119,7 +128,58 @@ function isInboundCategory(categoryId = "") {
     return String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
 }
 
-function AccordionMenu({ onLeafSelect }) {
+function normalizeMenuText(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function flattenMenuNodes(nodes = [], parentLabel = "") {
+    return (Array.isArray(nodes) ? nodes : []).flatMap((node) => {
+        const label = getNodeLabel(node);
+        const currentEntry = {
+            node,
+            label,
+            normalizedLabel: normalizeMenuText(label),
+            parentLabel,
+        };
+        const children = Array.isArray(node?.subcampanias)
+            ? node.subcampanias
+            : [];
+
+        return [
+            currentEntry,
+            ...flattenMenuNodes(children, label || parentLabel),
+        ];
+    });
+}
+
+function shouldHideInboundTreeNode({
+    label,
+    campaignId,
+    categoryId,
+    hiddenNormalizedLabels = [],
+}) {
+    const isInboundNode = isInboundCategory(categoryId);
+    if (!isInboundNode) {
+        return false;
+    }
+
+    const normalizedLabel = normalizeMenuText(label);
+    const normalizedCampaignId = normalizeMenuText(campaignId);
+    const shouldHideQuickAccessDuplicate =
+        INBOUND_QUICK_ACCESS_LABELS.includes(normalizedLabel);
+
+    return (
+        shouldHideQuickAccessDuplicate ||
+        hiddenNormalizedLabels.includes(normalizedLabel) ||
+        hiddenNormalizedLabels.includes(normalizedCampaignId)
+    );
+}
+
+function AccordionMenu({ onLeafSelect, hiddenNormalizedLabels = [] }) {
     const [categoryOptions, setCategoryOptions] = useState([]);
     const [selectedCategoryId, setSelectedCategoryId] = useState(
         DEFAULT_MENU_CATEGORY_ID,
@@ -242,12 +302,60 @@ function AccordionMenu({ onLeafSelect }) {
             });
     }, [selectedCategoryId]);
 
+    const inboundQuickAccessNodes =
+        String(selectedCategoryId || "").trim() === INBOUND_MENU_CATEGORY_ID
+            ? flattenMenuNodes(data)
+                  .filter(
+                      (entry) =>
+                          !hiddenNormalizedLabels.includes(
+                              entry.normalizedLabel,
+                          ),
+                  )
+                  .filter((entry) =>
+                      INBOUND_QUICK_ACCESS_LABELS.includes(
+                          entry.normalizedLabel,
+                      ),
+                  )
+                  .filter(
+                      (entry, index, array) =>
+                          array.findIndex(
+                              (item) =>
+                                  item.normalizedLabel ===
+                                  entry.normalizedLabel,
+                          ) === index,
+                  )
+                  .sort(
+                      (left, right) =>
+                          INBOUND_QUICK_ACCESS_LABELS.indexOf(
+                              left.normalizedLabel,
+                          ) -
+                          INBOUND_QUICK_ACCESS_LABELS.indexOf(
+                              right.normalizedLabel,
+                          ),
+                  )
+            : [];
+
     function renderTree(nodes, level = 0, parentKey = "", pathLabels = []) {
-        if (!Array.isArray(nodes) || nodes.length === 0) return null;
+        const visibleNodes = (Array.isArray(nodes) ? nodes : []).filter((node) => {
+            const label = getNodeLabel(node);
+            const campaignId = resolveCampaignId(label, node);
+            const categoryId = String(
+                node?.categoryId || selectedCategoryId || "",
+            ).trim();
+
+            return !shouldHideInboundTreeNode({
+                label,
+                campaignId,
+                categoryId,
+                hiddenNormalizedLabels,
+            });
+        });
+
+        if (visibleNodes.length === 0) return null;
 
         return (
             <ul style={level === 0 ? styles.menu : styles.submenu}>
-                {nodes.map((node, idx) => {
+                {visibleNodes.map((node, idx) => {
                     const key = parentKey + idx;
                     const children = Array.isArray(node?.subcampanias)
                         ? node.subcampanias
@@ -261,7 +369,27 @@ function AccordionMenu({ onLeafSelect }) {
                         node?.categoryId || selectedCategoryId || "",
                     ).trim();
                     const isInboundNode = isInboundCategory(categoryId);
-                    const canExpand = hasChildren && !isInboundNode;
+                    const normalizedLabel = normalizeMenuText(label);
+                    const normalizedCampaignId = normalizeMenuText(campaignId);
+                    const shouldHideInboundNode =
+                        shouldHideInboundTreeNode({
+                            label,
+                            campaignId,
+                            categoryId,
+                            hiddenNormalizedLabels,
+                        });
+
+                    if (shouldHideInboundNode) {
+                        return null;
+                    }
+
+                    const isRedesSharedNode =
+                        String(menuItemId || "").trim() ===
+                            REDES_PARENT_MENU_ITEM_ID ||
+                        normalizedLabel === REDES_SHARED_LABEL ||
+                        normalizedCampaignId === REDES_SHARED_LABEL;
+                    const canExpand =
+                        hasChildren && !isInboundNode && !isRedesSharedNode;
                     const bases = basesPorCampania[campaignId] || [];
                     const isLoadingBases = loadingBases[campaignId];
 
@@ -324,6 +452,18 @@ function AccordionMenu({ onLeafSelect }) {
                                     }
 
                                     if (isInboundNode) {
+                                        onLeafSelect?.({
+                                            campaignId,
+                                            menuItemId,
+                                            categoryId,
+                                            leafLabel: label,
+                                            parentLabel: pathLabels.at(-1) || "",
+                                            manualFlow: true,
+                                        });
+                                        return;
+                                    }
+
+                                    if (isRedesSharedNode) {
                                         onLeafSelect?.({
                                             campaignId,
                                             menuItemId,
@@ -620,6 +760,109 @@ function AccordionMenu({ onLeafSelect }) {
 
                         {isActive && isExpanded && (
                             <div style={{ marginTop: "0.45rem" }}>
+                                {String(selectedCategoryId || "").trim() ===
+                                    INBOUND_MENU_CATEGORY_ID && (
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                gap: "0.35rem",
+                                                marginBottom: "0.55rem",
+                                            }}
+                                        >
+                                            {inboundQuickAccessNodes.map(
+                                                (entry) => {
+                                                    const quickCampaignId =
+                                                        resolveCampaignId(
+                                                            entry.label,
+                                                            entry.node,
+                                                        );
+                                                    const quickMenuItemId =
+                                                        String(
+                                                            entry.node?.id || "",
+                                                        ).trim();
+                                                    const quickCategoryId =
+                                                        String(
+                                                            entry.node?.categoryId ||
+                                                                selectedCategoryId ||
+                                                                "",
+                                                        ).trim();
+
+                                                    return (
+                                                        <button
+                                                            key={`inbound-quick-${quickMenuItemId || entry.normalizedLabel}`}
+                                                            type="button"
+                                                            style={{
+                                                                ...styles.menuItem,
+                                                                paddingLeft: 12,
+                                                                paddingRight: 12,
+                                                                paddingTop: 9,
+                                                                paddingBottom: 9,
+                                                                border:
+                                                                    "1px solid rgba(191, 219, 254, 0.4)",
+                                                                backgroundColor:
+                                                                    "rgba(15, 23, 42, 0.3)",
+                                                                width: "100%",
+                                                            }}
+                                                            onClick={() =>
+                                                                onLeafSelect?.({
+                                                                    campaignId:
+                                                                        quickCampaignId,
+                                                                    menuItemId:
+                                                                        quickMenuItemId,
+                                                                    categoryId:
+                                                                        quickCategoryId,
+                                                                    leafLabel:
+                                                                        entry.label,
+                                                                    parentLabel:
+                                                                        entry.parentLabel ||
+                                                                        "",
+                                                                    manualFlow: true,
+                                                                })
+                                                            }
+                                                            title={entry.label}
+                                                        >
+                                                            {entry.label}
+                                                        </button>
+                                                    );
+                                                },
+                                            )}
+                                            <button
+                                                key="inbound-quick-historico"
+                                                type="button"
+                                                style={{
+                                                    ...styles.menuItem,
+                                                    paddingLeft: 12,
+                                                    paddingRight: 12,
+                                                    paddingTop: 9,
+                                                    paddingBottom: 9,
+                                                    border:
+                                                        "1px solid rgba(191, 219, 254, 0.4)",
+                                                    backgroundColor:
+                                                        "rgba(15, 23, 42, 0.3)",
+                                                    width: "100%",
+                                                }}
+                                                onClick={() =>
+                                                    onLeafSelect?.({
+                                                        campaignId:
+                                                            INBOUND_HISTORICO_CAMPAIGN_ID,
+                                                        menuItemId:
+                                                            INBOUND_HISTORICO_MENU_ITEM_ID,
+                                                        categoryId:
+                                                            INBOUND_MENU_CATEGORY_ID,
+                                                        leafLabel:
+                                                            "Historico",
+                                                        parentLabel:
+                                                            "Campanias Inbound",
+                                                        manualFlow: false,
+                                                    })
+                                                }
+                                                title="Historico"
+                                            >
+                                                Historico
+                                            </button>
+                                        </div>
+                                    )}
                                 {renderTree(data)}
                             </div>
                         )}
@@ -634,6 +877,7 @@ export default AccordionMenu;
 
 AccordionMenu.propTypes = {
     onLeafSelect: PropTypes.func,
+    hiddenNormalizedLabels: PropTypes.arrayOf(PropTypes.string),
 };
 
 

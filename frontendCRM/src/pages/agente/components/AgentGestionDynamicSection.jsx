@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { getDynamicWidth } from "./agentGestionForm.helpers";
+import { chunkArray, getDynamicWidth } from "./agentGestionForm.helpers";
 import {
     getFieldBehavior,
     transformFieldValue,
@@ -293,7 +293,7 @@ function DynamicField({ field, value, editable, onFieldChange, variant }) {
                         ),
                     )}
                     style={
-                        variant === "standard"
+                        variant === "standard" || variant === "redes"
                             ? undefined
                             : { width: `${getDynamicWidth(textValue)}px` }
                     }
@@ -305,7 +305,7 @@ function DynamicField({ field, value, editable, onFieldChange, variant }) {
                     className="agent-input agent-auto-input"
                     readOnly
                     style={
-                        variant === "standard"
+                        variant === "standard" || variant === "redes"
                             ? undefined
                             : { width: `${getDynamicWidth(textValue)}px` }
                     }
@@ -325,11 +325,17 @@ DynamicField.propTypes = {
     value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
     editable: PropTypes.bool,
     onFieldChange: PropTypes.func,
-    variant: PropTypes.oneOf(["standard", "inbound"]),
+    variant: PropTypes.oneOf([
+        "standard",
+        "inbound",
+        "inbound-editable-ticket",
+        "redes",
+    ]),
 };
 
 export default function AgentGestionDynamicSection({
     title,
+    headerTitle,
     rows,
     extraFields,
     getFieldValue,
@@ -353,11 +359,15 @@ export default function AgentGestionDynamicSection({
         `agent-dynamic-row--${variant}`,
     ].join(" ");
     const standardFields = [...rows.flat(), ...extraFields.flat()];
+    const normalizedExtraRows =
+        variant === "redes" ? chunkArray(extraFields.flat(), 3) : extraFields;
 
     return (
         <section className={sectionClassName}>
             <div className="agent-form-header-row">
-                <p className="agent-form-card__title">Formulario 2 - {title}</p>
+                <p className="agent-form-card__title">
+                    {headerTitle || `Formulario 2 - ${title}`}
+                </p>
             </div>
             <div className={dynamicSectionClassName}>
                 {variant === "standard" ? (
@@ -405,7 +415,7 @@ export default function AgentGestionDynamicSection({
                             </div>
                         ))}
 
-                        {extraFields.map((row, index) => (
+                        {normalizedExtraRows.map((row, index) => (
                             <div
                                 key={`extra-row-${index}`}
                                 className={dynamicRowClassName}
@@ -430,11 +440,17 @@ export default function AgentGestionDynamicSection({
 
 AgentGestionDynamicSection.propTypes = {
     title: PropTypes.string,
+    headerTitle: PropTypes.string,
     rows: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.object)).isRequired,
     extraFields: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.object)).isRequired,
     getFieldValue: PropTypes.func.isRequired,
     editable: PropTypes.bool,
     values: PropTypes.object,
     onFieldChange: PropTypes.func,
-    variant: PropTypes.oneOf(["standard", "inbound"]),
+    variant: PropTypes.oneOf([
+        "standard",
+        "inbound",
+        "inbound-editable-ticket",
+        "redes",
+    ]),
 };

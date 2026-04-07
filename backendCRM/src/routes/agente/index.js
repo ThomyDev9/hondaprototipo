@@ -21,6 +21,7 @@ import { registerFormRoutes } from "./form.routes.js";
 import { registerGestionRoutes } from "./gestion.routes.js";
 import { registerOutboundRoutes } from "./outbound.routes.js";
 import { registerInboundRoutes } from "./inbound.routes.js";
+import { registerRedesRoutes } from "./redes.routes.js";
 import {
     loadUserRoles,
     requireRole,
@@ -268,6 +269,13 @@ registerInboundRoutes(router, {
     saveDynamicResponseIfTemplateActive,
     linkManagementToRecording,
     linkManagementToKnownRecording,
+});
+
+registerRedesRoutes(router, {
+    agenteDAO,
+    agenteMiddlewares,
+    getAgentActor,
+    saveDynamicResponseIfTemplateActive,
 });
 
 export default router;

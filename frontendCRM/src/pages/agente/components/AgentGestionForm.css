@@ -307,6 +307,10 @@
     gap: 0.15rem 0.22rem;
 }
 
+.agent-dynamic-row--redes {
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
 .agent-dynamic-row--standard {
     display: flex;
     flex-wrap: wrap;
@@ -429,6 +433,34 @@
         minmax(105px, 0.8fr)
         minmax(95px, 0.7fr)
         minmax(95px, 0.75fr);
+}
+
+.agent-inbound-shell--redes .agent-inbound-shell__content {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.95fr);
+}
+
+.agent-inbound-shell--redes .agent-dynamic-card--redes {
+    padding: 0.3rem 0.34rem;
+}
+
+.agent-inbound-shell--redes .agent-dynamic-row,
+.agent-inbound-shell--redes .agent-dynamic-row--redes,
+.agent-inbound-shell--redes .agent-dynamic-row:first-child,
+.agent-inbound-shell--redes .agent-dynamic-row:nth-child(2),
+.agent-inbound-shell--redes .agent-dynamic-row:nth-child(3),
+.agent-inbound-shell--redes .agent-dynamic-row:nth-child(4) {
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.agent-inbound-shell--redes .agent-dynamic-row .agent-form-field {
+    min-width: 0;
+}
+
+.agent-inbound-shell--redes .agent-dynamic-row .agent-input,
+.agent-inbound-shell--redes .agent-dynamic-row .agent-auto-input,
+.agent-inbound-shell--redes .agent-dynamic-row .agent-auto-textarea {
+    width: 100%;
+    max-width: 100%;
 }
 
 .agent-inbound-shell .agent-dynamic-row .agent-form-field {

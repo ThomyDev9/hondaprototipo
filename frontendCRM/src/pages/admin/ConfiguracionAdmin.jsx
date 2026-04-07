@@ -666,6 +666,8 @@ export default function ConfiguracionAdmin() {
     const [subcampaignOptions, setSubcampaignOptions] = useState([]);
     const [loadingSubcampaigns, setLoadingSubcampaigns] = useState(false);
     const [headerAlert, setHeaderAlert] = useState(null);
+    const targetLabel =
+        formType === "F2" ? "Campaña / subcampaña" : "SubcampaÃ±a";
 
     useEffect(() => {
         const loadCategories = async () => {

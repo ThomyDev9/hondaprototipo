@@ -9,17 +9,36 @@ export function registerFormRoutes(
         getAgentActor,
     },
 ) {
+    const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
+    const REDES_SHARED_LABEL = "gestion redes";
+
+    const normalizeFlowLabel = (value) =>
+        String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim()
+            .toLowerCase();
+
     router.get("/form-catalogos", ...agenteMiddlewares, async (req, res) => {
         try {
             const campaignId = String(req.query?.campaignId || "").trim();
             const contactId = String(req.query?.contactId || "").trim();
+            const categoryId = String(req.query?.categoryId || "").trim();
+            const menuItemId = String(req.query?.menuItemId || "").trim();
+
+            const isRedesFlow =
+                menuItemId === REDES_PARENT_MENU_ITEM_ID ||
+                normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL ||
+                normalizeFlowLabel(menuItemId) === REDES_SHARED_LABEL ||
+                normalizeFlowLabel(categoryId) === REDES_SHARED_LABEL;
 
             if (!campaignId) {
                 return res.status(400).json({ error: "campaignId es requerido" });
             }
 
-            const levels =
-                await agenteDAO.getManagementLevelsByCampaign(campaignId);
+            const levels = isRedesFlow
+                ? await agenteDAO.getRedesManagementLevels()
+                : await agenteDAO.getManagementLevelsByCampaign(campaignId);
             const phoneStates = await agenteDAO.getPhoneStatusCatalog();
             const otherAdvisors = await agenteDAO.getOtherAdvisors();
 

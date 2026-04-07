@@ -63,11 +63,20 @@ export const fetchNextRegistro = ({ campaignId, importId, tabSessionId }) =>
         body: JSON.stringify({ campaignId, importId, tabSessionId }),
     });
 
-export const fetchFormCatalogos = ({ campaignId, contactId }) =>
+export const fetchFormCatalogos = ({
+    campaignId,
+    contactId = "",
+    categoryId = "",
+    menuItemId = "",
+}) =>
     request(
         `agente/form-catalogos?campaignId=${encodeURIComponent(
             campaignId,
-        )}&contactId=${encodeURIComponent(contactId)}`,
+        )}&contactId=${encodeURIComponent(
+            contactId,
+        )}&categoryId=${encodeURIComponent(
+            categoryId,
+        )}&menuItemId=${encodeURIComponent(menuItemId)}`,
     );
 
 export const fetchFormTemplates = ({ campaignId }) =>
@@ -141,6 +150,13 @@ export const guardarGestionInbound = (payload) =>
         body: JSON.stringify(payload),
     });
 
+export const guardarGestionRedes = (payload) =>
+    request("agente/guardar-gestion-redes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
 export const fetchInboundClientByIdentification = ({
     identification,
     campaignId = "",
@@ -151,11 +167,47 @@ export const fetchInboundClientByIdentification = ({
         )}&campaignId=${encodeURIComponent(campaignId)}`,
     );
 
+export const fetchRedesClientByIdentification = ({
+    identification,
+    campaignId = "",
+}) =>
+    request(
+        `agente/buscar-cliente-redes?identification=${encodeURIComponent(
+            identification,
+        )}&campaignId=${encodeURIComponent(campaignId)}`,
+    );
+
 export const fetchInboundCurrentCall = ({ agentNumber }) =>
     request(
         `agente/inbound-current-call?agentNumber=${encodeURIComponent(
             String(agentNumber || "").trim(),
         )}`,
+    );
+
+export const fetchInboundHistoricoClientes = ({ campaignId }) =>
+    request(
+        `agente/inbound-historico-clientes?campaignId=${encodeURIComponent(
+            String(campaignId || "").trim(),
+        )}`,
+    );
+
+export const fetchInboundHistorico = ({
+    campaignId,
+    clientName = "",
+    searchText = "",
+    startDate = "",
+    endDate = "",
+}) =>
+    request(
+        `agente/inbound-historico?campaignId=${encodeURIComponent(
+            String(campaignId || "").trim(),
+        )}&clientName=${encodeURIComponent(
+            String(clientName || "").trim(),
+        )}&searchText=${encodeURIComponent(
+            String(searchText || "").trim(),
+        )}&startDate=${encodeURIComponent(
+            String(startDate || "").trim(),
+        )}&endDate=${encodeURIComponent(String(endDate || "").trim())}`,
     );
 
 export const uploadInboundImages = (formData) =>

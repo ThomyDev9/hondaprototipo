@@ -8,14 +8,18 @@ import AgentScriptTabs from "./AgentScriptTabs";
 import AgentGestionPrimarySection from "./AgentGestionPrimarySection";
 import AgentGestionDynamicSection from "./AgentGestionDynamicSection";
 import AgentGestionSurveySection from "./AgentGestionSurveySection";
+import { buildCrmEmailDraft } from "../crmEmailDraft.helpers";
+import { isEditableTicketInboundFlow } from "../inboundFlow.helpers";
 import {
     buildDynamicFormRows,
     buildExtraFields,
+    chunkArray,
     parseAdditionalFields,
 } from "./agentGestionForm.helpers";
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
-const INBOUND_FROM_EMAIL = "ejecutivos@kimobill.com";
+const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
+const REDES_SHARED_LABEL = "gestion redes";
 
 const INBOUND_FIXED_FIELDS_PRIMARY_ROW = [
     {
@@ -50,6 +54,47 @@ const INBOUND_FIXED_FIELDS_SECONDARY_ROW = [
     },
 ];
 
+const REDES_FIXED_FIELDS_PRIMARY_ROW = [
+    {
+        key: "__redes_nombre_cliente",
+        label: "Nombre Cliente",
+        type: "select",
+        required: true,
+        options: [],
+    },
+    {
+        key: "__redes_tipo_cliente",
+        label: "Tipo cliente",
+        type: "text",
+        readOnly: true,
+        required: true,
+    },
+    {
+        key: "__redes_tipo_red_social",
+        label: "Tipo red social",
+        type: "select",
+        required: true,
+        options: ["Whatsapp", "Messenger", "Instagram", "Pagina web"],
+    },
+];
+
+const REDES_FIXED_FIELDS_SECONDARY_ROW = [
+    {
+        key: "__redes_fecha_gestion",
+        label: "Fecha gestión",
+        type: "date",
+        readOnly: true,
+        required: true,
+    },
+    {
+        key: "__redes_estado_conversacion",
+        label: "Estado conversación",
+        type: "text",
+        readOnly: true,
+        required: true,
+    },
+];
+
 function buildUniqueOptions(values = []) {
     return [
         ...new Set(
@@ -59,6 +104,55 @@ function buildUniqueOptions(values = []) {
         value: item,
         label: item,
     }));
+}
+
+function normalizeFlowLabel(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function getRedesFieldOrder(field = {}) {
+    const normalizedKey = normalizeFlowLabel(field?.key);
+    const normalizedLabel = normalizeFlowLabel(field?.label);
+
+    if (
+        normalizedKey === "identificacion" ||
+        normalizedLabel === "identificacion"
+    ) {
+        return 1;
+    }
+
+    if (
+        normalizedKey === "apellidosnombres" ||
+        normalizedKey === "nombrecliente" ||
+        normalizedKey === "nombre_cliente" ||
+        normalizedLabel.includes("apellidos y nombres") ||
+        normalizedLabel.includes("nombre cliente")
+    ) {
+        return 2;
+    }
+
+    if (
+        normalizedKey === "campo3" ||
+        normalizedKey === "celular" ||
+        normalizedLabel === "celular"
+    ) {
+        return 3;
+    }
+
+    if (
+        normalizedKey === "campo2" ||
+        normalizedKey === "cantidadmensajes" ||
+        normalizedKey === "cantidad_mensajes" ||
+        normalizedLabel.includes("cantidad de mensajes")
+    ) {
+        return 4;
+    }
+
+    return 100;
 }
 
 function buildInboundEmailDraft(dynamicFormAnswers = {}, user = {}) {
@@ -99,29 +193,58 @@ function buildInboundEmailDraft(dynamicFormAnswers = {}, user = {}) {
         ticketId ? `Ticket / Id llamada: ${ticketId}` : "",
     ].filter(Boolean);
 
-    return {
-        from: INBOUND_FROM_EMAIL,
+    return buildCrmEmailDraft({
+        contextLabel: "Correo Inbound",
+        subjectPrefix: "Seguimiento de solicitud inbound",
+        greetingName: clientName,
         to: destinationEmail,
-        subject: clientName
-            ? `Seguimiento de solicitud inbound - ${clientName}`
-            : "Seguimiento de solicitud inbound",
-        header: clientName
-            ? `Estimado/a ${clientName},`
-            : "Estimado/a cliente,",
-        body: [
-            "Reciba un cordial saludo.",
-            "",
+        bodyIntro:
             "Le contactamos para dar seguimiento a su solicitud registrada en nuestro canal inbound.",
-            ...(detailLines.length > 0 ? ["", ...detailLines] : []),
+        detailLines,
+        advisorName,
+    });
+}
+
+function buildRedesEmailDraft(dynamicFormAnswers = {}, user = {}) {
+    const clientName = String(
+        dynamicFormAnswers?.NOMBRE_CLIENTE ||
+            dynamicFormAnswers?.nombreCliente ||
+            dynamicFormAnswers?.__redes_nombre_cliente_label ||
+            dynamicFormAnswers?.__redes_nombre_cliente ||
             "",
-            "Quedamos atentos a su confirmacion o cualquier informacion adicional que desee compartir.",
-        ].join("\n"),
-        footer: [
-            "Saludos cordiales,",
-            advisorName || "Equipo Kimobill",
-            INBOUND_FROM_EMAIL,
-        ].join("\n"),
-    };
+    ).trim();
+    const destinationEmail = String(
+        dynamicFormAnswers?.CAMPO2 ||
+            dynamicFormAnswers?.email ||
+            dynamicFormAnswers?.correo ||
+            "",
+    ).trim();
+    const phone = String(dynamicFormAnswers?.CAMPO3 || "").trim();
+    const identification = String(
+        dynamicFormAnswers?.IDENTIFICACION || "",
+    ).trim();
+    const advisorName = String(
+        user?.full_name || user?.name || user?.username || "",
+    ).trim();
+    const detailLines = [
+        clientName ? `Cliente: ${clientName}` : "",
+        identification ? `Identificacion: ${identification}` : "",
+        phone ? `Celular: ${phone}` : "",
+        dynamicFormAnswers?.__redes_estado_conversacion
+            ? `Estado conversacion: ${dynamicFormAnswers.__redes_estado_conversacion}`
+            : "",
+    ].filter(Boolean);
+
+    return buildCrmEmailDraft({
+        contextLabel: "Correo Gestion Redes",
+        subjectPrefix: "Seguimiento de gestion redes",
+        greetingName: clientName,
+        to: destinationEmail,
+        bodyIntro:
+            "Le contactamos para dar seguimiento a su gestión registrada desde el canal de redes.",
+        detailLines,
+        advisorName,
+    });
 }
 
 function InboundInteractionDetailsSection({
@@ -130,15 +253,32 @@ function InboundInteractionDetailsSection({
     onAdd,
     onRemove,
     onChange,
+    mode = "inbound",
 }) {
+    const isRedesMode = mode === "redes";
+    const detailsToRender = isRedesMode
+        ? [
+              (details && details[0]) || {
+                  categorizacion: "",
+                  motivo: "",
+                  submotivo: "",
+                  observaciones: "",
+              },
+          ]
+        : details || [];
+
     return (
         <section className="agent-form-card agent-form-card--secondary">
             <div className="agent-form-header-row agent-inbound-detail-header">
-                <p className="agent-form-card__title">Acciones de la llamada</p>
+                <p className="agent-form-card__title">
+                    {isRedesMode
+                        ? "Clasificación de la gestión"
+                        : "Acciones de la llamada"}
+                </p>
             </div>
 
             <div className="agent-inbound-detail-table">
-                {(details || []).map((detail, index) => {
+                {detailsToRender.map((detail, index) => {
                     const selectedCategorizacion = String(
                         detail?.categorizacion || "",
                     ).trim();
@@ -205,7 +345,9 @@ function InboundInteractionDetailsSection({
                             </div>
                             <div className="agent-form-field">
                                 <span className="agent-dynamic-label">
-                                    Motivo de la interacción
+                                    {isRedesMode
+                                        ? "Level1"
+                                        : "Motivo de la interacción"}
                                     <span style={{ color: "red" }}> *</span>
                                 </span>
                                 <select
@@ -233,7 +375,9 @@ function InboundInteractionDetailsSection({
                             </div>
                             <div className="agent-form-field">
                                 <span className="agent-dynamic-label">
-                                    Submotivo de la interacción
+                                    {isRedesMode
+                                        ? "Level2"
+                                        : "Submotivo de la interacción"}
                                     <span style={{ color: "red" }}> *</span>
                                 </span>
                                 <select
@@ -261,7 +405,9 @@ function InboundInteractionDetailsSection({
                             </div>
                             <div className="agent-form-field agent-inbound-detail-observaciones">
                                 <span className="agent-dynamic-label">
-                                    Observaciones de la interacción
+                                    {isRedesMode
+                                        ? "Observación"
+                                        : "Observaciones de la interacción"}
                                 </span>
                                 <textarea
                                     className="agent-input agent-survey-input"
@@ -275,24 +421,26 @@ function InboundInteractionDetailsSection({
                                     }
                                 />
                             </div>
-                            <div className="agent-inbound-detail-actions">
-                                {index === 0 && (
+                            {!isRedesMode && (
+                                <div className="agent-inbound-detail-actions">
+                                    {index === 0 && (
+                                        <Button
+                                            variant="secondary"
+                                            type="button"
+                                            onClick={onAdd}
+                                        >
+                                            Agregar accion
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="secondary"
                                         type="button"
-                                        onClick={onAdd}
+                                        onClick={() => onRemove(index)}
                                     >
-                                        Agregar accion
+                                        Quitar
                                     </Button>
-                                )}
-                                <Button
-                                    variant="secondary"
-                                    type="button"
-                                    onClick={() => onRemove(index)}
-                                >
-                                    Quitar
-                                </Button>
-                            </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
@@ -372,6 +520,7 @@ function InboundImagesSection({
 function AgentGestionForm({
     registro,
     campaignId,
+    campaignLabel,
     manualFlow,
     menuItemId,
     categoryId,
@@ -411,15 +560,45 @@ function AgentGestionForm({
     onInboundImageDraftChange,
     onCancelarGestion,
     user,
+    isSaving = false,
 }) {
     const firstRender = useRef(true);
     const [activeTab, setActiveTab] = useState("gestion");
     const isInboundManualFlow =
         manualFlow &&
         String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
+    const isEditableTicketInboundManualFlow =
+        isInboundManualFlow &&
+        isEditableTicketInboundFlow(
+            campaignLabel,
+            campaignId,
+            dynamicFormAnswers?.__inbound_nombre_cliente_label,
+            dynamicFormConfig?.title,
+        );
+    const isRedesManualFlow =
+        manualFlow &&
+        (
+            String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
+            normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL ||
+            normalizeFlowLabel(dynamicFormConfig?.title) === REDES_SHARED_LABEL
+        );
+    const dynamicSectionVariant = isRedesManualFlow
+        ? "redes"
+        : isEditableTicketInboundManualFlow
+          ? "inbound-editable-ticket"
+        : isInboundManualFlow
+          ? "inbound"
+          : "standard";
+    const dynamicSectionHeaderTitle = isRedesManualFlow
+        ? "Gestion Redes"
+        : isInboundManualFlow
+          ? `Formulario Inbound - ${dynamicFormConfig?.title || "Formulario 2"}`
+          : `Formulario 2 - ${dynamicFormConfig?.title || "Formulario 2"}`;
 
-    const handleOpenInboundEmailComposer = () => {
-        const draft = buildInboundEmailDraft(dynamicFormAnswers, user);
+    const handleOpenEmailComposer = () => {
+        const draft = isRedesManualFlow
+            ? buildRedesEmailDraft(dynamicFormAnswers, user)
+            : buildInboundEmailDraft(dynamicFormAnswers, user);
         const draftId =
             globalThis.crypto?.randomUUID?.() || String(Date.now());
 
@@ -475,10 +654,89 @@ function AgentGestionForm({
             ? dynamicFormRowsWithValues
             : [];
 
+        if (!manualFlow) {
+            return baseRows;
+        }
+
         if (
-            !manualFlow ||
-            String(categoryId || "").trim() !== INBOUND_MENU_CATEGORY_ID
+            isRedesManualFlow
         ) {
+            const redesFilteredRows = baseRows
+                .map((row) =>
+                    row.filter((field) => {
+                        const normalizedFieldKey = normalizeFlowLabel(
+                            field?.key,
+                        );
+                        const normalizedFieldLabel = normalizeFlowLabel(
+                            field?.label,
+                        );
+
+                        return (
+                            normalizedFieldKey !== "campo6" &&
+                            normalizedFieldLabel !==
+                                "observaciones de la interaccion"
+                        );
+                    }),
+                )
+                .filter((row) => row.length > 0);
+            const redesClientOptions = (inboundChildOptions || [])
+                .map((item) => ({
+                    value: String(item?.menuItemId || item?.value || "").trim(),
+                    label: String(item?.label || item?.campaignId || "").trim(),
+                }))
+                .filter((item) => item.value && item.label);
+            const redesReadOnlyFields = [
+                REDES_FIXED_FIELDS_PRIMARY_ROW[1],
+                REDES_FIXED_FIELDS_SECONDARY_ROW[0],
+                REDES_FIXED_FIELDS_SECONDARY_ROW[1],
+            ];
+            const redesEditableFixedFields = [
+                {
+                    ...REDES_FIXED_FIELDS_PRIMARY_ROW[0],
+                    options: redesClientOptions,
+                },
+                REDES_FIXED_FIELDS_PRIMARY_ROW[2],
+            ];
+            const redesBodyFields = [...redesFilteredRows.flat()].sort(
+                (leftField, rightField) =>
+                    getRedesFieldOrder(leftField) - getRedesFieldOrder(rightField),
+            );
+            const takeRedesFieldByOrder = (order) => {
+                const fieldIndex = redesBodyFields.findIndex(
+                    (field) => getRedesFieldOrder(field) === order,
+                );
+
+                if (fieldIndex < 0) {
+                    return null;
+                }
+
+                const [field] = redesBodyFields.splice(fieldIndex, 1);
+                return field || null;
+            };
+
+            const identificationField = takeRedesFieldByOrder(1);
+            const fullNameField = takeRedesFieldByOrder(2);
+            const celularField = takeRedesFieldByOrder(3);
+            const cantidadMensajesField = takeRedesFieldByOrder(4);
+            const redesRows = [
+                redesReadOnlyFields,
+                [
+                    redesEditableFixedFields[0],
+                    redesEditableFixedFields[1],
+                    ...(identificationField ? [identificationField] : []),
+                ].slice(0, 3),
+                [
+                    ...(fullNameField ? [fullNameField] : []),
+                    ...(celularField ? [celularField] : []),
+                    ...(cantidadMensajesField ? [cantidadMensajesField] : []),
+                ],
+                ...chunkArray(redesBodyFields, 3),
+            ].filter((row) => row.length > 0);
+
+            return redesRows;
+        }
+
+        if (String(categoryId || "").trim() !== INBOUND_MENU_CATEGORY_ID) {
             return baseRows;
         }
 
@@ -530,6 +788,8 @@ function AgentGestionForm({
         return compactRows;
     }, [
         categoryId,
+        isEditableTicketInboundManualFlow,
+        isRedesManualFlow,
         dynamicFormRowsWithValues,
         inboundChildOptions,
         manualFlow,
@@ -584,20 +844,23 @@ function AgentGestionForm({
     const inboundPrimaryContent = showDynamicForm ? (
         <AgentGestionDynamicSection
             title={dynamicFormConfig?.title}
+            headerTitle={dynamicSectionHeaderTitle}
             rows={inboundDynamicRows}
             extraFields={extraFields}
             getFieldValue={getDynamicFormValue}
             editable={manualFlow}
             values={dynamicFormAnswers}
             onFieldChange={onDynamicFormFieldChange}
-            variant={isInboundManualFlow ? "inbound" : "standard"}
+            variant={dynamicSectionVariant}
         />
     ) : null;
 
     const gestionContent = (
         <div
             className={`agent-form-stack${
-                isInboundManualFlow ? " agent-form-stack--inbound" : ""
+                isInboundManualFlow || isRedesManualFlow
+                    ? " agent-form-stack--inbound"
+                    : ""
             }`}
         >
             {!manualFlow && (
@@ -622,7 +885,7 @@ function AgentGestionForm({
                 />
             )}
 
-            {!isInboundManualFlow && showDynamicForm && (
+            {!isInboundManualFlow && !isRedesManualFlow && showDynamicForm && (
                 <>
                     {!manualFlow && (
                         <div
@@ -634,17 +897,23 @@ function AgentGestionForm({
                 </>
             )}
 
-            {isInboundManualFlow && (
-                <section className="agent-form-card agent-form-card--secondary agent-inbound-shell">
-                        <div className="agent-inbound-shell__content">
+            {(isInboundManualFlow || isRedesManualFlow) && (
+                <section
+                    className={`agent-form-card agent-form-card--secondary agent-inbound-shell${
+                        isRedesManualFlow ? " agent-inbound-shell--redes" : ""
+                    }`}
+                >
+                    <div className="agent-inbound-shell__content">
                         <div className="agent-inbound-shell__column">
                             {inboundPrimaryContent}
-                            <InboundImagesSection
-                                items={inboundImageDrafts}
-                                onAdd={onAddInboundImageDraft}
-                                onRemove={onRemoveInboundImageDraft}
-                                onChange={onInboundImageDraftChange}
-                            />
+                            {isInboundManualFlow && (
+                                <InboundImagesSection
+                                    items={inboundImageDrafts}
+                                    onAdd={onAddInboundImageDraft}
+                                    onRemove={onRemoveInboundImageDraft}
+                                    onChange={onInboundImageDraftChange}
+                                />
+                            )}
                         </div>
                         <InboundInteractionDetailsSection
                             details={inboundInteractionDetails}
@@ -652,6 +921,7 @@ function AgentGestionForm({
                             onAdd={onAddInboundInteractionDetail}
                             onRemove={onRemoveInboundInteractionDetail}
                             onChange={onInboundInteractionDetailChange}
+                            mode={isRedesManualFlow ? "redes" : "inbound"}
                         />
                     </div>
                 </section>
@@ -665,7 +935,9 @@ function AgentGestionForm({
             id: "gestion",
             label: showDynamicForm
                 ? manualFlow
-                    ? `Formulario Inbound - ${dynamicFormConfig?.title}`
+                    ? isRedesManualFlow
+                        ? "Gestion Redes"
+                        : `Formulario Inbound - ${dynamicFormConfig?.title}`
                     : `F1 - F2 - ${dynamicFormConfig?.title}`
                 : "Formulario 1",
             content: gestionContent,
@@ -688,7 +960,9 @@ function AgentGestionForm({
         <form
             onSubmit={onSubmit}
             className={`agent-gestion-form${
-                isInboundManualFlow ? " agent-gestion-form--inbound" : ""
+                isInboundManualFlow || isRedesManualFlow
+                    ? " agent-gestion-form--inbound"
+                    : ""
             }`}
         >
             <AgentScriptTabs
@@ -706,23 +980,25 @@ function AgentGestionForm({
             </div>
 
             <div className="agent-form-actions">
-                {isInboundManualFlow && (
+                {(isInboundManualFlow || isRedesManualFlow) && (
                     <Button
                         variant="secondary"
                         type="button"
                         className="agent-email-button"
-                        onClick={handleOpenInboundEmailComposer}
+                        onClick={handleOpenEmailComposer}
+                        disabled={isSaving}
                     >
                         Enviar correo
                     </Button>
                 )}
-                <Button variant="primary" type="submit">
-                    Guardar gestion
+                <Button variant="primary" type="submit" disabled={isSaving}>
+                    {isSaving ? "Guardando..." : "Guardar gestion"}
                 </Button>
                 <Button
                     variant="secondary"
                     type="button"
                     onClick={onCancelarGestion}
+                    disabled={isSaving}
                 >
                     Cancelar gestion
                 </Button>
@@ -736,6 +1012,7 @@ export default AgentGestionForm;
 AgentGestionForm.propTypes = {
     registro: PropTypes.object,
     campaignId: PropTypes.string,
+    campaignLabel: PropTypes.string,
     manualFlow: PropTypes.bool,
     menuItemId: PropTypes.string,
     categoryId: PropTypes.string,
@@ -792,4 +1069,5 @@ AgentGestionForm.propTypes = {
         name: PropTypes.string,
         username: PropTypes.string,
     }),
+    isSaving: PropTypes.bool,
 };

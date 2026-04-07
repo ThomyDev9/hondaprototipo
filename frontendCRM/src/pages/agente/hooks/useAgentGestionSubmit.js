@@ -2,6 +2,7 @@
 import {
     guardarGestion,
     guardarGestionInbound,
+    guardarGestionRedes,
     uploadInboundImages,
 } from "../../../services/dashboard.service";
 
@@ -11,7 +12,35 @@ const INBOUND_SPECIAL_FIELDS_META = [
     { name: "__inbound_tipo_canal", label: "Tipo de canal" },
     { name: "__inbound_relacion", label: "Relacion" },
     { name: "__inbound_nombre_cliente", label: "Nombre Cliente" },
+    { name: "__redes_nombre_cliente", label: "Nombre Cliente" },
+    { name: "__redes_tipo_cliente", label: "Tipo cliente" },
+    { name: "__redes_fecha_gestion", label: "Fecha gestión" },
+    { name: "__redes_estado_conversacion", label: "Estado conversación" },
+    { name: "__redes_tipo_red_social", label: "Tipo red social" },
 ];
+const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
+const REDES_SHARED_LABEL = "gestion redes";
+const MANUAL_DUPLICATE_WINDOW_MS = 15000;
+let isManualGestionSubmitInFlight = false;
+let lastSuccessfulManualSubmit = {
+    signature: "",
+    savedAt: 0,
+};
+
+function normalizeFlowLabel(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function isGestionRedesFlow({ menuItemId = "", campaignId = "" }) {
+    return (
+        String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
+        normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL
+    );
+}
 
 function normalizeLookupKey(value) {
     return String(value || "")
@@ -55,6 +84,61 @@ function getFirstFormValueByKeys(source = {}, candidateKeys = []) {
     return "";
 }
 
+function findDynamicFieldValueByLabel(dynamicRows = [], answers = {}, labels = []) {
+    const normalizedLabels = labels.map((label) => normalizeLookupKey(label));
+
+    for (const field of dynamicRows) {
+        const normalizedFieldLabel = normalizeLookupKey(field?.label || "");
+        if (!normalizedLabels.includes(normalizedFieldLabel)) {
+            continue;
+        }
+
+        const value = answers?.[field?.key];
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+            return String(value).trim();
+        }
+    }
+
+    return "";
+}
+
+function buildStableValue(value) {
+    if (Array.isArray(value)) {
+        return value.map((item) => buildStableValue(item));
+    }
+
+    if (value && typeof value === "object") {
+        return Object.keys(value)
+            .sort()
+            .reduce((accumulator, key) => {
+                accumulator[key] = buildStableValue(value[key]);
+                return accumulator;
+            }, {});
+    }
+
+    return value;
+}
+
+function buildManualSubmitSignature({
+    campaignId,
+    categoryId,
+    menuItemId,
+    formData,
+    surveyAnswers,
+    interactionDetails,
+}) {
+    return JSON.stringify(
+        buildStableValue({
+            campaignId: String(campaignId || "").trim(),
+            categoryId: String(categoryId || "").trim(),
+            menuItemId: String(menuItemId || "").trim(),
+            formData: formData || {},
+            surveyAnswers: surveyAnswers || {},
+            interactionDetails: interactionDetails || [],
+        }),
+    );
+}
+
 export default function useAgentGestionSubmit({
     manualFlowActivo,
     dynamicFormConfig,
@@ -80,14 +164,27 @@ export default function useAgentGestionSubmit({
     inboundChildOptions,
     inboundInteractionDetails,
     inboundImageDrafts,
+    setIsSavingGestion,
+    resetManualGestionDraft,
 }) {
     return useCallback(
         async (event) => {
             event?.preventDefault?.();
 
+            if (isManualGestionSubmitInFlight) {
+                return;
+            }
+
             if (manualFlowActivo) {
                 try {
+                    isManualGestionSubmitInFlight = true;
+                    setIsSavingGestion?.(true);
                     setError("");
+                    const isRedesManualFlow =
+                        isGestionRedesFlow({
+                            menuItemId: menuItemIdSeleccionado,
+                            campaignId: campaignIdSeleccionada,
+                        });
 
                     const dynamicRows = Array.isArray(dynamicFormConfig?.rows)
                         ? dynamicFormConfig.rows.flat()
@@ -104,7 +201,9 @@ export default function useAgentGestionSubmit({
                         (item) =>
                             String(item?.value || "") ===
                             String(
-                                dynamicFormAnswers?.__inbound_nombre_cliente || "",
+                                isRedesManualFlow
+                                    ? dynamicFormAnswers?.__redes_nombre_cliente || ""
+                                    : dynamicFormAnswers?.__inbound_nombre_cliente || "",
                             ),
                     );
 
@@ -138,7 +237,9 @@ export default function useAgentGestionSubmit({
                     const inboundFormData = {
                         ...dynamicFormAnswers,
                         tipoCliente:
-                            dynamicFormAnswers?.__inbound_tipo_cliente || "",
+                            isRedesManualFlow
+                                ? dynamicFormAnswers?.__redes_tipo_cliente || "Asesor"
+                                : dynamicFormAnswers?.__inbound_tipo_cliente || "",
                         tipoIdentificacion:
                             dynamicFormAnswers?.__inbound_tipo_identificacion ||
                             "",
@@ -146,13 +247,29 @@ export default function useAgentGestionSubmit({
                             dynamicFormAnswers?.__inbound_tipo_canal || "",
                         relacion: dynamicFormAnswers?.__inbound_relacion || "",
                         nombreCliente:
-                            String(selectedInboundOption?.campaignId || "").trim() ||
-                            dynamicFormAnswers?.__inbound_nombre_cliente ||
-                            "",
+                            isRedesManualFlow
+                                ? String(
+                                      selectedInboundOption?.label ||
+                                          selectedInboundOption?.campaignId ||
+                                          "",
+                                  ).trim() ||
+                                  dynamicFormAnswers?.__redes_nombre_cliente ||
+                                  ""
+                                : String(selectedInboundOption?.campaignId || "").trim() ||
+                                  dynamicFormAnswers?.__inbound_nombre_cliente ||
+                                  "",
                         nombreClienteMenuItemId:
                             String(selectedInboundOption?.menuItemId || "").trim() ||
-                            dynamicFormAnswers?.__inbound_nombre_cliente ||
+                            (isRedesManualFlow
+                                ? dynamicFormAnswers?.__redes_nombre_cliente
+                                : dynamicFormAnswers?.__inbound_nombre_cliente) ||
                             "",
+                        fechaGestion:
+                            dynamicFormAnswers?.__redes_fecha_gestion || "",
+                        estadoConversacion:
+                            dynamicFormAnswers?.__redes_estado_conversacion || "",
+                        tipoRedSocial:
+                            dynamicFormAnswers?.__redes_tipo_red_social || "",
                         categorizacion:
                             latestInteractionDetail.categorizacion || "",
                         motivoInteraccion: latestInteractionDetail.motivo || "",
@@ -164,12 +281,59 @@ export default function useAgentGestionSubmit({
                             "",
                     };
 
+                    if (isRedesManualFlow) {
+                        const normalizedFullName =
+                            getFirstFormValueByKeys(inboundFormData, [
+                                "apellidosNombres",
+                                "ApellidosNombres",
+                                "apellidosNombre",
+                                "nombreCompleto",
+                                "nombresApellidos",
+                                "NOMBRE_CLIENTE",
+                                "NombreCliente",
+                            ]) ||
+                            findDynamicFieldValueByLabel(
+                                dynamicRows,
+                                dynamicFormAnswers,
+                                ["Apellidos y Nombres", "Nombre Cliente"],
+                            );
+
+                        const normalizedCellphone =
+                            getFirstFormValueByKeys(inboundFormData, [
+                                "celular",
+                                "Celular",
+                                "telefono",
+                                "telefonoCelular",
+                                "movil",
+                                "CAMPO3",
+                            ]) ||
+                            findDynamicFieldValueByLabel(
+                                dynamicRows,
+                                dynamicFormAnswers,
+                                ["Celular", "Telefono celular", "Teléfono celular"],
+                            );
+
+                        if (normalizedFullName) {
+                            inboundFormData.apellidosNombres = normalizedFullName;
+                            inboundFormData.ApellidosNombres = normalizedFullName;
+                            inboundFormData.nombreCompleto = normalizedFullName;
+                        }
+
+                        if (normalizedCellphone) {
+                            inboundFormData.celular = normalizedCellphone;
+                            inboundFormData.Celular = normalizedCellphone;
+                            inboundFormData.CAMPO3 = normalizedCellphone;
+                        }
+                    }
+
                     const campaignIdToUse =
                         String(selectedInboundOption?.campaignId || "").trim() ||
                         campaignIdSeleccionada;
                     const menuItemIdToUse =
-                        String(selectedInboundOption?.menuItemId || "").trim() ||
-                        menuItemIdSeleccionado;
+                        isRedesManualFlow
+                            ? menuItemIdSeleccionado
+                            : String(selectedInboundOption?.menuItemId || "").trim() ||
+                              menuItemIdSeleccionado;
                     const identificationToUse = getFirstFormValueByKeys(
                         inboundFormData,
                         [
@@ -193,7 +357,33 @@ export default function useAgentGestionSubmit({
 
                     inboundFormData.identificacion = identificationToUse;
 
-                    const { status, ok, json } = await guardarGestionInbound({
+                    const manualSubmitSignature = buildManualSubmitSignature({
+                        campaignId: campaignIdToUse,
+                        categoryId: categoryIdSeleccionada,
+                        menuItemId: menuItemIdToUse,
+                        formData: inboundFormData,
+                        surveyAnswers: surveyAnswers || {},
+                        interactionDetails: normalizedInteractionDetails,
+                    });
+
+                    if (
+                        manualSubmitSignature &&
+                        manualSubmitSignature ===
+                            lastSuccessfulManualSubmit.signature &&
+                        Date.now() - Number(lastSuccessfulManualSubmit.savedAt || 0) <
+                            MANUAL_DUPLICATE_WINDOW_MS
+                    ) {
+                        setError(
+                            "Esta gestión ya fue guardada. Cambia o limpia los datos antes de volver a enviarla.",
+                        );
+                        return;
+                    }
+
+                    const saveManualGestion = isRedesManualFlow
+                        ? guardarGestionRedes
+                        : guardarGestionInbound;
+
+                    const { status, ok, json } = await saveManualGestion({
                         campaignId: campaignIdToUse,
                         campaign_id: campaignIdToUse,
                         categoryId: categoryIdSeleccionada,
@@ -217,7 +407,9 @@ export default function useAgentGestionSubmit({
                         setError(
                             json?.detail ||
                                 json?.error ||
-                                "No se pudo guardar la gestion inbound",
+                                (isRedesManualFlow
+                                    ? "No se pudo guardar la gestion redes"
+                                    : "No se pudo guardar la gestion inbound"),
                         );
                         return;
                     }
@@ -277,22 +469,27 @@ export default function useAgentGestionSubmit({
                         }
                     }
 
-                    if (typeof onChangeAgentPage === "function") {
-                        onChangeAgentPage("inicio");
-                    } else {
-                        setRegistro(null);
-                    }
+                    lastSuccessfulManualSubmit = {
+                        signature: manualSubmitSignature,
+                        savedAt: Date.now(),
+                    };
+                    resetManualGestionDraft?.();
                     return;
                 } catch (err) {
                     console.error(err);
                     setError("Error de conexion con el servidor");
                     return;
+                } finally {
+                    isManualGestionSubmitInFlight = false;
+                    setIsSavingGestion?.(false);
                 }
             }
 
             if (!registro) return;
 
             try {
+                isManualGestionSubmitInFlight = true;
+                setIsSavingGestion?.(true);
                 setError("");
 
                 const payload = {
@@ -339,6 +536,9 @@ export default function useAgentGestionSubmit({
             } catch (err) {
                 console.error(err);
                 setError("Error de conexion con el servidor");
+            } finally {
+                isManualGestionSubmitInFlight = false;
+                setIsSavingGestion?.(false);
             }
         },
         [
@@ -361,7 +561,9 @@ export default function useAgentGestionSubmit({
             observacion,
             onChangeAgentPage,
             registro,
+            resetManualGestionDraft,
             setError,
+            setIsSavingGestion,
             setRegistro,
             surveyAnswers,
             surveyFieldsToRender,

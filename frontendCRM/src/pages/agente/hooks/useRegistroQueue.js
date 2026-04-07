@@ -2,15 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { obtenerPlantillasDinamicas } from "../../../services/formTemplate.service";
 import { obtenerCampaniasDetalladasDesdeMenu } from "../../../services/campaign.service";
 import { esGestionOutbound } from "../../../utils/gestionOutbound";
+import { INBOUND_HISTORICO_MENU_ITEM_ID } from "../../../components/AccordionMenu";
 import {
     buildInitialSurveyAnswers,
     getOrCreateTabSessionId,
     mapTemplateToForm2Config,
     mapTemplateToSurveyConfig,
 } from "../dashboardAgente.helpers";
+import { isEditableTicketInboundFlow } from "../inboundFlow.helpers";
 import { parseAdditionalFields } from "../components/agentGestionForm.helpers";
 import {
     fetchFormCatalogos,
+    fetchInboundCurrentCall,
     fetchNextRegistro,
     releaseRegistro,
     changeAgentStatus,
@@ -18,6 +21,8 @@ import {
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
+const REDES_SHARED_LABEL = "gestion redes";
 const INBOUND_SPECIAL_FIELDS = [
     "__inbound_tipo_cliente",
     "__inbound_tipo_identificacion",
@@ -27,10 +32,55 @@ const INBOUND_SPECIAL_FIELDS = [
     "__inbound_categorizacion",
     "__inbound_motivo",
     "__inbound_submotivo",
+    "__redes_nombre_cliente",
+    "__redes_tipo_cliente",
+    "__redes_fecha_gestion",
+    "__redes_estado_conversacion",
+    "__redes_tipo_red_social",
 ];
+
+function normalizeFlowLabel(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function isGestionRedesFlow({ menuItemId = "", campaignId = "" }) {
+    return (
+        String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
+        normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL
+    );
+}
+
+function normalizeInboundQueueValue(value) {
+    return String(value || "")
+        .trim()
+        .replace(/\.0+$/, "")
+        .replace(/[^\d]/g, "");
+}
+
+function matchesInboundQueue(inboundQueueValue, activeQueueValue) {
+    const normalizedActiveQueue = normalizeInboundQueueValue(activeQueueValue);
+    if (!normalizedActiveQueue) {
+        return false;
+    }
+
+    return String(inboundQueueValue || "")
+        .split(/[;,|]/)
+        .flatMap((entry) =>
+            String(entry || "")
+                .split(/\s+/)
+                .map((token) => normalizeInboundQueueValue(token)),
+        )
+        .filter(Boolean)
+        .includes(normalizedActiveQueue);
+}
 
 export default function useRegistroQueue({
     selectedCampaignId,
+    selectedCampaignLabel,
     selectedCampaignTick,
     selectedImportId,
     selectedMenuItemId,
@@ -100,14 +150,19 @@ export default function useRegistroQueue({
     }, []);
 
     const loadInboundChildOptions = useCallback(
-        async ({ categoryId, menuItemId }) => {
+        async ({ categoryId, menuItemId, campaignId }) => {
             const normalizedCategoryId = String(categoryId || "").trim();
             const normalizedMenuItemId = String(menuItemId || "").trim();
+            const shouldLoadInboundChildren =
+                normalizedCategoryId === INBOUND_MENU_CATEGORY_ID &&
+                normalizedMenuItemId;
+            const shouldLoadRedesChildren =
+                isGestionRedesFlow({
+                    menuItemId: normalizedMenuItemId,
+                    campaignId,
+                });
 
-            if (
-                normalizedCategoryId !== INBOUND_MENU_CATEGORY_ID ||
-                !normalizedMenuItemId
-            ) {
+            if (!shouldLoadInboundChildren && !shouldLoadRedesChildren) {
                 setInboundChildOptions([]);
                 return null;
             }
@@ -249,6 +304,8 @@ export default function useRegistroQueue({
             const catalogResp = await fetchFormCatalogos({
                 campaignId,
                 contactId,
+                categoryId,
+                menuItemId,
             });
 
             if (catalogResp.ok) {
@@ -276,7 +333,11 @@ export default function useRegistroQueue({
     );
 
     const handleInboundChildSelection = useCallback(
-        async ({ childMenuItemId, childCampaignId }) => {
+        async ({
+            childMenuItemId,
+            childCampaignId,
+            preserveCurrentTemplate = false,
+        }) => {
             const normalizedChildMenuItemId = String(
                 childMenuItemId || "",
             ).trim();
@@ -303,13 +364,45 @@ export default function useRegistroQueue({
             }
 
             setLoadingRegistro(true);
-            await loadTemplatesAndCatalogs({
-                campaignId: normalizedChildCampaignId,
-                menuItemId: normalizedChildMenuItemId,
-                categoryId: categoryIdSeleccionada,
-                contactId: "",
-                detail: null,
-            }).finally(() => {
+            const loadPromise = preserveCurrentTemplate
+                ? fetchFormCatalogos({
+                      campaignId: normalizedChildCampaignId,
+                      contactId: "",
+                  }).then((catalogResp) => {
+                      if (catalogResp.ok) {
+                          const catalog = catalogResp.json || {};
+                          setLevels(
+                              Array.isArray(catalog.levels)
+                                  ? catalog.levels
+                                  : [],
+                          );
+                          setTelefonos(
+                              Array.isArray(catalog.telefonos)
+                                  ? catalog.telefonos
+                                  : [],
+                          );
+                          setEstadoTelefonos(
+                              Array.isArray(catalog.estadoTelefonos)
+                                  ? catalog.estadoTelefonos
+                                  : [],
+                          );
+                          setLevel1Seleccionado("");
+                          setLevel2Seleccionado("");
+                      } else {
+                          setLevels([]);
+                          setTelefonos([]);
+                          setEstadoTelefonos([]);
+                      }
+                  })
+                : loadTemplatesAndCatalogs({
+                      campaignId: normalizedChildCampaignId,
+                      menuItemId: normalizedChildMenuItemId,
+                      categoryId: categoryIdSeleccionada,
+                      contactId: "",
+                      detail: null,
+                  });
+
+            await loadPromise.finally(() => {
                 setLoadingRegistro(false);
             });
         },
@@ -319,6 +412,8 @@ export default function useRegistroQueue({
             loadTemplatesAndCatalogs,
             campaignIdSeleccionada,
             menuItemIdSeleccionado,
+            setLevel1Seleccionado,
+            setLevel2Seleccionado,
         ],
     );
 
@@ -526,10 +621,30 @@ export default function useRegistroQueue({
         }
 
         const isOutbound = esGestionOutbound(selectedCampaignId);
+        const isInboundHistoricoView =
+            String(selectedMenuItemId || "").trim() ===
+            INBOUND_HISTORICO_MENU_ITEM_ID;
+        const isRedesManualFlow =
+            Boolean(selectedManualFlow) &&
+            isGestionRedesFlow({
+                menuItemId: selectedMenuItemId,
+                campaignId: selectedCampaignId,
+            });
         setCampaignIdSeleccionada(selectedCampaignId);
         setMenuItemIdSeleccionado(selectedMenuItemId || "");
         setCategoryIdSeleccionada(selectedCategoryId || "");
         setManualFlowActivo(Boolean(selectedManualFlow));
+        if (isInboundHistoricoView) {
+            setImportIdSeleccionada("");
+            setRegistro(null);
+            resetDynamicState();
+            setLevel1Seleccionado("");
+            setLevel2Seleccionado("");
+            setTelefonos([]);
+            setEstadoTelefonos([]);
+            setLoadingRegistro(false);
+            return;
+        }
         if (isOutbound) {
             setImportIdSeleccionada("");
             setRegistro(null);
@@ -543,36 +658,125 @@ export default function useRegistroQueue({
             setImportIdSeleccionada("");
             setRegistro(null);
             setObservacion("");
-            Promise.resolve(
-                loadInboundChildOptions({
+            const loadManualFlow = async () => {
+                const childData = await loadInboundChildOptions({
                     categoryId: selectedCategoryId || "",
                     menuItemId: selectedMenuItemId || "",
-                }).then((inboundData) =>
-                    loadTemplatesAndCatalogs({
-                        campaignId: selectedCampaignId,
-                        menuItemId: selectedMenuItemId || "",
+                    campaignId: selectedCampaignId || "",
+                });
+
+                await loadTemplatesAndCatalogs({
+                    campaignId: selectedCampaignId,
+                    menuItemId: selectedMenuItemId || "",
+                    categoryId: selectedCategoryId || "",
+                    contactId: "",
+                    detail: null,
+                });
+
+                if (isRedesManualFlow) {
+                    const today = new Date().toISOString().slice(0, 10);
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __redes_tipo_cliente:
+                            String(prev?.__redes_tipo_cliente || "").trim() ||
+                            "Asesor",
+                        __redes_tipo_red_social:
+                            String(prev?.__redes_tipo_red_social || "").trim(),
+                        __redes_fecha_gestion:
+                            String(prev?.__redes_fecha_gestion || "").trim() ||
+                            today,
+                        __redes_estado_conversacion:
+                            String(
+                                prev?.__redes_estado_conversacion || "",
+                            ).trim() || "Finalizado",
+                    }));
+                    return;
+                }
+
+                const preselectedChild = childData?.options?.find(
+                    (item) =>
+                        String(item.menuItemId) ===
+                        String(selectedMenuItemId || ""),
+                );
+
+                const currentInboundAgentNumber = String(
+                    sessionStorage.getItem("inbound_agent_number") || "",
+                ).trim();
+
+                let queueMatchedChild = null;
+                if (currentInboundAgentNumber) {
+                    try {
+                        const { ok, json } = await fetchInboundCurrentCall({
+                            agentNumber: currentInboundAgentNumber,
+                        });
+                        const activeQueue = String(
+                            json?.data?.queue || "",
+                        ).trim();
+
+                        if (ok && activeQueue) {
+                            queueMatchedChild =
+                                childData?.options?.find((item) =>
+                                    matchesInboundQueue(
+                                        item?.inboundQueue,
+                                        activeQueue,
+                                    ),
+                                ) || null;
+                        }
+                    } catch {
+                        queueMatchedChild = null;
+                    }
+                }
+
+                if (queueMatchedChild) {
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __inbound_nombre_cliente:
+                            queueMatchedChild.menuItemId || "",
+                        __inbound_nombre_cliente_label:
+                            queueMatchedChild.label || "",
+                    }));
+                    await loadTemplatesAndCatalogs({
+                        campaignId:
+                            queueMatchedChild.campaignId || selectedCampaignId,
+                        menuItemId: queueMatchedChild.menuItemId || "",
                         categoryId: selectedCategoryId || "",
                         contactId: "",
                         detail: null,
-                    }).then(() => {
-                        const preselectedChild = inboundData?.options?.find(
-                            (item) =>
-                                String(item.menuItemId) ===
-                                String(selectedMenuItemId || ""),
-                        );
+                    });
+                    return;
+                }
 
-                        if (preselectedChild) {
-                            setDynamicFormAnswers((prev) => ({
-                                ...prev,
-                                __inbound_nombre_cliente:
-                                    preselectedChild.menuItemId,
-                                __inbound_nombre_cliente_label:
-                                    preselectedChild.label || "",
-                            }));
-                        }
-                    }),
-                ),
-            ).finally(() => {
+                if (preselectedChild) {
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __inbound_nombre_cliente: preselectedChild.menuItemId,
+                        __inbound_nombre_cliente_label:
+                            preselectedChild.label || "",
+                    }));
+                    return;
+                }
+
+                if (
+                    isEditableTicketInboundFlow(
+                        selectedCampaignLabel,
+                        selectedCampaignId,
+                    ) &&
+                    String(selectedCampaignLabel || selectedCampaignId || "").trim()
+                ) {
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __inbound_nombre_cliente: String(
+                            selectedMenuItemId || prev?.__inbound_nombre_cliente || "",
+                        ).trim(),
+                        __inbound_nombre_cliente_label:
+                            String(
+                                selectedCampaignLabel || selectedCampaignId || "",
+                            ).trim(),
+                    }));
+                }
+            };
+
+            Promise.resolve(loadManualFlow()).finally(() => {
                 setLoadingRegistro(false);
             });
         } else {
@@ -591,6 +795,7 @@ export default function useRegistroQueue({
         loadTemplatesAndCatalogs,
         loadInboundChildOptions,
         resetDynamicState,
+        setDynamicFormAnswers,
     ]);
 
     useEffect(() => {

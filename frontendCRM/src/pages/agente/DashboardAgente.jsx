@@ -1,16 +1,21 @@
 import PropTypes from "prop-types";
 import { PageContainer } from "../../components/common";
 import AgentGestionForm from "./components/AgentGestionForm";
+import InboundHistoricoPanel from "./components/InboundHistoricoPanelV2";
 import GestionOutboundDemo from "./GestionOutboundDemo";
 import OutMaquitaPage from "./OutMaquitaPage";
 import OutHondaPage from "./OutHondaPage";
 import useDashboardAgenteState from "./useDashboardAgente";
 import BaseCardSection from "./components/BaseCardSection";
 import "./DashboardAgente.css";
+import { INBOUND_HISTORICO_MENU_ITEM_ID } from "../../components/AccordionMenu";
+
+const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 
 export default function DashboardAgente({
     user,
     selectedCampaignId,
+    selectedCampaignLabel,
     selectedCampaignTick,
     selectedMenuItemId,
     selectedCategoryId,
@@ -56,6 +61,7 @@ export default function DashboardAgente({
         inboundChildOptions,
         inboundInteractionDetails,
         inboundImageDrafts,
+        isSavingGestion,
         shouldShowQueueMessage,
         isHomeView,
         isGestionOutbound,
@@ -78,6 +84,7 @@ export default function DashboardAgente({
     } = useDashboardAgenteState({
         user,
         selectedCampaignId,
+        selectedCampaignLabel,
         selectedCampaignTick,
         selectedMenuItemId,
         selectedCategoryId,
@@ -156,6 +163,13 @@ export default function DashboardAgente({
     const baseCardLayoutClass = `agent-base-card-layout${
         showRegestionSection ? "" : " agent-base-card-layout--single"
     }`;
+    const shouldHideManualFormError =
+        manualFlowActivo &&
+        String(categoryIdSeleccionada || "").trim() === INBOUND_MENU_CATEGORY_ID &&
+        String(error || "").toLowerCase().includes("formulario 2 activo");
+    const isInboundHistoricoView =
+        String(selectedMenuItemId || "").trim() ===
+            INBOUND_HISTORICO_MENU_ITEM_ID && !isHomeView;
 
     if (!isAgente) {
         return (
@@ -202,18 +216,15 @@ export default function DashboardAgente({
                     )}
 
                     {error &&
-                        !(
-                            manualFlowActivo &&
-                            String(error || "")
-                                .toLowerCase()
-                                .includes("formulario 2 activo")
-                        ) && (
+                        !shouldHideManualFormError &&
+                        !isInboundHistoricoView && (
                         <p className="agent-error">{error}</p>
                     )}
 
                     {loadingRegistro &&
                         !manualFlowActivo &&
                         !isHomeView &&
+                        !isInboundHistoricoView &&
                         !isGestionOutbound && (
                         <p className="agent-info-text">
                             Asignando registro...
@@ -222,6 +233,7 @@ export default function DashboardAgente({
 
                     {shouldShowQueueMessage &&
                         !isHomeView &&
+                        !isInboundHistoricoView &&
                         !isGestionOutbound && (
                             <p className="agent-info-text">
                                 {estadoAgente === "Disponible"
@@ -230,7 +242,13 @@ export default function DashboardAgente({
                             </p>
                         )}
 
-                    {(registro || manualFlowActivo) && !isHomeView && (
+                    {isInboundHistoricoView && (
+                        <InboundHistoricoPanel campaignId="" />
+                    )}
+
+                    {(registro || manualFlowActivo) &&
+                        !isHomeView &&
+                        !isInboundHistoricoView && (
                         <AgentGestionForm
                             registro={registro}
                             campaignId={
@@ -238,6 +256,7 @@ export default function DashboardAgente({
                                 selectedCampaignId ||
                                 ""
                             }
+                            campaignLabel={selectedCampaignLabel || ""}
                             manualFlow={manualFlowActivo}
                             menuItemId={menuItemIdSeleccionado}
                             categoryId={categoryIdSeleccionada}
@@ -297,6 +316,7 @@ export default function DashboardAgente({
                             }
                             onCancelarGestion={handleCancelarGestion}
                             user={user}
+                            isSaving={isSavingGestion}
                         />
                     )}
                     {isAgente &&
@@ -354,6 +374,7 @@ DashboardAgente.propTypes = {
         username: PropTypes.string,
     }),
     selectedCampaignId: PropTypes.string,
+    selectedCampaignLabel: PropTypes.string,
     selectedCampaignTick: PropTypes.number,
     selectedMenuItemId: PropTypes.string,
     selectedCategoryId: PropTypes.string,
