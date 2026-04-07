@@ -8,6 +8,8 @@ export default function FormularioDinamicoReseteable({
     esUpdate = false,
     levels = [],
     quickActions = [],
+    className = "",
+    onValuesChange,
 }) {
     const [form, setForm] = React.useState(() => {
         const initial = {};
@@ -18,14 +20,12 @@ export default function FormularioDinamicoReseteable({
     });
 
     React.useEffect(() => {
-        if (!initialValues?.identificacion) return;
         const initial = {};
         template.forEach(
             (f) => (initial[f.name] = initialValues?.[f.name] || ""),
         );
         setForm(initial);
-        // eslint-disable-next-line
-    }, [initialValues?.identificacion]);
+    }, [initialValues, template]);
 
     const [submotivos, setSubmotivos] = React.useState([]);
 
@@ -46,7 +46,11 @@ export default function FormularioDinamicoReseteable({
 
     const handleChange = (e, customOnChange) => {
         const { name, value } = e.target;
-        setForm((f) => ({ ...f, [name]: value }));
+        setForm((f) => {
+            const nextForm = { ...f, [name]: value };
+            onValuesChange?.(nextForm);
+            return nextForm;
+        });
         if (typeof customOnChange === "function") {
             customOnChange(e);
         }
@@ -62,11 +66,15 @@ export default function FormularioDinamicoReseteable({
     };
     const handleQuickAction = (action) => {
         if (typeof action?.apply !== "function") return;
-        setForm((prev) => action.apply({ ...prev }) || prev);
+        setForm((prev) => {
+            const nextForm = action.apply({ ...prev }) || prev;
+            onValuesChange?.(nextForm);
+            return nextForm;
+        });
     };
 
     return (
-        <form className="outhonda-form outhonda-form-3col">
+        <form className={`outhonda-form outhonda-form-3col ${className}`.trim()}>
             {quickActions.length > 0 && (
                 <div className="outhonda-form-quick-actions">
                     {quickActions.map((action) => (
@@ -170,13 +178,21 @@ export default function FormularioDinamicoReseteable({
                     </div>
                 );
             })}
-            <div>
+            <div className="outhonda-form-actions">
                 {esUpdate ? (
-                    <button type="button" onClick={handleActualizar}>
+                    <button
+                        type="button"
+                        onClick={handleActualizar}
+                        className="outhonda-form-submit"
+                    >
                         Actualizar
                     </button>
                 ) : (
-                    <button type="button" onClick={handleGuardar}>
+                    <button
+                        type="button"
+                        onClick={handleGuardar}
+                        className="outhonda-form-submit"
+                    >
                         Guardar
                     </button>
                 )}

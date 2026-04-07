@@ -245,3 +245,13 @@ export const fetchGestionOutboundByIdentification = ({
             campaignId,
         )}&identification=${encodeURIComponent(identification)}`,
     );
+
+export const fetchOutboundClientByIdentification = ({
+    campaignId = "",
+    identification,
+}) =>
+    request(
+        `agente/buscar-cliente-outbound?campaignId=${encodeURIComponent(
+            campaignId,
+        )}&identification=${encodeURIComponent(identification)}`,
+    );

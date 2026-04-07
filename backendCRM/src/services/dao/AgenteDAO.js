@@ -36,6 +36,15 @@ const GET_CLIENTE_BY_IDENTIFICATION = `
     LIMIT 1
 `;
 
+const GET_OUTBOUND_CLIENT_BASE_BY_ID_OR_IDENTIFICATION = `
+  SELECT *
+  FROM ${outboundSchema}.clientes_outbound
+  WHERE Id = ?
+     OR IDENTIFICACION = ?
+  ORDER BY TmStmp DESC
+  LIMIT 1
+`;
+
 const GET_CLIENTE_CONTACT_KEYS_BY_ID_OR_CONTACT_ID = `
   SELECT Id, ContactId, IDENTIFICACION
   FROM ${outboundSchema}.clientes_outbound
@@ -1198,6 +1207,17 @@ export class AgenteDAO {
         const [rows] = await executor.query(GET_CLIENTE_BY_IDENTIFICATION, [
             identification,
         ]);
+        return rows[0] || null;
+    }
+
+    async getOutboundClientBaseByIdOrIdentification(
+        identification,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            GET_OUTBOUND_CLIENT_BASE_BY_ID_OR_IDENTIFICATION,
+            [identification, identification],
+        );
         return rows[0] || null;
     }
 

@@ -102,6 +102,78 @@ export function registerOutboundRoutes(
         },
     );
 
+    router.get(
+        "/buscar-cliente-outbound",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const campaignId = String(req.query?.campaignId || "").trim();
+                const identification = String(
+                    req.query?.identification || req.query?.identificacion || "",
+                ).trim();
+
+                if (!identification) {
+                    return res.status(400).json({
+                        error: "identification es requerido",
+                    });
+                }
+
+                const campaignLike = campaignId ? `${campaignId}%` : "";
+                const row = campaignId
+                    ? await agenteDAO.getClienteByIdentificationAndCampaign(
+                          identification,
+                          campaignLike,
+                      )
+                    : null;
+                const resolvedRow =
+                    row || (await agenteDAO.getClienteByIdentification(identification));
+
+                if (!resolvedRow) {
+                    return res.status(404).json({
+                        error: "Cliente outbound no encontrado",
+                    });
+                }
+
+                let dynamicPayload = {};
+                try {
+                    dynamicPayload = resolvedRow.CamposAdicionalesJson
+                        ? JSON.parse(resolvedRow.CamposAdicionalesJson)
+                        : {};
+                } catch {
+                    dynamicPayload = {};
+                }
+
+                return res.json({
+                    success: true,
+                    data: {
+                        identificacion:
+                            dynamicPayload.identificacion ||
+                            dynamicPayload.Identificacion ||
+                            resolvedRow.IDENTIFICACION ||
+                            "",
+                        apellidosNombres:
+                            dynamicPayload.apellidosNombres ||
+                            dynamicPayload.NombreCliente ||
+                            resolvedRow.NOMBRE_CLIENTE ||
+                            resolvedRow.ContactName ||
+                            "",
+                        celular:
+                            dynamicPayload.celular ||
+                            dynamicPayload.Celular ||
+                            resolvedRow.ContactAddress ||
+                            "",
+                    },
+                });
+            } catch (err) {
+                console.error("Error en /agente/buscar-cliente-outbound:", err);
+                return res.status(500).json({
+                    error: "Error buscando cliente outbound",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
     router.post(
         "/guardar-gestion-outbound",
         ...agenteMiddlewares,
@@ -136,13 +208,27 @@ export function registerOutboundRoutes(
                 }
 
                 const campaignLike = `${campaignId}%`;
-                const existingClient =
+                const existingClientByCampaign =
                     await agenteDAO.getClienteByIdentificationAndCampaign(
                         identification,
                         campaignLike,
                     );
+                const existingClientBase =
+                    await agenteDAO.getOutboundClientBaseByIdOrIdentification(
+                        identification,
+                    );
+                const existingClient =
+                    existingClientByCampaign ||
+                    existingClientBase ||
+                    (await agenteDAO.getClienteByIdentification(
+                        identification,
+                    ));
                 const contactId =
-                    String(existingClient?.ContactId || "").trim() ||
+                    String(
+                        existingClient?.ContactId ||
+                            existingClient?.contact_id ||
+                            "",
+                    ).trim() ||
                     `OUT-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
                 const now = new Date();
                 const startedManagement = now;

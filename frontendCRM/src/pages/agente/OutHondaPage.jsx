@@ -1,44 +1,36 @@
-import React, { useEffect, useState } from "react";
-import { formF2Template } from "../../templates/formF2Template";
-import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
+import React, { useEffect, useMemo, useState } from "react";
 import FormularioDinamicoReseteable from "../../components/FormularioDinamicoReseteable";
 import {
-    fetchSheetAsJson,
-} from "../../services/webSheet.service";
-import {
+    fetchOutboundClientByIdentification,
     guardarGestionOutbound,
 } from "../../services/dashboard.service";
+import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
+import { formF2Template } from "../../templates/formF2Template";
 import "./OutHondaPage.css";
 
 function findOptionIgnoreCase(options = [], target) {
-    const normalizedTarget = String(target || "")
-        .trim()
-        .toLowerCase();
+    const normalizedTarget = String(target || "").trim().toLowerCase();
 
     return (
         options.find(
             (option) =>
-                String(option || "")
-                    .trim()
-                    .toLowerCase() === normalizedTarget,
+                String(option || "").trim().toLowerCase() === normalizedTarget,
         ) || ""
     );
 }
 
 export default function OutHondaPage() {
-    const DEFAULT_HONDA_ORIGEN = "BaseLeadsHonda2026";
-    const [registro, setRegistro] = React.useState(null);
-    const [loading, setLoading] = React.useState(false);
-    const [error, setError] = React.useState("");
-    const [motivos, setMotivos] = React.useState([]);
-    const [submotivos, setSubmotivos] = React.useState([]);
-    const [selectedMotivo, setSelectedMotivo] = React.useState("");
-    const [levels, setLevels] = React.useState([]);
-    const [tiposCampania, setTiposCampania] = React.useState([]);
-    // Estado para mostrar resumen después de guardar
-    const [resumenExcel, setResumenExcel] = useState(null);
-    // Cargar motivos y submotivos de la base de datos al inicio (sin identificación)
-    React.useEffect(() => {
+    const [error, setError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
+    const [resetKey, setResetKey] = useState(0);
+    const [motivos, setMotivos] = useState([]);
+    const [submotivos, setSubmotivos] = useState([]);
+    const [selectedMotivo, setSelectedMotivo] = useState("");
+    const [levels, setLevels] = useState([]);
+    const [tiposCampania, setTiposCampania] = useState([]);
+    const [initialValues, setInitialValues] = useState({ Plataforma: "WEB" });
+
+    useEffect(() => {
         async function fetchMotivosGlobales() {
             try {
                 const API_BASE = import.meta.env.VITE_API_BASE;
@@ -52,23 +44,20 @@ export default function OutHondaPage() {
                     },
                 );
                 const json = await res.json();
-                const levelsData = Array.isArray(json.levels)
-                    ? json.levels
-                    : [];
+                const levelsData = Array.isArray(json.levels) ? json.levels : [];
                 setLevels(levelsData);
-                const level1s = [
-                    ...new Set(levelsData.map((n) => n.level1).filter(Boolean)),
-                ];
-                setMotivos(level1s);
+                setMotivos([
+                    ...new Set(levelsData.map((item) => item.level1).filter(Boolean)),
+                ]);
             } catch {
                 setMotivos([]);
             }
         }
+
         fetchMotivosGlobales();
     }, []);
 
-    // Cargar tipos de campaña para Out Honda
-    React.useEffect(() => {
+    useEffect(() => {
         async function fetchTipos() {
             try {
                 const tipos = await fetchTiposCampaniaOutbound("Out Honda");
@@ -77,156 +66,89 @@ export default function OutHondaPage() {
                 setTiposCampania([]);
             }
         }
+
         fetchTipos();
     }, []);
 
-    const identificacion =
-        registro?.identificacion ||
-        registro?.Identificacion ||
-        registro?.["Nº de cédula"] ||
-        "";
-
-    React.useEffect(() => {
-        async function fetchLevels() {
-            if (!identificacion) return;
-            try {
-                const API_BASE = import.meta.env.VITE_API_BASE;
-                const token = localStorage.getItem("access_token") || "";
-                const res = await fetch(
-                    `${API_BASE}/agente/form-catalogos?campaignId=Out%20Honda&contactId=${encodeURIComponent(identificacion)}`,
-                    {
-                        headers: {
-                            Authorization: token ? `Bearer ${token}` : "",
-                        },
-                    },
-                );
-                const json = await res.json();
-                const levelsData = Array.isArray(json.levels)
-                    ? json.levels
-                    : [];
-                setLevels(levelsData);
-                const level1s = [
-                    ...new Set(levelsData.map((n) => n.level1).filter(Boolean)),
-                ];
-                setMotivos(level1s);
-                // Solo actualizar selectedMotivo si el motivo del registro es válido
-                const motivoRegistro =
-                    registro?.motivoInteraccion ||
-                    registro?.MotivoLlamada ||
-                    "";
-                if (motivoRegistro && level1s.includes(motivoRegistro)) {
-                    setSelectedMotivo(motivoRegistro);
-                } else if (!level1s.includes(selectedMotivo)) {
-                    setSelectedMotivo("");
-                }
-            } catch {
-                setMotivos([]);
-            }
-        }
-        fetchLevels();
-    }, [identificacion]);
-
-    React.useEffect(() => {
+    useEffect(() => {
         if (!selectedMotivo) {
             setSubmotivos([]);
             return;
         }
+
         const level2s = levels
-            .filter((n) => n.level1 === selectedMotivo)
-            .map((n) => n.level2)
+            .filter((item) => item.level1 === selectedMotivo)
+            .map((item) => item.level2)
             .filter(Boolean);
+
         setSubmotivos([...new Set(level2s)]);
     }, [selectedMotivo, levels]);
 
-    const [allRows, setAllRows] = useState([]);
-    const [noGestionados, setNoGestionados] = useState([]);
-    const [gestionados, setGestionados] = useState([]);
-    const [filtroTabla, setFiltroTabla] = useState("no-gestionados");
-    const [filtroOrigen, setFiltroOrigen] = useState(DEFAULT_HONDA_ORIGEN);
-    // Al cargar, traer registros no gestionados de Google Sheets
     useEffect(() => {
-        setLoading(true);
-        setError("");
-        fetchSheetAsJson()
-            .then((data) => {
-                // Filtrar por Origen === 'BaseLeadsHonda2026'
-                const sortedRows = [...data];
-                // Ordenar por Fecha (columna J) descendente
-                function parseFecha(fechaStr) {
-                    if (!fechaStr) return 0;
-                    const [d, m, y] = fechaStr.split("/");
-                    if (!d || !m || !y) return 0;
-                    return new Date(
-                        `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`,
-                    );
-                }
-                sortedRows.sort((a, b) => {
-                    const fechaA = parseFecha(a.Fecha || a.J);
-                    const fechaB = parseFecha(b.Fecha || b.J);
-                    return fechaB - fechaA;
-                });
-                setAllRows(sortedRows);
-                setRegistro(null); // No seleccionar registro automáticamente
-            })
-            .catch(() => setError("Error cargando registros"))
-            .finally(() => setLoading(false));
-    }, []);
+        if (!successMessage) return undefined;
+
+        const timeoutId = setTimeout(() => {
+            setSuccessMessage("");
+        }, 2000);
+
+        return () => clearTimeout(timeoutId);
+    }, [successMessage]);
 
     useEffect(() => {
-        const filtrados = allRows.filter((row) => {
-            if (!filtroOrigen) return true;
-            return String(row.Origen || "").trim() === filtroOrigen;
-        });
+        const identification = String(
+            initialValues?.identificacion || "",
+        ).trim();
 
-        const noGest = filtrados.filter(
-            (row) => !row.Gestionado || row.Gestionado === "#N/A",
-        );
-        const gest = filtrados.filter(
-            (row) =>
-                row.Gestionado &&
-                row.Gestionado !== "#N/A" &&
-                row.Agendado !== "SGC",
-        );
-
-        setNoGestionados(noGest);
-        setGestionados(gest);
-    }, [allRows, filtroOrigen]);
-
-    const origenOptions = React.useMemo(() => {
-        const uniqueOrigins = [
-            ...new Set(
-                allRows
-                    .map((row) => String(row.Origen || "").trim())
-                    .filter(Boolean),
-            ),
-        ];
-
-        if (uniqueOrigins.includes(DEFAULT_HONDA_ORIGEN)) {
-            return [
-                DEFAULT_HONDA_ORIGEN,
-                ...uniqueOrigins.filter(
-                    (origin) => origin !== DEFAULT_HONDA_ORIGEN,
-                ),
-            ];
+        if (!identification || identification.length < 5) {
+            return;
         }
 
-        return uniqueOrigins;
-    }, [allRows]);
+        const timeoutId = setTimeout(async () => {
+            try {
+                const { ok, status, json } =
+                    await fetchOutboundClientByIdentification({
+                        campaignId: "Out Honda",
+                        identification,
+                    });
 
-    if (loading) return null;
+                if (!ok) {
+                    if (status !== 404) {
+                        setError(
+                            json?.detail ||
+                                json?.error ||
+                                "No se pudo buscar el cliente outbound",
+                        );
+                    }
+                    return;
+                }
 
-    // Preparar valores iniciales y template dinámico antes del return principal
+                const data = json?.data || {};
+                setInitialValues((current) => ({
+                    ...current,
+                    identificacion: identification,
+                    apellidosNombres:
+                        data.apellidosNombres || current.apellidosNombres || "",
+                    celular: data.celular || current.celular || "",
+                }));
+            } catch {
+                // no-op
+            }
+        }, 450);
+
+        return () => clearTimeout(timeoutId);
+    }, [initialValues?.identificacion]);
 
     const concesionarioOptions = [
         "QUITO, RECORDMOTOR - AG. EL INCA",
         "QUITO, ASIAUTO - AG. GRANADOS",
-        "QUITO, ASIAUTO - AG. CUMBAYÁ",
+        "QUITO, ASIAUTO - AG. CUMBAYA",
         "GUAYAQUIL, ASIAUTO - AG. F. ORELLANA",
-        "GUAYAQUIL, RECORDMOTOR - AG. AMÉRICAS",
-        "MANTA, ASIAUTO - AV. ELÉCTRICOS",
+        "GUAYAQUIL, RECORDMOTOR - AG. AMERICAS",
+        "MANTA, ASIAUTO - AV. ELECTRICOS",
         "AMBATO, ASIAUTO - AG. ATAHUALPA",
         "CUENCA, RECORDMOTOR - AG. SOLANO",
     ];
+
     const modeloOptions = [
         "ALL NEW WR-V",
         "HR-V",
@@ -240,85 +162,103 @@ export default function OutHondaPage() {
 
     const gestionOptions = ["COTIZACION", "CITA", "VIDEOLLAMADA"];
 
-    const dynamicTemplate = [
-        ...formF2Template.map((field) => {
-            if (field.name === "tipoCampana") {
-                return {
-                    ...field,
-                    type: "select",
-                    options: tiposCampania.map((tc) => ({
-                        value: tc,
-                        label: tc,
-                    })),
-                };
-            }
-            if (field.name === "motivoInteraccion") {
-                return {
-                    ...field,
-                    type: "select",
-                    options: motivos.map((m) => ({ value: m, label: m })),
-                };
-            }
-            if (field.name === "submotivoInteraccion") {
-                return {
-                    ...field,
-                    type: "select",
-                    options: submotivos.map((s) => ({ value: s, label: s })),
-                };
-            }
-            return field;
-        }),
-        {
-            name: "Email",
-            label: "Email",
-            type: "text",
-            required: false,
-            readOnly: true,
-        },
-        {
-            name: "Concesionario",
-            label: "Concesionario",
-            type: "select",
-            required: false,
-            options: concesionarioOptions.map((v) => ({ value: v, label: v })),
-        },
-        {
-            name: "Modelo",
-            label: "Modelo",
-            type: "select",
-            required: false,
-            options: modeloOptions.map((v) => ({ value: v, label: v })),
-        },
-        {
-            name: "Plataforma",
-            label: "Plataforma",
-            type: "text",
-            required: false,
-            readOnly: true,
-        },
-        {
-            name: "Provincia",
-            label: "Provincia",
-            type: "text",
-            required: false,
-            readOnly: true,
-        },
-        {
-            name: "Gestion",
-            label: "Gestion",
-            type: "select",
-            required: false,
-            options: gestionOptions.map((v) => ({ value: v, label: v })),
-        },
-        {
-            name: "FechaAgenda",
-            label: "Fecha de Cita / Videollamada",
-            type: "datetime-local",
-            required: false,
-            showIf: (values) =>
-                values.Gestion === "CITA" || values.Gestion === "VIDEOLLAMADA",
-        },
-    ];
+    const dynamicTemplate = useMemo(
+        () => [
+            ...formF2Template.map((field) => {
+                if (field.name === "tipoCampana") {
+                    return {
+                        ...field,
+                        type: "select",
+                        options: tiposCampania.map((item) => ({
+                            value: item,
+                            label: item,
+                        })),
+                    };
+                }
+
+                if (field.name === "motivoInteraccion") {
+                    return {
+                        ...field,
+                        type: "select",
+                        options: motivos.map((item) => ({
+                            value: item,
+                            label: item,
+                        })),
+                    };
+                }
+
+                if (field.name === "submotivoInteraccion") {
+                    return {
+                        ...field,
+                        type: "select",
+                        options: submotivos.map((item) => ({
+                            value: item,
+                            label: item,
+                        })),
+                    };
+                }
+
+                return field;
+            }),
+            {
+                name: "Email",
+                label: "Email",
+                type: "text",
+                required: false,
+            },
+            {
+                name: "Concesionario",
+                label: "Concesionario",
+                type: "select",
+                required: false,
+                options: concesionarioOptions.map((item) => ({
+                    value: item,
+                    label: item,
+                })),
+            },
+            {
+                name: "Modelo",
+                label: "Modelo",
+                type: "select",
+                required: false,
+                options: modeloOptions.map((item) => ({
+                    value: item,
+                    label: item,
+                })),
+            },
+            {
+                name: "Plataforma",
+                label: "Plataforma",
+                type: "text",
+                required: false,
+            },
+            {
+                name: "Provincia",
+                label: "Provincia",
+                type: "text",
+                required: false,
+            },
+            {
+                name: "Gestion",
+                label: "Gestion",
+                type: "select",
+                required: false,
+                options: gestionOptions.map((item) => ({
+                    value: item,
+                    label: item,
+                })),
+            },
+            {
+                name: "FechaAgenda",
+                label: "Fecha de Cita / Videollamada",
+                type: "datetime-local",
+                required: false,
+                showIf: (values) =>
+                    values.Gestion === "CITA" || values.Gestion === "VIDEOLLAMADA",
+            },
+        ],
+        [motivos, submotivos, tiposCampania],
+    );
 
     const quickActions = [
         {
@@ -398,330 +338,72 @@ export default function OutHondaPage() {
         },
     ];
 
-    // Mover función fuera del render
-    function mapRegistroToFormValues(row) {
-        if (!row) return {};
-        // Unir nombres y apellidos correctamente (Nombre y Apellido)
-        const nombres = row["Nombre"] || row["Nombres"] || row["B"] || "";
-        const apellidos = row["Apellido"] || row["Apellidos"] || row["C"] || "";
-        const nombreCompleto = (
-            nombres + (apellidos ? " " + apellidos : "")
-        ).trim();
-        return {
-            Origen: row.Origen || "",
-            identificacion:
-                row["Identificación"] || row["CI"] || row["M"] || "",
-            apellidosNombres: nombreCompleto,
-            Email: row.Email || "",
-            Concesionario: row.Concesionario || "",
-            Modelo: "", // Modelo debe ir vacío
-            celular: row["telefono_real"] || row["L"] || row.Telefono || "",
-            tipoCampana: row["Tipo de Campania"] || row["TipoCampania"] || "",
-            motivoInteraccion: row["Motivo"] || row["MotivoInteraccion"] || "",
-            submotivoInteraccion:
-                row["Submotivo"] || row["SubmotivoInteraccion"] || "",
-            observaciones: row["Observacion"] || row["Observaciones"] || "",
-            Provincia: row.Provincia || "",
-            // Agrega aquí cualquier campo adicional que quieras mapear
-        };
-    }
-
-    function MensajeWhatsapp({ resumen }) {
-        const tipo =
-            resumen.tipoGestion || resumen.tipo_gestion || resumen.tipo || "";
-        const nombresCompletos = `${resumen.nombre} ${resumen.apellido}`.trim();
-        const fechaHora =
-            resumen.fechaCita ||
-            resumen.fechaVideollamada ||
-            resumen.fecha ||
-            "";
-        let mensaje = "";
-        if (typeof tipo === "string" && tipo.toLowerCase().includes("cita")) {
-            mensaje = `Buenos días, por favor, cliente está interesado en el modelo HR-V y desea agendar test drive.\nNOMBRES COMPLETOS: ${nombresCompletos}\nC.I: ${resumen.identificacion}\nTeléfono: ${resumen.telefono}\nFecha y hora de cita: ${fechaHora}\nCorreo: ${resumen.email}\nSu gentil ayuda comunicándose, por favor.`;
-        } else if (
-            typeof tipo === "string" &&
-            tipo.toLowerCase().includes("video")
-        ) {
-            mensaje = `Buenos días, por favor cliente está interesado el vehículo Honda HR-V, cliente vive en el Oriente, solicita se le realice una videollamada para conocer el auto hasta que pueda viajar al concesionario.\nNOMBRES COMPLETOS: ${nombresCompletos}\nCi: ${resumen.identificacion}\nTeléfono: ${resumen.telefono}\nCorreo: ${resumen.email}\nFecha y hora de videollamada: ${fechaHora}\nSu gentil ayuda por favor.`;
-        } else {
-            mensaje = `Datos del cliente:\nNOMBRES COMPLETOS: ${nombresCompletos}\nC.I: ${resumen.identificacion}\nTeléfono: ${resumen.telefono}\nCorreo: ${resumen.email}`;
-        }
-        return (
-            <div>
-                <textarea
-                    style={{
-                        width: "100%",
-                        minHeight: 120,
-                        fontFamily: "monospace",
-                        fontSize: 16,
-                        marginBottom: 8,
-                    }}
-                    readOnly
-                    value={mensaje}
-                    onFocus={(e) => e.target.select()}
-                />
-                <div style={{ fontSize: 13, color: "#888" }}>
-                    Selecciona y copia el mensaje para enviarlo por WhatsApp.
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="">
-            <div className="outmaquita-form-panel">
-                <h1 className="">Out Honda</h1>
-                {error && <div className="outmaquita-error">{error}</div>}
+        <div>
+            <div className="gestion-outbound-demo outmaquita-form-panel out-honda-page">
+                <h1 className="gestion-outbound-demo__title">Out Honda</h1>
+                {error && (
+                    <div className="gestion-outbound-demo__error">{error}</div>
+                )}
+                {successMessage && (
+                    <div className="gestion-outbound-demo__success">
+                        {successMessage}
+                    </div>
+                )}
                 <div className="outmaquita-form-wrapper">
-                    <div>
-                        <label htmlFor="filtroTabla">Ver registros:</label>
-                        <select
-                            id="filtroTabla"
-                            value={filtroTabla}
-                            onChange={(e) => setFiltroTabla(e.target.value)}
-                        >
-                            <option value="no-gestionados">
-                                No gestionados
-                            </option>
-                            <option value="gestionados">Gestionados</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label htmlFor="filtroOrigen">Hoja / Origen:</label>
-                        <select
-                            id="filtroOrigen"
-                            value={filtroOrigen}
-                            onChange={(e) => setFiltroOrigen(e.target.value)}
-                        >
-                            {origenOptions.map((origin) => (
-                                <option key={origin} value={origin}>
-                                    {origin}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    {loading && <div>Cargando...</div>}
-                    {error && <div style={{ color: "red" }}>{error}</div>}
-                    {/* Mostrar la tabla solo si NO hay registro seleccionado */}
-                    {!registro && (
-                        <div className="outhonda-table-wrapper">
-                            <table
-                            border="1"
-                            style={{
-                                marginBottom: 10,
-                                width: "100%",
-                                fontSize: "1.1em",
-                            }}
-                        >
-                            <thead>
-                                <tr>
-                                    <th>Origen</th>
-                                    <th>Identificación</th>
-                                    <th>Teléfono</th>
-                                    <th>Fecha</th>
-                                    <th>Seleccionar</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {(filtroTabla === "no-gestionados"
-                                    ? noGestionados
-                                    : gestionados
-                                ).map((row, idx) => {
-                                    const identificacion =
-                                        row["Identificación"] ||
-                                        row["CI"] ||
-                                        row["M"] ||
-                                        "";
-                                    const telefono =
-                                        row["telefono_real"] ||
-                                        row["L"] ||
-                                        row.Telefono ||
-                                        "";
-                                    const fecha = row.Fecha || row.J || "";
-                                    const uniqueKey = identificacion
-                                        ? `${identificacion}_${idx}`
-                                        : idx;
-                                    return (
-                                        <tr key={uniqueKey}>
-                                            <td>{row.Origen}</td>
-                                            <td>{identificacion}</td>
-                                            <td>{telefono}</td>
-                                            <td>{fecha}</td>
-                                            <td>
-                                                <button
-                                                    onClick={() =>
-                                                        setRegistro(row)
-                                                    }
-                                                >
-                                                    Cargar
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                            </table>
-                        </div>
-                    )}
-                    {/* Mostrar el formulario solo si hay registro seleccionado */}
-                    {registro && !resumenExcel && (
-                        <FormularioDinamicoReseteable
-                            key={
-                                registro
-                                    ? registro.identificacion ||
-                                      registro.Identificacion ||
-                                      registro["Nº de cédula"] ||
-                                      "empty"
-                                    : "empty"
-                            }
-                            initialValues={{
-                                ...mapRegistroToFormValues(registro),
-                                Plataforma:
-                                    registro["Plataforma"] ||
-                                    registro["Plataforma de origen"] ||
-                                    "WEB",
-                            }}
-                            template={dynamicTemplate}
-                            quickActions={quickActions}
-                            className="outmaquita-form outhonda-form-3col"
-                            onGuardar={async (formData) => {
-                                try {
-                                    setError("");
-                                    let nombre = "";
-                                    let apellido = "";
+                    <FormularioDinamicoReseteable
+                        key={resetKey}
+                        initialValues={initialValues}
+                        template={dynamicTemplate}
+                        quickActions={quickActions}
+                        className="outmaquita-form outhonda-form-3col out-honda-page__form"
+                        levels={levels}
+                        onValuesChange={(values) => {
+                            setInitialValues((current) => ({
+                                ...current,
+                                ...values,
+                            }));
+                            setSelectedMotivo(
+                                String(values?.motivoInteraccion || "").trim(),
+                            );
+                        }}
+                        onGuardar={async (formData) => {
+                            try {
+                                setError("");
+                                setSuccessMessage("");
 
-                                    if (formData.apellidosNombres) {
-                                        const partes = formData.apellidosNombres
-                                            .trim()
-                                            .split(" ");
-                                        if (partes.length > 1) {
-                                            nombre = partes
-                                                .slice(0, -1)
-                                                .join(" ");
-                                            apellido = partes
-                                                .slice(-1)
-                                                .join(" ");
-                                        } else {
-                                            nombre = formData.apellidosNombres;
-                                            apellido = "";
-                                        }
-                                    }
+                                const fieldsMeta = dynamicTemplate.map((field) => ({
+                                    name: field.name,
+                                    label: field.label,
+                                }));
 
-                                    const identificacion =
-                                        formData.identificacion ||
-                                        formData.Identificacion ||
-                                        formData["Identificación"] ||
-                                        formData["identificación"] ||
-                                        "";
-                                    const fieldsMeta = dynamicTemplate.map(
-                                        (field) => ({
-                                            name: field.name,
-                                            label: field.label,
-                                        }),
-                                    );
-                                    const { ok, json } =
-                                        await guardarGestionOutbound({
-                                            campaignId: "Out Honda",
-                                            formData,
-                                            fieldsMeta,
-                                        });
+                                const { ok, json } = await guardarGestionOutbound({
+                                    campaignId: "Out Honda",
+                                    formData,
+                                    fieldsMeta,
+                                });
 
-                                    if (!ok) {
-                                        throw new Error(
-                                            json?.error ||
-                                                "No se pudo guardar la gestion outbound",
-                                        );
-                                    }
-
-                                    setResumenExcel({
-                                        nombre,
-                                        apellido,
-                                        provincia:
-                                            formData.Provincia ||
-                                            formData.provincia ||
-                                            "",
-                                        identificacion,
-                                        telefono: formData.celular || "",
-                                        email: formData.Email || "",
-                                        tipoGestion:
-                                            formData.Gestion ||
-                                            formData.tipoGestion ||
-                                            formData.tipo ||
-                                            "",
-                                        fechaCita:
-                                            formData.FechaAgenda ||
-                                            formData.fechaCita ||
-                                            "",
-                                    });
-                                } catch (e) {
-                                    console.error(
-                                        "Error en onGuardar OutHondaPage:",
-                                        e,
-                                    );
-                                    setError(
-                                        e?.message ||
-                                            "Error guardando gestion outbound",
+                                if (!ok) {
+                                    throw new Error(
+                                        json?.error ||
+                                            "No se pudo guardar la gestion outbound",
                                     );
                                 }
-                            }}
-                            esUpdate={
-                                !!(
-                                    registro?.Identificacion ||
-                                    registro?.identificacion
-                                )
+
+                                setSuccessMessage("Gestion guardada correctamente.");
+                                setSelectedMotivo("");
+                                setInitialValues({ Plataforma: "WEB" });
+                                setResetKey((current) => current + 1);
+                            } catch (e) {
+                                console.error("Error en onGuardar OutHondaPage:", e);
+                                setError(
+                                    e?.message || "Error guardando gestion outbound",
+                                );
                             }
-                            levels={levels}
-                        />
-                    )}
-                    {resumenExcel && (
-                        <div
-                            style={{
-                                padding: 24,
-                                background: "#f8f8f8",
-                                borderRadius: 8,
-                                marginTop: 24,
-                            }}
-                        >
-                            <h2>Datos para copiar y pegar en Excel</h2>
-                            <div
-                                style={{ fontWeight: "bold", marginBottom: 8 }}
-                            >
-                                Nombre Apellido Provincia Identificación
-                                Teléfono Email
-                            </div>
-                            <textarea
-                                style={{
-                                    fontFamily: "monospace",
-                                    fontSize: 18,
-                                    background: "#fff",
-                                    padding: 12,
-                                    border: "1px solid #ccc",
-                                    borderRadius: 4,
-                                    width: "100%",
-                                    minHeight: 60,
-                                }}
-                                readOnly
-                                value={`${resumenExcel.nombre}\t${resumenExcel.apellido}\t${resumenExcel.provincia}\t${resumenExcel.identificacion}\t${resumenExcel.telefono}\t${resumenExcel.email}`}
-                                onFocus={(e) => e.target.select()}
-                            />
-
-                            <MensajeWhatsapp resumen={resumenExcel} />
-
-                            <button
-                                style={{ marginTop: 16 }}
-                                onClick={() => setResumenExcel(null)}
-                            >
-                                Volver
-                            </button>
-                        </div>
-                    )}
+                        }}
+                    />
                 </div>
             </div>
         </div>
     );
 }
-
-
-
-
-
