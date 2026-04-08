@@ -10,5 +10,9 @@ dist/
 # Docker
 *.log
 
+# Persistent runtime storage
+backend-storage/
+backendCRM/storage/
+
 # OS
 .DS_Store
