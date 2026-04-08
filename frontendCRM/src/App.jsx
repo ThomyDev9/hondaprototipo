@@ -15,9 +15,7 @@ import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
 import ConfiguracionAdmin from "./pages/admin/ConfiguracionAdmin";
 import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
 import ScriptsAdmin from "./pages/admin/ScriptsAdmin";
-import {
-    endAgentSession,
-} from "./services/dashboard.service";
+import { endAgentSession } from "./services/dashboard.service";
 import {
     getCurrentTabSessionId,
     resetTabSessionId,
@@ -39,7 +37,6 @@ function App() {
     const [error, setError] = useState("");
     const { userInfo, setUserInfo } = useContext(AuthContext);
 
-    // 'administrar-bases' | 'campanias' | 'management-levels' | 'users' | 'settings' | 'scripts'
     const [adminPage, setAdminPage] = useState("administrar-bases");
     const [selectedAgentCampaign, setSelectedAgentCampaign] = useState({
         campaignId: "",
@@ -56,7 +53,6 @@ function App() {
     const [consultorPage, setConsultorPage] = useState("consultor-leads");
     const [selectedAgentStatus, setSelectedAgentStatus] = useState("");
 
-    // ✅ Validar token al cargar la página
     useEffect(() => {
         const validateToken = async () => {
             const token = localStorage.getItem("access_token");
@@ -68,27 +64,26 @@ function App() {
                 });
 
                 if (!meResp.ok) {
-                    throw new Error("Token inválido");
+                    throw new Error("Token invalido");
                 }
 
                 const meJson = await meResp.json();
 
-                // ℹ️ Si username es null, solo advertir pero permitir continuar
                 if (!meJson.user.username) {
-                    console.warn("⚠️ Username no disponible en sesión actual");
+                    console.warn("Username no disponible en sesion actual");
                 }
 
-                    setSelectedAgentCampaign({
-                        campaignId: "",
-                        campaignLabel: "",
-                        tick: 0,
-                        importId: "",
-                        menuItemId: "",
-                        categoryId: "",
-                        manualFlow: false,
-                        secureInboundManual: false,
-                        followupInboundManual: false,
-                    });
+                setSelectedAgentCampaign({
+                    campaignId: "",
+                    campaignLabel: "",
+                    tick: 0,
+                    importId: "",
+                    menuItemId: "",
+                    categoryId: "",
+                    manualFlow: false,
+                    secureInboundManual: false,
+                    followupInboundManual: false,
+                });
                 setAgentPage("inicio");
                 setUserInfo(meJson.user);
             } catch (err) {
@@ -99,7 +94,7 @@ function App() {
         };
 
         validateToken();
-    }, []);
+    }, [setUserInfo]);
 
     if (standaloneMode === "inbound-email") {
         return <InboundEmailComposerPage />;
@@ -129,7 +124,6 @@ function App() {
             sessionStorage.removeItem("inbound_agent_number");
             resetTabSessionId();
 
-            // pedir datos del usuario
             const meResp = await fetch(`${API_BASE}/auth/me`, {
                 headers: { Authorization: `Bearer ${accessToken}` },
             });
@@ -141,9 +135,8 @@ function App() {
 
             const meJson = await meResp.json();
 
-            // ⚠️ Si no hay username, solo advertir (puede ser null si no se desencriptó)
             if (!meJson.user.username) {
-                console.warn("⚠️ Username no disponible en el token");
+                console.warn("Username no disponible en el token");
             }
 
             setSelectedAgentCampaign({
@@ -175,7 +168,8 @@ function App() {
                     await endAgentSession({
                         sessionId,
                         agentNumber: String(
-                            sessionStorage.getItem("inbound_agent_number") || "",
+                            sessionStorage.getItem("inbound_agent_number") ||
+                                "",
                         ).trim(),
                     });
                 } catch (err) {
@@ -317,15 +311,15 @@ function App() {
                             setAgentPage("gestion");
                             setSelectedAgentCampaign({
                                 campaignId,
-                                campaignLabel: campaignLabel || campaignId || "",
+                                campaignLabel:
+                                    campaignLabel || campaignId || "",
                                 tick: Date.now(),
                                 importId: importId || "",
                                 menuItemId: menuItemId || "",
                                 categoryId: categoryId || "",
                                 manualFlow: Boolean(manualFlow),
-                                secureInboundManual: Boolean(
-                                    secureInboundManual,
-                                ),
+                                secureInboundManual:
+                                    Boolean(secureInboundManual),
                             });
                         }}
                         onChangeAgentPage={setAgentPage}
@@ -334,44 +328,89 @@ function App() {
 
                 {(userInfo.roles?.includes("CONSULTOR") ||
                     userInfo.roles?.includes("CONSULTOR_ADMIN")) && (
-                    <DashboardConsultor key={consultorPage} page={consultorPage} />
+                    <DashboardConsultor
+                        key={consultorPage}
+                        page={consultorPage}
+                    />
                 )}
             </DashboardLayout>
         );
     }
 
-    // pantalla de login igual que antes…
     return (
-        <div
-            style={{
-                background: "#c0bce4",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                width: "100vw", // evita scroll horizontal
-                height: "100vh",
-            }}
-        >
-            <form onSubmit={handleLogin}>
-                <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    placeholder="Usuario"
-                />
-                <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="Contraseña"
-                />
-                {error && <p style={{ color: "red" }}>{error}</p>}
-                <button type="submit" disabled={loading}>
-                    {loading ? "Ingresando..." : "Ingresar"}
-                </button>
-            </form>
+        <div className="login-shell">
+            <div className="login-backdrop login-backdrop-left" />
+            <div className="login-backdrop login-backdrop-right" />
+            <div className="login-layout">
+                <section className="login-card">
+                    <div className="login-card-glow" />
+                    <div className="login-card-topline" />
+                    <div className="login-brand-top login-brand-top-centered">
+                        <img
+                            src="/Logo_KMB.svg"
+                            alt="Kimobill"
+                            className="login-brand-logo"
+                        />
+                        <div className="login-brand-badge">Acceso CRM</div>
+                    </div>
+                    <div className="login-card-header">
+                        <div>
+                            <p className="login-card-kicker">
+                                Accede con tus credenciales
+                            </p>
+                            <h2 className="login-card-title">Iniciar sesión</h2>
+                        </div>
+                    </div>
+                    <form className="login-form" onSubmit={handleLogin}>
+                        <label className="login-field">
+                            <span className="login-label">Usuario</span>
+                            <span className="login-input-shell">
+                                <span className="login-input-icon">U</span>
+                                <input
+                                    className="login-input"
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) =>
+                                        setUsername(e.target.value)
+                                    }
+                                    required
+                                    placeholder="Ingresa tu usuario"
+                                    autoComplete="username"
+                                />
+                            </span>
+                        </label>
+                        <label className="login-field">
+                            <span className="login-label">Contraseña</span>
+                            <span className="login-input-shell">
+                                <span className="login-input-icon">C</span>
+                                <input
+                                    className="login-input"
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) =>
+                                        setPassword(e.target.value)
+                                    }
+                                    required
+                                    placeholder="Ingresa tu contraseña"
+                                    autoComplete="current-password"
+                                />
+                            </span>
+                        </label>
+                        {error ? <p className="login-error">{error}</p> : null}
+                        <button
+                            className="login-submit"
+                            type="submit"
+                            disabled={loading}
+                        >
+                            {loading ? "Ingresando..." : "Ingresar"}
+                        </button>
+                    </form>
+                    <div className="login-card-foot">
+                        <span className="login-foot-chip">Acceso seguro</span>
+                        <span className="login-foot-chip">Uso interno</span>
+                    </div>
+                </section>
+            </div>
         </div>
     );
 }

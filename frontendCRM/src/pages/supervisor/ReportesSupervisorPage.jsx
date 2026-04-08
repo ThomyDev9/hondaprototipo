@@ -49,7 +49,9 @@ export default function ReportesSupervisorPage() {
                 setCampaignId((current) => current || data[0] || "");
             } catch (err) {
                 if (!cancelled) {
-                    setError(err.message || "No se pudieron cargar las campañas");
+                    setError(
+                        err.message || "No se pudieron cargar las campañas",
+                    );
                 }
             } finally {
                 if (!cancelled) {
@@ -105,13 +107,6 @@ export default function ReportesSupervisorPage() {
             <div style={styles.wrapper}>
                 <div style={styles.card}>
                     <h3 style={styles.subtitle}>Exportar gestion outbound</h3>
-                    <p style={styles.text}>
-                        El Excel respeta el orden tecnico del reporte outbound:
-                        columnas base, campos usados, datos de gestion y
-                        respuestas usadas. Las fechas se aplican con el mismo
-                        criterio del SQL manual: mayor que fecha inicial y menor
-                        que fecha final.
-                    </p>
 
                     <div style={styles.grid}>
                         <label style={styles.field}>
