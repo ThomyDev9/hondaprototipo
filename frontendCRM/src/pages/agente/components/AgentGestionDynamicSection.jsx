@@ -67,12 +67,30 @@ function getStandardFieldWidth({ field, label, textValue, editable }) {
     return Math.max(labelWidth, valueWidth, 132);
 }
 
-function renderEditableInput(field, value, onFieldChange, readOnly = false) {
+function renderEditableInput(
+    field,
+    value,
+    onFieldChange,
+    readOnly = false,
+    variant = "standard",
+) {
     const normalizedType = String(field?.type || "text").trim().toLowerCase();
+    const normalizedKey = String(field?.key || "").trim().toLowerCase();
+    const normalizedLabel = String(field?.label || "").trim().toLowerCase();
     const behavior = getFieldBehavior(field);
     const isRequired = Boolean(field?.required);
+    const isRedesIdentificationField =
+        variant === "redes" &&
+        (normalizedKey === "identificacion" ||
+            normalizedLabel === "identificacion");
+    const suggestions = isRedesIdentificationField
+        ? [...new Set(["0999999999", ...(behavior.suggestions || [])])]
+        : behavior.suggestions;
+    const resolvedMaxLength = isRedesIdentificationField
+        ? 10
+        : field.maxLength || undefined;
     const datalistId =
-        behavior.suggestions.length > 0
+        suggestions.length > 0
             ? `agent-dynamic-list-${String(field.key || field.name || "field")}`
             : null;
 
@@ -164,7 +182,7 @@ function renderEditableInput(field, value, onFieldChange, readOnly = false) {
             <>
                 <textarea
                     className="agent-input agent-survey-input"
-                    maxLength={field.maxLength || undefined}
+                    maxLength={resolvedMaxLength}
                     value={value}
                     required={isRequired}
                     onChange={(event) =>
@@ -179,7 +197,7 @@ function renderEditableInput(field, value, onFieldChange, readOnly = false) {
                 />
                 {datalistId && (
                     <datalist id={datalistId}>
-                        {behavior.suggestions.map((suggestion) => (
+                        {suggestions.map((suggestion) => (
                             <option key={suggestion} value={suggestion} />
                         ))}
                     </datalist>
@@ -200,7 +218,7 @@ function renderEditableInput(field, value, onFieldChange, readOnly = false) {
             <input
                 type={inputType}
                 className="agent-input agent-survey-input"
-                maxLength={field.maxLength || undefined}
+                maxLength={resolvedMaxLength}
                 value={value}
                 required={isRequired}
                 onChange={(event) =>
@@ -213,7 +231,7 @@ function renderEditableInput(field, value, onFieldChange, readOnly = false) {
             />
             {datalistId && (
                 <datalist id={datalistId}>
-                    {behavior.suggestions.map((suggestion) => (
+                    {suggestions.map((suggestion) => (
                         <option key={suggestion} value={suggestion} />
                     ))}
                 </datalist>
@@ -279,6 +297,7 @@ function DynamicField({ field, value, editable, onFieldChange, variant }) {
                     textValue,
                     onFieldChange,
                     isReadOnlyField,
+                    variant,
                 )
             ) : shouldUseStandardTextarea || isLong ? (
                 <textarea

@@ -432,6 +432,50 @@
     animation: consultorModalIn 0.24s ease-out;
 }
 
+.consultor-modal--mail {
+    max-height: min(98vh, 1180px);
+}
+
+.consultor-modal-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.consultor-modal-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.consultor-pdf-panel {
+    flex: 0 0 min(40%, 420px);
+    min-width: 300px;
+    min-height: 84vh;
+    border-radius: 18px;
+    border: 1px solid #d7dfef;
+    background: #f6f8fc;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: sticky;
+    top: 0;
+}
+
+.consultor-pdf-iframe {
+    width: 100%;
+    height: 84vh;
+    border: none;
+    background: #fff;
+}
+
+.consultor-pdf-empty {
+    padding: 20px;
+    color: #475569;
+    text-align: center;
+    font-size: 0.95rem;
+}
+
 @keyframes consultorModalIn {
     from {
         opacity: 0;
@@ -464,6 +508,25 @@
         max-height: 94vh;
         padding: 12px;
         border-radius: 18px;
+    }
+
+    .consultor-modal--mail {
+        max-height: 96vh;
+    }
+
+    .consultor-modal-layout {
+        flex-direction: column;
+    }
+
+    .consultor-pdf-panel {
+        position: static;
+        width: 100%;
+        min-width: 0;
+        min-height: 520px;
+    }
+
+    .consultor-pdf-iframe {
+        height: 520px;
     }
 
     .consultor-detail-head,
@@ -506,5 +569,13 @@
 
     .consultor-badges {
         justify-content: flex-start;
+    }
+
+    .consultor-pdf-panel {
+        min-height: 420px;
+    }
+
+    .consultor-pdf-iframe {
+        height: 420px;
     }
 }

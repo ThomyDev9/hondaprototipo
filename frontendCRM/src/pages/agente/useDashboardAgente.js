@@ -936,11 +936,16 @@ export default function useDashboardAgenteState({
     });
 
     const handleCancelarGestion = useCallback(async () => {
+        resetManualGestionDraft();
         await releaseRegistroIfPresent("Error liberando registro");
         if (typeof onChangeAgentPage === "function") {
             onChangeAgentPage("inicio");
         }
-    }, [onChangeAgentPage, releaseRegistroIfPresent]);
+    }, [
+        onChangeAgentPage,
+        releaseRegistroIfPresent,
+        resetManualGestionDraft,
+    ]);
 
     useEffect(() => {
         const label = String(

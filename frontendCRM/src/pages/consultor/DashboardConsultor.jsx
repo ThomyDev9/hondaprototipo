@@ -152,6 +152,8 @@ export default function DashboardConsultor() {
     const [assigning, setAssigning] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [pdfUrl, setPdfUrl] = useState(null);
+    const [pdfLoading, setPdfLoading] = useState(false);
     const [stats, setStats] = useState({
         total: 0,
         pending: 0,
@@ -318,11 +320,55 @@ export default function DashboardConsultor() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filters.search]);
 
+    useEffect(() => {
+        const identification = normalize(selectedLead?.identification);
+
+        if (!detailOpen || selectedChannel !== "mail" || !identification) {
+            setPdfUrl(null);
+            setPdfLoading(false);
+            return;
+        }
+
+        let active = true;
+
+        async function loadPdf() {
+            setPdfLoading(true);
+            try {
+                const apiBase = import.meta.env.VITE_API_BASE;
+                const resp = await fetch(`${apiBase}/uploads-list`);
+                const files = await resp.json();
+                const match = Array.isArray(files)
+                    ? files.find((name) =>
+                          String(name || "").startsWith(identification),
+                      )
+                    : null;
+
+                if (!active) return;
+                setPdfUrl(match ? `${apiBase}/uploads/${match}` : null);
+            } catch {
+                if (!active) return;
+                setPdfUrl(null);
+            } finally {
+                if (active) {
+                    setPdfLoading(false);
+                }
+            }
+        }
+
+        loadPdf();
+
+        return () => {
+            active = false;
+        };
+    }, [detailOpen, selectedChannel, selectedLead?.identification]);
+
     const closeDetail = () => {
         setDetailOpen(false);
         setSelectedId(null);
         setSelectedLead(null);
         setForm(emptyForm());
+        setPdfUrl(null);
+        setPdfLoading(false);
         setError("");
         setSuccess("");
     };
@@ -373,6 +419,7 @@ export default function DashboardConsultor() {
             if (isAdmin) {
                 await loadSummary();
             }
+            closeDetail();
         } catch (err) {
             setError(err?.message || "Error actualizando lead externo");
         } finally {
@@ -675,255 +722,276 @@ export default function DashboardConsultor() {
             {detailOpen && selectedLead ? (
                 <div className="consultor-modal-backdrop" onClick={closeDetail}>
                     <div
-                        className="consultor-modal"
+                        className={`consultor-modal ${selectedChannel === "mail" ? "consultor-modal--mail" : ""}`.trim()}
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <div className="consultor-detail-head">
-                            <div className="consultor-detail-meta">
-                                <h2>{selectedLead.full_name || "Lead externo"}</h2>
-                                <span>{selectedLead.identification}</span>
-                                <span>{selectedLead.source_channel}</span>
-                            </div>
-                            <div className="consultor-detail-actions">
-                                <div className="consultor-badges">
-                                    <span>{selectedLead.workflow_status}</span>
-                                </div>
-                                <button
-                                    type="button"
-                                    className="consultor-close"
-                                    onClick={closeDetail}
-                                >
-                                    Cerrar
-                                </button>
-                            </div>
-                        </div>
-
-                        {error ? <div className="consultor-error">{error}</div> : null}
-                        {success ? <div className="consultor-success">{success}</div> : null}
-                        <div
-                            className={`consultor-form-grid consultor-form-grid--readonly consultor-form-grid--${selectedChannel || "general"}`}
-                        >
-                            <label>
-                                Nombre
-                                <input value={form.full_name || ""} readOnly />
-                            </label>
-                            <label>
-                                Celular
-                                <input value={form.celular || ""} readOnly />
-                            </label>
-                            {selectedChannel === "rrss" ? (
-                                <label>
-                                    Ciudad
-                                    <input value={form.city || ""} readOnly />
-                                </label>
-                            ) : null}
-                            {selectedChannel === "mail" ? (
-                                <label>
-                                    Provincia
-                                    <input value={form.province || ""} readOnly />
-                                </label>
-                            ) : null}
-                            <label>
-                                Estado civil
-                                <input value={form.estado_civil || ""} readOnly />
-                            </label>
-                            <label>
-                                Actividad economica
-                                <input
-                                    value={form.actividad_economica || ""}
-                                    readOnly
-                                />
-                            </label>
-                            <label>
-                                Monto solicitado
-                                <input
-                                    value={form.monto_solicitado || ""}
-                                    readOnly
-                                />
-                            </label>
-                            {selectedChannel === "rrss" ? (
-                                <>
-                                    <label>
-                                        Autoriza buro
-                                        <input
-                                            value={form.autoriza_buro || ""}
-                                            readOnly
-                                        />
-                                    </label>
-                                    <label>
-                                        Destino credito
-                                        <input
-                                            value={form.destino_credito || ""}
-                                            readOnly
-                                        />
-                                    </label>
-                                </>
-                            ) : null}
-                        </div>
-
-                        {selectedChannel === "mail" ? (
-                            <div className="consultor-form-grid consultor-form-grid--mail">
-                                <label>
-                                    Monto aplica
-                                    <input
-                                        value={form.monto_aplica || ""}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                monto_aplica: e.target.value,
-                                            }))
-                                        }
-                                    />
-                                </label>
-                                <label>
-                                    Estatus
-                                    <select
-                                        value={form.estatus || ""}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                estatus: e.target.value,
-                                            }))
-                                        }
-                                    >
-                                        {MAIL_ESTATUS_OPTIONS.map((option) => (
-                                            <option key={option.value} value={option.value}>
-                                                {option.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-                                <label>
-                                    Agencia
-                                    <select
-                                        value={form.agencia || ""}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                agencia: e.target.value,
-                                            }))
-                                        }
-                                    >
-                                        {MAIL_AGENCIA_OPTIONS.map((option) => (
-                                            <option key={option.value} value={option.value}>
-                                                {option.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-                            </div>
-                        ) : (
-                            <div className="consultor-form-grid consultor-form-grid--rrss">
-                                <label>
-                                    Producto
-                                    <select
-                                        value={form.producto || ""}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                producto: e.target.value,
-                                            }))
-                                        }
-                                    >
-                                        {RRSS_PRODUCT_OPTIONS.map((option) => (
-                                            <option key={option.value} value={option.value}>
-                                                {option.label}
-                                            </option>
-                                            ))}
-                                        </select>
-                                    </label>
-                                <label>
-                                    Proceso a realizar
-                                    <select
-                                        value={form.proceso_a_realizar || ""}
-                                        onChange={(e) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                proceso_a_realizar:
-                                                    e.target.value,
-                                            }))
-                                        }
-                                    >
-                                        {RRSS_PROCESS_OPTIONS.map((option) => (
-                                            <option key={option.value} value={option.value}>
-                                                {option.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-                            </div>
-                        )}
-
-                            <div
-                                className={`consultor-form-grid consultor-form-grid--wide consultor-form-grid--${selectedChannel || "general"}`}
-                            >
-                            {selectedChannel === "mail" ? (
-                                <>
-                                    <label className="consultor-field-full">
-                                        Observacion cooperativa
-                                        <textarea
-                                            value={form.observacion_cooperativa || ""}
-                                            onChange={(e) =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    observacion_cooperativa:
-                                                        e.target.value,
-                                                }))
-                                            }
-                                        />
-                                    </label>
-                                    <label className="consultor-field-full">
-                                        Proceso a realizar
-                                        <select
-                                            value={form.proceso_a_realizar || ""}
-                                            onChange={(e) =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    proceso_a_realizar:
-                                                        e.target.value,
-                                                }))
-                                            }
+                        <div className="consultor-modal-layout">
+                            <div className="consultor-modal-content">
+                                <div className="consultor-detail-head">
+                                    <div className="consultor-detail-meta">
+                                        <h2>{selectedLead.full_name || "Lead externo"}</h2>
+                                        <span>{selectedLead.identification}</span>
+                                        <span>{selectedLead.source_channel}</span>
+                                    </div>
+                                    <div className="consultor-detail-actions">
+                                        <div className="consultor-badges">
+                                            <span>{selectedLead.workflow_status}</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="consultor-close"
+                                            onClick={closeDetail}
                                         >
-                                            {RRSS_PROCESS_OPTIONS.map((option) => (
-                                                <option key={option.value} value={option.value}>
-                                                    {option.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-                                </>
-                            ) : null}
+                                            Cerrar
+                                        </button>
+                                    </div>
+                                </div>
 
-                            {selectedChannel === "rrss" ? (
-                                <>
-                                    <label className="consultor-field-full">
-                                        Observacion agente maquita
-                                        <textarea
+                                {error ? <div className="consultor-error">{error}</div> : null}
+                                {success ? <div className="consultor-success">{success}</div> : null}
+                                <div
+                                    className={`consultor-form-grid consultor-form-grid--readonly consultor-form-grid--${selectedChannel || "general"}`}
+                                >
+                                    <label>
+                                        Nombre
+                                        <input value={form.full_name || ""} readOnly />
+                                    </label>
+                                    <label>
+                                        Celular
+                                        <input value={form.celular || ""} readOnly />
+                                    </label>
+                                    {selectedChannel === "rrss" ? (
+                                        <label>
+                                            Ciudad
+                                            <input value={form.city || ""} readOnly />
+                                        </label>
+                                    ) : null}
+                                    {selectedChannel === "mail" ? (
+                                        <label>
+                                            Provincia
+                                            <input value={form.province || ""} readOnly />
+                                        </label>
+                                    ) : null}
+                                    <label>
+                                        Estado civil
+                                        <input value={form.estado_civil || ""} readOnly />
+                                    </label>
+                                    <label>
+                                        Actividad economica
+                                        <input
+                                            value={form.actividad_economica || ""}
+                                            readOnly
+                                        />
+                                    </label>
+                                    <label>
+                                        Monto solicitado
+                                        <input
+                                            value={form.monto_solicitado || ""}
+                                            readOnly
+                                        />
+                                    </label>
+                                    {selectedChannel === "rrss" ? (
+                                        <>
+                                            <label>
+                                                Autoriza buro
+                                                <input
+                                                    value={form.autoriza_buro || ""}
+                                                    readOnly
+                                                />
+                                            </label>
+                                            <label>
+                                                Destino credito
+                                                <input
+                                                    value={form.destino_credito || ""}
+                                                    readOnly
+                                                />
+                                            </label>
+                                        </>
+                                    ) : null}
+                                </div>
+
+                                {selectedChannel === "mail" ? (
+                                    <div className="consultor-form-grid consultor-form-grid--mail">
+                                        <label>
+                                            Monto aplica
+                                            <input
+                                                value={form.monto_aplica || ""}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        monto_aplica: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </label>
+                                        <label>
+                                            Estatus
+                                            <select
+                                                value={form.estatus || ""}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        estatus: e.target.value,
+                                                    }))
+                                                }
+                                            >
+                                                {MAIL_ESTATUS_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            Agencia
+                                            <select
+                                                value={form.agencia || ""}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        agencia: e.target.value,
+                                                    }))
+                                                }
+                                            >
+                                                {MAIL_AGENCIA_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                    </div>
+                                ) : (
+                                    <div className="consultor-form-grid consultor-form-grid--rrss">
+                                        <label>
+                                            Producto
+                                            <select
+                                                value={form.producto || ""}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        producto: e.target.value,
+                                                    }))
+                                                }
+                                            >
+                                                {RRSS_PRODUCT_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                        <label>
+                                            Proceso a realizar
+                                            <select
+                                                value={form.proceso_a_realizar || ""}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        proceso_a_realizar:
+                                                            e.target.value,
+                                                    }))
+                                                }
+                                            >
+                                                {RRSS_PROCESS_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                    </div>
+                                )}
+
+                                <div
+                                    className={`consultor-form-grid consultor-form-grid--wide consultor-form-grid--${selectedChannel || "general"}`}
+                                >
+                                    {selectedChannel === "mail" ? (
+                                        <>
+                                            <label className="consultor-field-full">
+                                                Observacion cooperativa
+                                                <textarea
+                                                    value={form.observacion_cooperativa || ""}
+                                                    onChange={(e) =>
+                                                        setForm((prev) => ({
+                                                            ...prev,
+                                                            observacion_cooperativa:
+                                                                e.target.value,
+                                                        }))
+                                                    }
+                                                />
+                                            </label>
+                                            <label className="consultor-field-full">
+                                                Proceso a realizar
+                                                <select
+                                                    value={form.proceso_a_realizar || ""}
+                                                    onChange={(e) =>
+                                                        setForm((prev) => ({
+                                                            ...prev,
+                                                            proceso_a_realizar:
+                                                                e.target.value,
+                                                        }))
+                                                    }
+                                                >
+                                                    {RRSS_PROCESS_OPTIONS.map((option) => (
+                                                        <option key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                        </>
+                                    ) : null}
+
+                                    {selectedChannel === "rrss" ? (
+                                        <label className="consultor-field-full">
+                                            Observacion agente maquita
+                                            <textarea
                                                 value={form.observacion_externo || ""}
                                                 onChange={(e) =>
                                                     setForm((prev) => ({
                                                         ...prev,
                                                         observacion_externo:
                                                             e.target.value,
-                                                }))
-                                            }
+                                                    }))
+                                                }
+                                            />
+                                        </label>
+                                    ) : null}
+                                </div>
+
+                                <div className="consultor-actions">
+                                    <button
+                                        type="button"
+                                        className="consultor-btn consultor-btn--primary"
+                                        onClick={handleSave}
+                                        disabled={saving}
+                                    >
+                                        {saving ? "Guardando..." : "Guardar cambios"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {selectedChannel === "mail" ? (
+                                <aside className="consultor-pdf-panel">
+                                    {pdfLoading ? (
+                                        <div className="consultor-pdf-empty">
+                                            Cargando PDF...
+                                        </div>
+                                    ) : pdfUrl ? (
+                                        <iframe
+                                            src={pdfUrl}
+                                            className="consultor-pdf-iframe"
+                                            title="PDF lead mail"
                                         />
-                                    </label>
-                                </>
+                                    ) : (
+                                        <div className="consultor-pdf-empty">
+                                            No se encontro PDF para esta cedula.
+                                        </div>
+                                    )}
+                                </aside>
                             ) : null}
-
-                            </div>
-
-                            <div className="consultor-actions">
-                                <button
-                                    type="button"
-                                    className="consultor-btn consultor-btn--primary"
-                                    onClick={handleSave}
-                                    disabled={saving}
-                                >
-                                    {saving ? "Guardando..." : "Guardar cambios"}
-                                </button>
-                            </div>
+                        </div>
                     </div>
                 </div>
             ) : null}
