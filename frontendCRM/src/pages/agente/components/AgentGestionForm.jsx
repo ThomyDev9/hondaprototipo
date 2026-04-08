@@ -458,7 +458,7 @@ function InboundImagesSection({
     return (
         <section className="agent-form-card agent-form-card--tertiary">
             <div className="agent-form-header-row agent-inbound-detail-header">
-                <p className="agent-form-card__title">Capturas de soporte</p>
+                <p className="agent-form-card__title">Archivos de soporte</p>
             </div>
 
             <div className="agent-inbound-image-table">
@@ -472,11 +472,11 @@ function InboundImagesSection({
                         </div>
                         <div className="agent-form-field">
                             <span className="agent-dynamic-label">
-                                Imagen
+                                Archivo
                             </span>
                             <input
                                 type="file"
-                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                accept=".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                                 className="agent-input agent-survey-input"
                                 onChange={(event) =>
                                     onChange(
@@ -499,7 +499,7 @@ function InboundImagesSection({
                                     type="button"
                                     onClick={onAdd}
                                 >
-                                    Agregar imagen
+                                    Agregar archivo
                                 </Button>
                             )}
                             <Button

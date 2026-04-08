@@ -15,6 +15,7 @@ function formatDateTime(value) {
 
 export default function InboundHistoricoPanelV2({ campaignId }) {
     const [clientOptions, setClientOptions] = useState([]);
+    const [advisor, setAdvisor] = useState("");
     const [clientName, setClientName] = useState("");
     const [searchText, setSearchText] = useState("");
     const [startDate, setStartDate] = useState("");
@@ -51,6 +52,8 @@ export default function InboundHistoricoPanelV2({ campaignId }) {
     const handleSearch = async (filters = {}) => {
         const nextClientName =
             filters.clientName !== undefined ? filters.clientName : clientName;
+        const nextAdvisor =
+            filters.advisor !== undefined ? filters.advisor : advisor;
         const nextSearchText =
             filters.searchText !== undefined ? filters.searchText : searchText;
         const nextStartDate =
@@ -70,6 +73,7 @@ export default function InboundHistoricoPanelV2({ campaignId }) {
         try {
             const { ok, json } = await fetchInboundHistorico({
                 campaignId: normalizedCampaignId,
+                advisor: nextAdvisor,
                 clientName: nextClientName,
                 searchText: nextSearchText,
                 startDate: nextStartDate,
@@ -119,6 +123,7 @@ export default function InboundHistoricoPanelV2({ campaignId }) {
 
         loadClientOptions();
         handleSearch({
+            advisor: "",
             clientName: "",
             searchText: "",
             startDate: "",
@@ -142,10 +147,12 @@ export default function InboundHistoricoPanelV2({ campaignId }) {
 
     const handleClearFilters = () => {
         setClientName("");
+        setAdvisor("");
         setSearchText("");
         setStartDate("");
         setEndDate("");
         handleSearch({
+            advisor: "",
             clientName: "",
             searchText: "",
             startDate: "",
@@ -161,6 +168,17 @@ export default function InboundHistoricoPanelV2({ campaignId }) {
 
             <div className="agent-dynamic-section agent-dynamic-section--standard">
                 <div className="agent-dynamic-row agent-dynamic-row--standard">
+                    <div className="agent-form-field agent-form-field--standard">
+                        <span className="agent-dynamic-label">Asesor</span>
+                        <input
+                            type="text"
+                            className="agent-input agent-survey-input"
+                            value={advisor}
+                            placeholder="Usuario asesor"
+                            onChange={(event) => setAdvisor(event.target.value)}
+                        />
+                    </div>
+
                     <div className="agent-form-field agent-form-field--standard">
                         <span className="agent-dynamic-label">Cliente</span>
                         <select

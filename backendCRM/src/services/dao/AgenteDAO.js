@@ -814,6 +814,7 @@ const LIST_INBOUND_HISTORICO_ROWS = `
     nombre_cliente_ref
   FROM gestionfinal_inbound
   WHERE (? = '' OR campaign_id = ?)
+    AND (? = '' OR TRIM(agent) = ?)
     AND (? = '' OR TRIM(nombre_cliente_ref) = ?)
     AND (
       ? = ''
@@ -1640,6 +1641,7 @@ export class AgenteDAO {
     async listInboundHistoricoRows(
         {
             campaignId,
+            advisor = "",
             clientName = "",
             searchText = "",
             startDate = "",
@@ -1650,6 +1652,8 @@ export class AgenteDAO {
         const [rows] = await executor.query(LIST_INBOUND_HISTORICO_ROWS, [
             campaignId,
             campaignId,
+            advisor,
+            advisor,
             clientName,
             clientName,
             searchText,

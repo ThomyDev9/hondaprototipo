@@ -16,6 +16,18 @@ import {
 const inboundImagesBasePath =
     process.env.INBOUND_IMAGES_PATH ||
     path.join(process.cwd(), "storage", "inbound-images");
+const inboundFilesBasePath =
+    process.env.INBOUND_FILES_PATH ||
+    path.join(process.cwd(), "storage", "inbound-archivos");
+
+function isInboundImageMimeType(mimeType = "") {
+    return new Set([
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/webp",
+    ]).has(String(mimeType || "").toLowerCase());
+}
 
 function sanitizePathSegment(value) {
     return (
@@ -51,8 +63,11 @@ const inboundImageUpload = multer({
                 req.body?.nombreClienteRef || "sin-cliente",
             );
             const { year, month, day } = buildTimestampParts();
+            const basePath = isInboundImageMimeType(file?.mimetype)
+                ? inboundImagesBasePath
+                : inboundFilesBasePath;
             const destination = path.join(
-                inboundImagesBasePath,
+                basePath,
                 clientFolder,
                 year,
                 month,
@@ -71,7 +86,7 @@ const inboundImageUpload = multer({
                 (Number(req.__inboundImageSeq || 0) || 0) + 1,
             ).padStart(2, "0");
             req.__inboundImageSeq = Number(sequence);
-            cb(null, `in-${actor}-${compact}-${sequence}${ext || ".png"}`);
+            cb(null, `in-${actor}-${compact}-${sequence}${ext || ".bin"}`);
         },
     }),
     fileFilter: (req, file, cb) => {
@@ -80,15 +95,25 @@ const inboundImageUpload = multer({
             "image/jpeg",
             "image/jpg",
             "image/webp",
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "text/plain",
         ]);
         if (allowedMimeTypes.has(String(file.mimetype || "").toLowerCase())) {
             cb(null, true);
             return;
         }
-        cb(new Error("Solo se permiten imágenes PNG, JPG, JPEG o WEBP"));
+        cb(
+            new Error(
+                "Solo se permiten archivos PNG, JPG, JPEG, WEBP, PDF, Word, Excel o TXT",
+            ),
+        );
     },
     limits: {
-        fileSize: 3 * 1024 * 1024,
+        fileSize: 10 * 1024 * 1024,
         files: 10,
     },
 });
@@ -338,6 +363,7 @@ export function registerInboundRoutes(
         async (req, res) => {
             try {
                 const campaignId = String(req.query?.campaignId || "").trim();
+                const advisor = String(req.query?.advisor || "").trim();
                 const clientName = String(req.query?.clientName || "").trim();
                 const searchText = String(req.query?.searchText || "").trim();
                 const startDate = String(req.query?.startDate || "").trim();
@@ -345,6 +371,7 @@ export function registerInboundRoutes(
 
                 const rows = await agenteDAO.listInboundHistoricoRows({
                     campaignId,
+                    advisor,
                     clientName,
                     searchText,
                     startDate,
@@ -513,14 +540,21 @@ export function registerInboundRoutes(
 
                 if (files.length === 0) {
                     return res.status(400).json({
-                        error: "No se recibieron imágenes",
+                        error: "No se recibieron archivos",
                     });
                 }
 
                 const savedImages = [];
                 for (const [index, file] of files.entries()) {
+                    const isImageFile = isInboundImageMimeType(file?.mimetype);
+                    const basePath = isImageFile
+                        ? inboundImagesBasePath
+                        : inboundFilesBasePath;
+                    const baseUrl = isImageFile
+                        ? "/inbound-images"
+                        : "/inbound-archivos";
                     const relativePath = path
-                        .relative(inboundImagesBasePath, file.path)
+                        .relative(basePath, file.path)
                         .replace(/\\/g, "/");
                     const autoLabel = String(file.filename || "")
                         .replace(/\.[^.]+$/, "")
@@ -548,9 +582,10 @@ export function registerInboundRoutes(
                         originalFilename: file.originalname,
                         storedFilename: file.filename,
                         relativePath,
-                        url: `/inbound-images/${relativePath}`,
+                        url: `${baseUrl}/${relativePath}`,
                         label: autoLabel,
                         size: Number(file.size || 0),
+                        type: isImageFile ? "image" : "file",
                     });
                 }
 
@@ -562,7 +597,7 @@ export function registerInboundRoutes(
             } catch (err) {
                 console.error("Error en /agente/upload-inbound-images:", err);
                 return res.status(500).json({
-                    error: "Error subiendo imágenes inbound",
+                    error: "Error subiendo archivos inbound",
                     detail: err?.message || "",
                 });
             }

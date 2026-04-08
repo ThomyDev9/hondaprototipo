@@ -34,8 +34,13 @@ app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 const inboundImagesPath =
     process.env.INBOUND_IMAGES_PATH ||
     path.join(process.cwd(), "storage", "inbound-images");
+const inboundFilesPath =
+    process.env.INBOUND_FILES_PATH ||
+    path.join(process.cwd(), "storage", "inbound-archivos");
 fs.mkdirSync(inboundImagesPath, { recursive: true });
+fs.mkdirSync(inboundFilesPath, { recursive: true });
 app.use("/inbound-images", express.static(inboundImagesPath));
+app.use("/inbound-archivos", express.static(inboundFilesPath));
 
 // Healthcheck
 app.get("/", (req, res) => {

@@ -193,6 +193,7 @@ export const fetchInboundHistoricoClientes = ({ campaignId }) =>
 
 export const fetchInboundHistorico = ({
     campaignId,
+    advisor = "",
     clientName = "",
     searchText = "",
     startDate = "",
@@ -201,6 +202,8 @@ export const fetchInboundHistorico = ({
     request(
         `agente/inbound-historico?campaignId=${encodeURIComponent(
             String(campaignId || "").trim(),
+        )}&advisor=${encodeURIComponent(
+            String(advisor || "").trim(),
         )}&clientName=${encodeURIComponent(
             String(clientName || "").trim(),
         )}&searchText=${encodeURIComponent(
