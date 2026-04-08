@@ -60,13 +60,13 @@ export const routeRegistry = [
     // Supervisor Module
     {
         path: "/supervisor",
-        module: () => import("./supervisor/index.js"),
+        module: () => import("./supervisor/router.js"),
         description: "Funcionalidades del supervisor",
     },
     {
         path: "/consultor",
         module: () => import("./consultor/index.js"),
-        description: "Gestion externa para rol consultor",
+        description: "Gestión Externa para rol consultor",
     },
 
     {

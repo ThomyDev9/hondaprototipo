@@ -2,10 +2,14 @@ import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import {
     assignPendingConsultorLeads,
+    fetchConsultorAssignmentConfig,
     fetchConsultorLeadById,
     fetchConsultorLeads,
     fetchConsultorLeadStats,
     fetchConsultorPerformanceSummary,
+    fetchConsultorUsers,
+    reassignConsultorLeads,
+    updateConsultorAssignmentConfig,
     updateConsultorLead,
 } from "../../services/consultor.service";
 import "./DashboardConsultor.css";
@@ -13,12 +17,18 @@ import "./DashboardConsultor.css";
 const WORKFLOW_OPTIONS = [
     { value: "", label: "Todos los estados" },
     { value: "pendiente_completar", label: "Pendiente completar" },
-    { value: "listo_para_promocion", label: "Listo para promocion" },
+    { value: "por_reasignar", label: "Por reasignar" },
     { value: "ya_gestionado", label: "Ya gestionado" },
     { value: "promovido", label: "Promovido" },
 ];
 
 const CHANNEL_OPTIONS = [
+    { value: "", label: "Todos los canales" },
+    { value: "mail", label: "Mail" },
+    { value: "rrss", label: "RRSS" },
+];
+
+const REASSIGN_CHANNEL_OPTIONS = [
     { value: "", label: "Todos los canales" },
     { value: "mail", label: "Mail" },
     { value: "rrss", label: "RRSS" },
@@ -108,6 +118,31 @@ function toInputDate(value) {
     return `${year}-${month}-${day}`;
 }
 
+function getRemainingDisplay(lead) {
+    const status = normalize(lead?.workflow_status).toLowerCase();
+    if (!["pendiente_completar", "por_reasignar"].includes(status)) {
+        return "-";
+    }
+
+    const assignedAt = lead?.assigned_at ? new Date(lead.assigned_at) : null;
+    if (!assignedAt || Number.isNaN(assignedAt.getTime())) {
+        return "Sin fecha";
+    }
+
+    const deadline = assignedAt.getTime() + 24 * 60 * 60 * 1000;
+    const diff = deadline - Date.now();
+
+    if (diff <= 0) {
+        const overdueHours = Math.floor(Math.abs(diff) / (60 * 60 * 1000));
+        return `Vencido ${overdueHours}h`;
+    }
+
+    const totalMinutes = Math.floor(diff / (60 * 1000));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}h ${minutes}m`;
+}
+
 function getMissingFields(lead) {
     const channel = normalize(lead?.source_channel).toLowerCase();
     const missing = [];
@@ -134,9 +169,12 @@ function getMissingFields(lead) {
     return missing;
 }
 
-export default function DashboardConsultor() {
+export default function DashboardConsultor({ page = "consultor-leads" }) {
     const { userInfo } = useContext(AuthContext);
     const isAdmin = Boolean(userInfo?.roles?.includes("CONSULTOR_ADMIN"));
+    const isReassignPage = isAdmin && page === "consultor-reassign";
+    const isAssignmentConfigPage =
+        isAdmin && page === "consultor-assignment";
     const [filters, setFilters] = useState({
         sourceChannel: "",
         workflowStatus: "pendiente_completar",
@@ -157,10 +195,20 @@ export default function DashboardConsultor() {
     const [stats, setStats] = useState({
         total: 0,
         pending: 0,
-        ready: 0,
+        expired: 0,
         promoted: 0,
     });
     const [summaryFilters, setSummaryFilters] = useState(() => {
+        const today = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+
+        return {
+            dateFrom: toInputDate(thirtyDaysAgo),
+            dateTo: toInputDate(today),
+        };
+    });
+    const [summaryDraftFilters, setSummaryDraftFilters] = useState(() => {
         const today = new Date();
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -177,13 +225,55 @@ export default function DashboardConsultor() {
             assigned_mail: 0,
             assigned_rrss: 0,
             total_pending: 0,
+            total_expired: 0,
             total_promoted: 0,
             total_historical: 0,
         },
     });
     const [summaryLoading, setSummaryLoading] = useState(false);
+    const [consultorOptions, setConsultorOptions] = useState([]);
+    const [assignmentConfig, setAssignmentConfig] = useState([]);
+    const [assignmentConfigSnapshot, setAssignmentConfigSnapshot] = useState([]);
+    const [assignmentLoading, setAssignmentLoading] = useState(false);
+    const [assignmentSaving, setAssignmentSaving] = useState(false);
+    const [assignmentTotal, setAssignmentTotal] = useState(0);
+    const [assignmentEditableIds, setAssignmentEditableIds] = useState([]);
+    const [reassigning, setReassigning] = useState(false);
+    const [reassignForm, setReassignForm] = useState({
+        targetUserId: "",
+        quantity: 1,
+        sourceChannel: "",
+    });
 
-    const selectedChannel = normalize(selectedLead?.source_channel).toLowerCase();
+    const selectedChannel = normalize(
+        selectedLead?.source_channel,
+    ).toLowerCase();
+    const totalExpiredMail = summary.items.reduce(
+        (acc, item) => acc + Number(item.expired_mail || 0),
+        0,
+    );
+    const totalExpiredRrss = summary.items.reduce(
+        (acc, item) => acc + Number(item.expired_rrss || 0),
+        0,
+    );
+    const availableReassignCount =
+        reassignForm.sourceChannel === "mail"
+            ? totalExpiredMail
+            : reassignForm.sourceChannel === "rrss"
+              ? totalExpiredRrss
+              : Number(summary.totals.total_expired || 0);
+    const isAssignmentConfigValid =
+        Math.abs(Number(assignmentTotal || 0) - 100) < 0.001;
+    const hasAssignmentChanges = assignmentConfig.some((item) => {
+        const original = assignmentConfigSnapshot.find(
+            (snapshot) => snapshot.user_id === item.user_id,
+        );
+
+        return (
+            Number(item.assignment_percentage || 0) !==
+            Number(original?.assignment_percentage || 0)
+        );
+    });
 
     const loadLeads = async () => {
         setLoading(true);
@@ -191,7 +281,9 @@ export default function DashboardConsultor() {
         try {
             const { ok, json } = await fetchConsultorLeads(filters);
             if (!ok) {
-                throw new Error(json?.error || "No se pudo cargar leads externos");
+                throw new Error(
+                    json?.error || "No se pudo cargar leads externos",
+                );
             }
 
             setLeads(Array.isArray(json?.data) ? json.data : []);
@@ -210,20 +302,22 @@ export default function DashboardConsultor() {
             });
 
             if (!ok) {
-                throw new Error(json?.error || "No se pudo cargar estadisticas");
+                throw new Error(
+                    json?.error || "No se pudo cargar estadisticas",
+                );
             }
 
             setStats({
                 total: Number(json?.data?.total || 0),
                 pending: Number(json?.data?.pending || 0),
-                ready: Number(json?.data?.ready || 0),
+                expired: Number(json?.data?.expired || 0),
                 promoted: Number(json?.data?.promoted || 0),
             });
         } catch (err) {
             setStats({
                 total: 0,
                 pending: 0,
-                ready: 0,
+                expired: 0,
                 promoted: 0,
             });
         }
@@ -256,9 +350,8 @@ export default function DashboardConsultor() {
         if (!isAdmin) return;
         setSummaryLoading(true);
         try {
-            const { ok, json } = await fetchConsultorPerformanceSummary(
-                summaryFilters,
-            );
+            const { ok, json } =
+                await fetchConsultorPerformanceSummary(summaryFilters);
             if (!ok) {
                 throw new Error(json?.error || "No se pudo cargar el resumen");
             }
@@ -266,11 +359,24 @@ export default function DashboardConsultor() {
             setSummary({
                 items: Array.isArray(json?.data?.items) ? json.data.items : [],
                 totals: {
-                    total_assigned: Number(json?.data?.totals?.total_assigned || 0),
-                    assigned_mail: Number(json?.data?.totals?.assigned_mail || 0),
-                    assigned_rrss: Number(json?.data?.totals?.assigned_rrss || 0),
-                    total_pending: Number(json?.data?.totals?.total_pending || 0),
-                    total_promoted: Number(json?.data?.totals?.total_promoted || 0),
+                    total_assigned: Number(
+                        json?.data?.totals?.total_assigned || 0,
+                    ),
+                    assigned_mail: Number(
+                        json?.data?.totals?.assigned_mail || 0,
+                    ),
+                    assigned_rrss: Number(
+                        json?.data?.totals?.assigned_rrss || 0,
+                    ),
+                    total_pending: Number(
+                        json?.data?.totals?.total_pending || 0,
+                    ),
+                    total_expired: Number(
+                        json?.data?.totals?.total_expired || 0,
+                    ),
+                    total_promoted: Number(
+                        json?.data?.totals?.total_promoted || 0,
+                    ),
                     total_historical: Number(
                         json?.data?.totals?.total_historical || 0,
                     ),
@@ -284,12 +390,79 @@ export default function DashboardConsultor() {
                     assigned_mail: 0,
                     assigned_rrss: 0,
                     total_pending: 0,
+                    total_expired: 0,
                     total_promoted: 0,
                     total_historical: 0,
                 },
             });
         } finally {
             setSummaryLoading(false);
+        }
+    };
+
+    const loadConsultorUsers = async () => {
+        if (!isAdmin) return;
+        try {
+            const { ok, json } = await fetchConsultorUsers();
+            if (!ok) {
+                throw new Error(json?.error || "No se pudo cargar consultores");
+            }
+
+            const items = Array.isArray(json?.data) ? json.data : [];
+            setConsultorOptions(items);
+            if (!reassignForm.targetUserId && items[0]?.id) {
+                setReassignForm((prev) => ({
+                    ...prev,
+                    targetUserId: items[0].id,
+                }));
+            }
+        } catch {
+            setConsultorOptions([]);
+        }
+    };
+
+    const loadAssignmentConfig = async () => {
+        if (!isAdmin) return;
+        setAssignmentLoading(true);
+        try {
+            const { ok, json } = await fetchConsultorAssignmentConfig();
+            if (!ok) {
+                throw new Error(
+                    json?.error ||
+                        "No se pudo cargar la distribucion automatica",
+                );
+            }
+
+            const items = Array.isArray(json?.data?.items) ? json.data.items : [];
+            setAssignmentConfig(
+                items.map((item) => ({
+                    user_id: normalize(item.id),
+                    name: item.name || item.email || item.id,
+                    email: item.email || "",
+                    assignment_percentage: Number(
+                        item.assignment_percentage || 0,
+                    ),
+                })),
+            );
+            setAssignmentConfigSnapshot(
+                items.map((item) => ({
+                    user_id: normalize(item.id),
+                    name: item.name || item.email || item.id,
+                    email: item.email || "",
+                    assignment_percentage: Number(
+                        item.assignment_percentage || 0,
+                    ),
+                })),
+            );
+            setAssignmentTotal(Number(json?.data?.totalPercentage || 0));
+            setAssignmentEditableIds([]);
+        } catch (err) {
+            setAssignmentConfig([]);
+            setAssignmentConfigSnapshot([]);
+            setAssignmentTotal(0);
+            setAssignmentEditableIds([]);
+        } finally {
+            setAssignmentLoading(false);
         }
     };
 
@@ -304,6 +477,36 @@ export default function DashboardConsultor() {
         loadSummary();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAdmin, summaryFilters.dateFrom, summaryFilters.dateTo]);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        loadConsultorUsers();
+        loadAssignmentConfig();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAdmin]);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+
+        setReassignForm((prev) => {
+            const normalizedQuantity = Math.max(
+                1,
+                Math.min(
+                    Number(prev.quantity || 1),
+                    Math.max(availableReassignCount, 1),
+                ),
+            );
+
+            if (normalizedQuantity === Number(prev.quantity || 1)) {
+                return prev;
+            }
+
+            return {
+                ...prev,
+                quantity: normalizedQuantity,
+            };
+        });
+    }, [isAdmin, availableReassignCount]);
 
     useEffect(() => {
         loadLeads();
@@ -412,7 +615,9 @@ export default function DashboardConsultor() {
                 throw new Error(json?.error || "No se pudo actualizar el lead");
             }
 
-            setSuccess(json?.message || "Lead externo actualizado correctamente.");
+            setSuccess(
+                json?.message || "Lead externo actualizado correctamente.",
+            );
             await loadLeadDetail(selectedId, false);
             await loadLeads();
             await loadStats();
@@ -434,7 +639,9 @@ export default function DashboardConsultor() {
         try {
             const { ok, json } = await assignPendingConsultorLeads();
             if (!ok) {
-                throw new Error(json?.error || "No se pudo ejecutar la asignacion");
+                throw new Error(
+                    json?.error || "No se pudo ejecutar la asignacion",
+                );
             }
 
             const assigned = Number(json?.data?.assigned || 0);
@@ -452,15 +659,154 @@ export default function DashboardConsultor() {
         }
     };
 
+    const handleManualReassign = async () => {
+        setReassigning(true);
+        setError("");
+        setSuccess("");
+        try {
+            const { ok, json } = await reassignConsultorLeads(reassignForm);
+            if (!ok) {
+                throw new Error(json?.error || "No se pudo reasignar");
+            }
+
+            setSuccess(json?.message || "Reasignacion completada.");
+            await loadSummary();
+            await loadLeads();
+            await loadStats();
+        } catch (err) {
+            setError(err?.message || "Error en reasignacion manual");
+        } finally {
+            setReassigning(false);
+        }
+    };
+
+    const handleAssignmentRowChange = (userId, changes) => {
+        setAssignmentConfig((prev) => {
+            const next = prev.map((item) =>
+                item.user_id === userId
+                    ? {
+                        ...item,
+                        ...changes,
+                    }
+                    : item,
+            );
+
+            const total = next
+                .reduce(
+                    (acc, item) =>
+                        acc + Number(item.assignment_percentage || 0),
+                    0,
+                );
+            setAssignmentTotal(total);
+            return next;
+        });
+    };
+
+    const handleSaveAssignmentConfig = async () => {
+        setAssignmentSaving(true);
+        setError("");
+        setSuccess("");
+        try {
+            const payload = {
+                items: assignmentConfig.map((item) => ({
+                    user_id: item.user_id,
+                    is_active: Number(item.assignment_percentage || 0) > 0,
+                    assignment_percentage: Number(
+                        item.assignment_percentage || 0,
+                    ),
+                })),
+            };
+
+            const { ok, json } =
+                await updateConsultorAssignmentConfig(payload);
+            if (!ok) {
+                throw new Error(
+                    json?.error ||
+                        "No se pudo guardar la distribucion automatica",
+                );
+            }
+
+            setSuccess(
+                json?.message ||
+                    "Distribucion automatica guardada correctamente.",
+            );
+            await loadAssignmentConfig();
+        } catch (err) {
+            setError(err?.message || "Error guardando porcentajes");
+        } finally {
+            setAssignmentSaving(false);
+        }
+    };
+
+    const recalculateAssignmentTotal = (items) => {
+        setAssignmentTotal(
+            items.reduce(
+                (acc, item) => acc + Number(item.assignment_percentage || 0),
+                0,
+            ),
+        );
+    };
+
+    const handleEditAssignmentRow = (userId) => {
+        setAssignmentEditableIds((prev) =>
+            prev.includes(userId) ? prev : [...prev, userId],
+        );
+    };
+
+    const handleCancelAssignmentRow = (userId) => {
+        const original = assignmentConfigSnapshot.find(
+            (item) => item.user_id === userId,
+        );
+        const next = assignmentConfig.map((item) =>
+            item.user_id === userId && original
+                ? {
+                    ...item,
+                    assignment_percentage: Number(
+                        original.assignment_percentage || 0,
+                    ),
+                }
+                : item,
+        );
+        setAssignmentConfig(next);
+        recalculateAssignmentTotal(next);
+        setAssignmentEditableIds((prev) =>
+            prev.filter((item) => item !== userId),
+        );
+    };
+
+    const handleCancelAssignmentEdit = () => {
+        const restored = assignmentConfigSnapshot.map((item) => ({ ...item }));
+        setAssignmentConfig(restored);
+        setAssignmentTotal(
+            restored.reduce(
+                (acc, item) => acc + Number(item.assignment_percentage || 0),
+                0,
+            ),
+        );
+        setAssignmentEditableIds([]);
+    };
+
     return (
         <div className="consultor-page">
             <section className="consultor-hero">
                 <div>
-                    <h1>{isAdmin ? "Panel Consultor Admin" : "Gestion Externa"}</h1>
+                    <h1>
+                        {isReassignPage
+                            ? "Reasignar Leads"
+                            : isAssignmentConfigPage
+                              ? "Configuracion Asignacion"
+                              : isAdmin
+                                ? "Panel Consultor Admin"
+                                : "Gestion Externa"}
+                    </h1>
                     <p>
-                        {isAdmin
-                            ? "Resumen general de asignacion y resultado de todos los consultores."
-                            : "Modulo de trabajo para consultores sobre leads externos."}
+                        {isReassignPage
+                            ? "Gestiona los leads vencidos y reasignalos a otro consultor."
+                            : isAssignmentConfigPage
+                              ? "Configura el porcentaje de asignacion automatica para cada consultor."
+                              : isAdmin
+                                ? "Resumen general de asignacion y resultado de todos los consultores."
+                                : "Modulo de trabajo para consultores sobre leads externos."}
                     </p>
                 </div>
                 {isAdmin ? (
@@ -472,6 +818,10 @@ export default function DashboardConsultor() {
                         <article>
                             <strong>{summary.totals.total_pending}</strong>
                             <span>Pendientes totales</span>
+                        </article>
+                        <article>
+                            <strong>{summary.totals.total_expired}</strong>
+                            <span>Por reasignar</span>
                         </article>
                         <article>
                             <strong>{summary.totals.total_promoted}</strong>
@@ -489,6 +839,10 @@ export default function DashboardConsultor() {
                             <span>Pendientes</span>
                         </article>
                         <article>
+                            <strong>{stats.expired}</strong>
+                            <span>Por reasignar</span>
+                        </article>
+                        <article>
                             <strong>{stats.promoted}</strong>
                             <span>Promovidos</span>
                         </article>
@@ -496,34 +850,304 @@ export default function DashboardConsultor() {
                 )}
             </section>
 
-            {isAdmin ? (
+            {isAdmin && isReassignPage ? (
+                <section className="consultor-panel consultor-panel--summary">
+                    <div className="consultor-panel-head">
+                        <div className="consultor-panel-head-inline">
+                            <h2>Reasignar leads vencidos</h2>
+                            <span className="consultor-inline-count">
+                                Disponibles: {summary.totals.total_expired}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="consultor-reassign-box">
+                        <div className="consultor-toolbar consultor-toolbar--reassign">
+                            <label className="consultor-filter-field">
+                                <span>Consultor destino</span>
+                                <select
+                                    value={reassignForm.targetUserId}
+                                    onChange={(e) =>
+                                        setReassignForm((prev) => ({
+                                            ...prev,
+                                            targetUserId: e.target.value,
+                                        }))
+                                    }
+                                >
+                                    <option value="">
+                                        Selecciona consultor
+                                    </option>
+                                    {consultorOptions.map((option) => (
+                                        <option
+                                            key={option.id}
+                                            value={option.id}
+                                        >
+                                            {option.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className="consultor-filter-field">
+                                <span>Cantidad</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={Math.max(availableReassignCount, 1)}
+                                    value={reassignForm.quantity}
+                                    onChange={(e) =>
+                                        setReassignForm((prev) => ({
+                                            ...prev,
+                                            quantity: Math.max(
+                                                1,
+                                                Math.min(
+                                                    Number(e.target.value || 1),
+                                                    Math.max(
+                                                        availableReassignCount,
+                                                        1,
+                                                    ),
+                                                ),
+                                            ),
+                                        }))
+                                    }
+                                />
+                            </label>
+                            <label className="consultor-filter-field">
+                                <span>Canal</span>
+                                <select
+                                    value={reassignForm.sourceChannel}
+                                    onChange={(e) =>
+                                        setReassignForm((prev) => ({
+                                            ...prev,
+                                            sourceChannel: e.target.value,
+                                        }))
+                                    }
+                                >
+                                    {REASSIGN_CHANNEL_OPTIONS.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <button
+                                type="button"
+                                className="consultor-btn consultor-btn--primary"
+                                onClick={handleManualReassign}
+                                disabled={
+                                    reassigning ||
+                                    !reassignForm.targetUserId ||
+                                    availableReassignCount === 0
+                                }
+                            >
+                                {reassigning ? "Reasignando..." : "Reasignar"}
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            ) : null}
+
+            {isAdmin && isAssignmentConfigPage ? (
                 <section className="consultor-panel consultor-panel--summary">
                     <div className="consultor-panel-head">
                         <div>
-                            <h2>Resumen por consultor</h2>
-                        <p>
-                            Mide asignados, pendientes y promovidos en el rango
-                            seleccionado.
-                        </p>
+                            <h2>Configuracion de asignacion</h2>
+                        </div>
                     </div>
-                    <button
-                        type="button"
-                        className="consultor-btn consultor-btn--primary"
-                        onClick={handleAutoAssign}
-                        disabled={assigning}
-                    >
-                        {assigning ? "Asignando..." : "Asignar pendientes"}
-                    </button>
-                </div>
+
+                    <div className="consultor-assignment-config">
+                        <div className="consultor-panel-head consultor-panel-head--compact">
+                            <div>
+                                <h3>Distribucion automatica</h3>
+                                <p>
+                                    Ajusta el porcentaje por consultor. La suma
+                                    total debe ser 100%.
+                                </p>
+                            </div>
+                        </div>
+
+                        {assignmentLoading ? (
+                            <div className="consultor-status">
+                                Cargando distribucion...
+                            </div>
+                        ) : (
+                            <div className="consultor-table-wrap consultor-table-wrap--summary">
+                                <table className="consultor-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Consultor</th>
+                                            <th>Porcentaje</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {assignmentConfig.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan="3"
+                                                    className="consultor-table-empty"
+                                                >
+                                                    No hay consultores
+                                                    disponibles para configurar.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            assignmentConfig.map((item) => (
+                                                <tr key={item.user_id}>
+                                                    <td>
+                                                        <div className="consultor-summary-name">
+                                                            <strong>
+                                                                {item.name}
+                                                            </strong>
+                                                            <span>
+                                                                {item.email ||
+                                                                    "-"}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="consultor-percentage-input">
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max="100"
+                                                                step="0.01"
+                                                                disabled={
+                                                                    !assignmentEditableIds.includes(
+                                                                        item.user_id,
+                                                                    )
+                                                                }
+                                                                value={
+                                                                    item.assignment_percentage
+                                                                }
+                                                                onChange={(
+                                                                    e,
+                                                                ) =>
+                                                                    handleAssignmentRowChange(
+                                                                        item.user_id,
+                                                                        {
+                                                                            assignment_percentage:
+                                                                                Math.max(
+                                                                                    0,
+                                                                                    Math.min(
+                                                                                        100,
+                                                                                        Number(
+                                                                                            e
+                                                                                                .target
+                                                                                                .value ||
+                                                                                                0,
+                                                                                        ),
+                                                                                    ),
+                                                                                ),
+                                                                        },
+                                                                    )
+                                                                }
+                                                            />
+                                                            <span>%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div className="consultor-table-row-actions">
+                                                            {assignmentEditableIds.includes(
+                                                                item.user_id,
+                                                            ) ? (
+                                                                <button
+                                                                    type="button"
+                                                                    className="consultor-btn"
+                                                                    onClick={() =>
+                                                                        handleCancelAssignmentRow(
+                                                                            item.user_id,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        assignmentSaving
+                                                                    }
+                                                                >
+                                                                    Cancelar
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    className="consultor-btn consultor-btn--primary"
+                                                                    onClick={() =>
+                                                                        handleEditAssignmentRow(
+                                                                            item.user_id,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    Editar
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {assignmentConfig.length > 0 ? (
+                            <div className="consultor-assignment-footer">
+                                <span
+                                    className={`consultor-inline-count ${isAssignmentConfigValid ? "consultor-inline-count--ok" : "consultor-inline-count--warn"}`}
+                                >
+                                    Total global: {assignmentTotal}%
+                                </span>
+                                <div className="consultor-table-actions">
+                                    <button
+                                        type="button"
+                                        className="consultor-btn"
+                                        onClick={handleCancelAssignmentEdit}
+                                        disabled={
+                                            assignmentSaving ||
+                                            !hasAssignmentChanges
+                                        }
+                                    >
+                                        Restablecer todo
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="consultor-btn consultor-btn--primary"
+                                        onClick={handleSaveAssignmentConfig}
+                                        disabled={
+                                            assignmentSaving ||
+                                            assignmentLoading ||
+                                            !hasAssignmentChanges ||
+                                            !isAssignmentConfigValid
+                                        }
+                                    >
+                                        {assignmentSaving
+                                            ? "Guardando..."
+                                            : "Guardar cambios"}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+                </section>
+            ) : null}
+
+            {isAdmin && !isReassignPage && !isAssignmentConfigPage ? (
+                <section className="consultor-panel consultor-panel--summary">
+                    <div className="consultor-panel-head">
+                        <div>
+                            <h2>Control por consultor</h2>
+                        </div>
+                    </div>
 
                     <div className="consultor-toolbar consultor-toolbar--summary">
                         <label className="consultor-filter-field">
                             <span>Fecha inicio</span>
                             <input
                                 type="date"
-                                value={summaryFilters.dateFrom}
+                                value={summaryDraftFilters.dateFrom}
                                 onChange={(e) =>
-                                    setSummaryFilters((prev) => ({
+                                    setSummaryDraftFilters((prev) => ({
                                         ...prev,
                                         dateFrom: e.target.value,
                                     }))
@@ -534,19 +1158,51 @@ export default function DashboardConsultor() {
                             <span>Fecha fin</span>
                             <input
                                 type="date"
-                                value={summaryFilters.dateTo}
+                                value={summaryDraftFilters.dateTo}
                                 onChange={(e) =>
-                                    setSummaryFilters((prev) => ({
+                                    setSummaryDraftFilters((prev) => ({
                                         ...prev,
                                         dateTo: e.target.value,
                                     }))
                                 }
                             />
                         </label>
+                        <div className="consultor-summary-actions">
+                            <button
+                                type="button"
+                                className="consultor-btn consultor-btn--primary"
+                                onClick={() =>
+                                    setSummaryFilters({
+                                        dateFrom: summaryDraftFilters.dateFrom,
+                                        dateTo: summaryDraftFilters.dateTo,
+                                    })
+                                }
+                            >
+                                Buscar
+                            </button>
+                            <button
+                                type="button"
+                                className="consultor-btn"
+                                onClick={() => {
+                                    setSummaryDraftFilters({
+                                        dateFrom: "",
+                                        dateTo: "",
+                                    });
+                                    setSummaryFilters({
+                                        dateFrom: "",
+                                        dateTo: "",
+                                    });
+                                }}
+                            >
+                                Limpiar filtros
+                            </button>
+                        </div>
                     </div>
 
                     {summaryLoading ? (
-                        <div className="consultor-status">Cargando resumen...</div>
+                        <div className="consultor-status">
+                            Cargando resumen...
+                        </div>
                     ) : (
                         <div className="consultor-table-wrap consultor-table-wrap--summary">
                             <table className="consultor-table">
@@ -556,7 +1212,8 @@ export default function DashboardConsultor() {
                                         <th>Asignados</th>
                                         <th>Mail</th>
                                         <th>RRSS</th>
-                                        <th>Pendientes</th>
+                                        <th>Pendientes activos</th>
+                                        <th>Pendientes por reasignar</th>
                                         <th>Promovidos</th>
                                     </tr>
                                 </thead>
@@ -564,12 +1221,16 @@ export default function DashboardConsultor() {
                                     {summary.items.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan="6"
+                                                colSpan="7"
                                                 className="consultor-table-empty"
                                             >
-                                                No hay registros para ese rango de fechas. Si acabas de activar este modulo,
-                                                ejecuta la migracion `017_add_external_leads_assignment_tracking.sql` para
-                                                completar la fecha de asignacion historica.
+                                                No hay registros para ese rango
+                                                de fechas. Si acabas de activar
+                                                este modulo, ejecuta la
+                                                migracion
+                                                `017_add_external_leads_assignment_tracking.sql`
+                                                para completar la fecha de
+                                                asignacion historica.
                                             </td>
                                         </tr>
                                     ) : (
@@ -577,8 +1238,15 @@ export default function DashboardConsultor() {
                                             <tr key={item.consultor_id}>
                                                 <td>
                                                     <div className="consultor-summary-name">
-                                                        <strong>{item.consultor_name}</strong>
-                                                        <span>{item.consultor_email || "-"}</span>
+                                                        <strong>
+                                                            {
+                                                                item.consultor_name
+                                                            }
+                                                        </strong>
+                                                        <span>
+                                                            {item.consultor_email ||
+                                                                "-"}
+                                                        </span>
                                                     </div>
                                                 </td>
                                                 <td>{item.total_assigned}</td>
@@ -588,6 +1256,12 @@ export default function DashboardConsultor() {
                                                     {item.total_pending}
                                                     <small>
                                                         {` M:${item.pending_mail} | R:${item.pending_rrss}`}
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    {item.total_expired}
+                                                    <small>
+                                                        {` M:${item.expired_mail} | R:${item.expired_rrss}`}
                                                     </small>
                                                 </td>
                                                 <td>
@@ -606,16 +1280,25 @@ export default function DashboardConsultor() {
                 </section>
             ) : null}
 
-            {!isAdmin ? (
-            <section className="consultor-panel">
-                <div className="consultor-panel-head">
-                    <div>
-                        <h2>Bandeja de leads</h2>
-                        <p>
-                            Solo ves los leads que te fueron asignados.
-                        </p>
+            {!isAdmin ||
+            (isAdmin &&
+                !isReassignPage &&
+                !isAssignmentConfigPage) ? (
+                <section className="consultor-panel">
+                    <div className="consultor-panel-head">
+                        <div>
+                            <h2>
+                                {isAdmin
+                                    ? "Vista general de leads"
+                                    : "Bandeja de leads"}
+                            </h2>
+                            <p>
+                                {isAdmin
+                                    ? ""
+                                    : "Solo ves los leads que te fueron asignados."}
+                            </p>
+                        </div>
                     </div>
-                </div>
 
                     <div className="consultor-toolbar">
                         <select
@@ -661,11 +1344,17 @@ export default function DashboardConsultor() {
                         />
                     </div>
 
-                    {error ? <div className="consultor-error">{error}</div> : null}
-                    {success ? <div className="consultor-success">{success}</div> : null}
+                    {error ? (
+                        <div className="consultor-error">{error}</div>
+                    ) : null}
+                    {success ? (
+                        <div className="consultor-success">{success}</div>
+                    ) : null}
 
                     {loading ? (
-                        <div className="consultor-status">Cargando leads...</div>
+                        <div className="consultor-status">
+                            Cargando leads...
+                        </div>
                     ) : (
                         <div className="consultor-table-wrap consultor-table-wrap--full">
                             <table className="consultor-table">
@@ -675,6 +1364,7 @@ export default function DashboardConsultor() {
                                         <th>Cedula</th>
                                         <th>Cliente</th>
                                         <th>Celular</th>
+                                        <th>Tiempo</th>
                                         <th>Workflow</th>
                                         <th>Accion</th>
                                     </tr>
@@ -682,8 +1372,12 @@ export default function DashboardConsultor() {
                                 <tbody>
                                     {leads.length === 0 ? (
                                         <tr>
-                                            <td colSpan="6" className="consultor-table-empty">
-                                                No hay leads para los filtros actuales.
+                                            <td
+                                                colSpan="7"
+                                                className="consultor-table-empty"
+                                            >
+                                                No hay leads para los filtros
+                                                actuales.
                                             </td>
                                         </tr>
                                     ) : (
@@ -694,6 +1388,9 @@ export default function DashboardConsultor() {
                                                 <td>{lead.full_name || "-"}</td>
                                                 <td>{lead.celular || "-"}</td>
                                                 <td>
+                                                    {getRemainingDisplay(lead)}
+                                                </td>
+                                                <td>
                                                     <span className="consultor-badge">
                                                         {lead.workflow_status}
                                                     </span>
@@ -703,7 +1400,10 @@ export default function DashboardConsultor() {
                                                         type="button"
                                                         className="consultor-btn consultor-btn--small"
                                                         onClick={() =>
-                                                            loadLeadDetail(lead.id, true)
+                                                            loadLeadDetail(
+                                                                lead.id,
+                                                                true,
+                                                            )
                                                         }
                                                     >
                                                         Calificar
@@ -716,7 +1416,7 @@ export default function DashboardConsultor() {
                             </table>
                         </div>
                     )}
-            </section>
+                </section>
             ) : null}
 
             {detailOpen && selectedLead ? (
@@ -729,13 +1429,22 @@ export default function DashboardConsultor() {
                             <div className="consultor-modal-content">
                                 <div className="consultor-detail-head">
                                     <div className="consultor-detail-meta">
-                                        <h2>{selectedLead.full_name || "Lead externo"}</h2>
-                                        <span>{selectedLead.identification}</span>
-                                        <span>{selectedLead.source_channel}</span>
+                                        <h2>
+                                            {selectedLead.full_name ||
+                                                "Lead externo"}
+                                        </h2>
+                                        <span>
+                                            {selectedLead.identification}
+                                        </span>
+                                        <span>
+                                            {selectedLead.source_channel}
+                                        </span>
                                     </div>
                                     <div className="consultor-detail-actions">
                                         <div className="consultor-badges">
-                                            <span>{selectedLead.workflow_status}</span>
+                                            <span>
+                                                {selectedLead.workflow_status}
+                                            </span>
                                         </div>
                                         <button
                                             type="button"
@@ -747,39 +1456,64 @@ export default function DashboardConsultor() {
                                     </div>
                                 </div>
 
-                                {error ? <div className="consultor-error">{error}</div> : null}
-                                {success ? <div className="consultor-success">{success}</div> : null}
+                                {error ? (
+                                    <div className="consultor-error">
+                                        {error}
+                                    </div>
+                                ) : null}
+                                {success ? (
+                                    <div className="consultor-success">
+                                        {success}
+                                    </div>
+                                ) : null}
                                 <div
                                     className={`consultor-form-grid consultor-form-grid--readonly consultor-form-grid--${selectedChannel || "general"}`}
                                 >
                                     <label>
                                         Nombre
-                                        <input value={form.full_name || ""} readOnly />
+                                        <input
+                                            value={form.full_name || ""}
+                                            readOnly
+                                        />
                                     </label>
                                     <label>
                                         Celular
-                                        <input value={form.celular || ""} readOnly />
+                                        <input
+                                            value={form.celular || ""}
+                                            readOnly
+                                        />
                                     </label>
                                     {selectedChannel === "rrss" ? (
                                         <label>
                                             Ciudad
-                                            <input value={form.city || ""} readOnly />
+                                            <input
+                                                value={form.city || ""}
+                                                readOnly
+                                            />
                                         </label>
                                     ) : null}
                                     {selectedChannel === "mail" ? (
                                         <label>
                                             Provincia
-                                            <input value={form.province || ""} readOnly />
+                                            <input
+                                                value={form.province || ""}
+                                                readOnly
+                                            />
                                         </label>
                                     ) : null}
                                     <label>
                                         Estado civil
-                                        <input value={form.estado_civil || ""} readOnly />
+                                        <input
+                                            value={form.estado_civil || ""}
+                                            readOnly
+                                        />
                                     </label>
                                     <label>
                                         Actividad economica
                                         <input
-                                            value={form.actividad_economica || ""}
+                                            value={
+                                                form.actividad_economica || ""
+                                            }
                                             readOnly
                                         />
                                     </label>
@@ -795,14 +1529,19 @@ export default function DashboardConsultor() {
                                             <label>
                                                 Autoriza buro
                                                 <input
-                                                    value={form.autoriza_buro || ""}
+                                                    value={
+                                                        form.autoriza_buro || ""
+                                                    }
                                                     readOnly
                                                 />
                                             </label>
                                             <label>
                                                 Destino credito
                                                 <input
-                                                    value={form.destino_credito || ""}
+                                                    value={
+                                                        form.destino_credito ||
+                                                        ""
+                                                    }
                                                     readOnly
                                                 />
                                             </label>
@@ -819,7 +1558,8 @@ export default function DashboardConsultor() {
                                                 onChange={(e) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        monto_aplica: e.target.value,
+                                                        monto_aplica:
+                                                            e.target.value,
                                                     }))
                                                 }
                                             />
@@ -835,11 +1575,16 @@ export default function DashboardConsultor() {
                                                     }))
                                                 }
                                             >
-                                                {MAIL_ESTATUS_OPTIONS.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
+                                                {MAIL_ESTATUS_OPTIONS.map(
+                                                    (option) => (
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                        >
+                                                            {option.label}
+                                                        </option>
+                                                    ),
+                                                )}
                                             </select>
                                         </label>
                                         <label>
@@ -853,11 +1598,16 @@ export default function DashboardConsultor() {
                                                     }))
                                                 }
                                             >
-                                                {MAIL_AGENCIA_OPTIONS.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
+                                                {MAIL_AGENCIA_OPTIONS.map(
+                                                    (option) => (
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                        >
+                                                            {option.label}
+                                                        </option>
+                                                    ),
+                                                )}
                                             </select>
                                         </label>
                                     </div>
@@ -870,21 +1620,30 @@ export default function DashboardConsultor() {
                                                 onChange={(e) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        producto: e.target.value,
+                                                        producto:
+                                                            e.target.value,
                                                     }))
                                                 }
                                             >
-                                                {RRSS_PRODUCT_OPTIONS.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
+                                                {RRSS_PRODUCT_OPTIONS.map(
+                                                    (option) => (
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                        >
+                                                            {option.label}
+                                                        </option>
+                                                    ),
+                                                )}
                                             </select>
                                         </label>
                                         <label>
                                             Proceso a realizar
                                             <select
-                                                value={form.proceso_a_realizar || ""}
+                                                value={
+                                                    form.proceso_a_realizar ||
+                                                    ""
+                                                }
                                                 onChange={(e) =>
                                                     setForm((prev) => ({
                                                         ...prev,
@@ -893,11 +1652,16 @@ export default function DashboardConsultor() {
                                                     }))
                                                 }
                                             >
-                                                {RRSS_PROCESS_OPTIONS.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
+                                                {RRSS_PROCESS_OPTIONS.map(
+                                                    (option) => (
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                        >
+                                                            {option.label}
+                                                        </option>
+                                                    ),
+                                                )}
                                             </select>
                                         </label>
                                     </div>
@@ -911,7 +1675,10 @@ export default function DashboardConsultor() {
                                             <label className="consultor-field-full">
                                                 Observacion cooperativa
                                                 <textarea
-                                                    value={form.observacion_cooperativa || ""}
+                                                    value={
+                                                        form.observacion_cooperativa ||
+                                                        ""
+                                                    }
                                                     onChange={(e) =>
                                                         setForm((prev) => ({
                                                             ...prev,
@@ -924,7 +1691,10 @@ export default function DashboardConsultor() {
                                             <label className="consultor-field-full">
                                                 Proceso a realizar
                                                 <select
-                                                    value={form.proceso_a_realizar || ""}
+                                                    value={
+                                                        form.proceso_a_realizar ||
+                                                        ""
+                                                    }
                                                     onChange={(e) =>
                                                         setForm((prev) => ({
                                                             ...prev,
@@ -933,11 +1703,20 @@ export default function DashboardConsultor() {
                                                         }))
                                                     }
                                                 >
-                                                    {RRSS_PROCESS_OPTIONS.map((option) => (
-                                                        <option key={option.value} value={option.value}>
-                                                            {option.label}
-                                                        </option>
-                                                    ))}
+                                                    {RRSS_PROCESS_OPTIONS.map(
+                                                        (option) => (
+                                                            <option
+                                                                key={
+                                                                    option.value
+                                                                }
+                                                                value={
+                                                                    option.value
+                                                                }
+                                                            >
+                                                                {option.label}
+                                                            </option>
+                                                        ),
+                                                    )}
                                                 </select>
                                             </label>
                                         </>
@@ -947,7 +1726,10 @@ export default function DashboardConsultor() {
                                         <label className="consultor-field-full">
                                             Observacion agente maquita
                                             <textarea
-                                                value={form.observacion_externo || ""}
+                                                value={
+                                                    form.observacion_externo ||
+                                                    ""
+                                                }
                                                 onChange={(e) =>
                                                     setForm((prev) => ({
                                                         ...prev,
@@ -967,7 +1749,9 @@ export default function DashboardConsultor() {
                                         onClick={handleSave}
                                         disabled={saving}
                                     >
-                                        {saving ? "Guardando..." : "Guardar cambios"}
+                                        {saving
+                                            ? "Guardando..."
+                                            : "Guardar cambios"}
                                     </button>
                                 </div>
                             </div>
@@ -998,3 +1782,4 @@ export default function DashboardConsultor() {
         </div>
     );
 }
+

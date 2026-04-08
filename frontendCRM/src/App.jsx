@@ -1,7 +1,9 @@
 import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "./context/AuthContext";
 import DashboardLayout from "./layouts/DashboardLayout";
-import DashboardSupervisor from "./pages/supervisor/DashboardSupervisor";
+import DashboardSupervisor from "./pages/supervisor/DashboardSupervisorV2";
+import ReportesSupervisorPage from "./pages/supervisor/ReportesSupervisorPage";
+import AgentesSupervisorPage from "./pages/supervisor/AgentesSupervisorPageV2";
 import GrabacionesOutboundPage from "./pages/supervisor/GrabacionesOutboundPage";
 import GrabacionesInboundPage from "./pages/supervisor/GrabacionesInboundPage";
 import DashboardAgente from "./pages/agente/DashboardAgente";
@@ -270,7 +272,11 @@ function App() {
                 )}
 
                 {userInfo.roles?.includes("SUPERVISOR") &&
-                    (adminPage === "grabaciones-outbound" ? (
+                    (adminPage === "agents" ? (
+                        <AgentesSupervisorPage />
+                    ) : adminPage === "reports" ? (
+                        <ReportesSupervisorPage />
+                    ) : adminPage === "grabaciones-outbound" ? (
                         <GrabacionesOutboundPage />
                     ) : adminPage === "grabaciones-inbound" ? (
                         <GrabacionesInboundPage />
@@ -328,7 +334,7 @@ function App() {
 
                 {(userInfo.roles?.includes("CONSULTOR") ||
                     userInfo.roles?.includes("CONSULTOR_ADMIN")) && (
-                    <DashboardConsultor key={consultorPage} />
+                    <DashboardConsultor key={consultorPage} page={consultorPage} />
                 )}
             </DashboardLayout>
         );

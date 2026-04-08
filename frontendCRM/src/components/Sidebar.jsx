@@ -27,6 +27,8 @@ const MENU_ICONS = {
     "grabaciones-outbound": "\u{1F399}\uFE0F",
     "grabaciones-inbound": "\u{1F4DE}",
     "consultor-leads": "\u{1F4CB}",
+    "consultor-reassign": "\u{1F504}",
+    "consultor-assignment": "\u2696\uFE0F",
 };
 
 function normalizeInboundAccessLabel(value) {
@@ -283,11 +285,19 @@ function Sidebar({
     ];
     const menuAgente = [{ label: "Inicio", key: "inicio" }];
     const menuConsultor = [{ label: "Gestion Externa", key: "consultor-leads" }];
+    const menuConsultorAdmin = [
+        { label: "Gestion Externa", key: "consultor-leads" },
+        { label: "Reasignar Leads", key: "consultor-reassign" },
+        { label: "Configuracion Asignacion", key: "consultor-assignment" },
+    ];
 
     const getMenu = () => {
         if (effectiveRole === "ADMINISTRADOR") return menuAdmin;
         if (effectiveRole === "SUPERVISOR") return menuSupervisor;
-        if (["CONSULTOR", "CONSULTOR_ADMIN"].includes(effectiveRole)) {
+        if (effectiveRole === "CONSULTOR_ADMIN") {
+            return menuConsultorAdmin;
+        }
+        if (effectiveRole === "CONSULTOR") {
             return menuConsultor;
         }
         return menuAgente;
@@ -321,11 +331,7 @@ function Sidebar({
             return;
         }
 
-        if (
-            effectiveRole === "SUPERVISOR" &&
-            ["grabaciones-outbound", "grabaciones-inbound"].includes(item.key) &&
-            onChangeAdminPage
-        ) {
+        if (effectiveRole === "SUPERVISOR" && onChangeAdminPage) {
             onChangeAdminPage(item.key);
         }
 
@@ -338,7 +344,20 @@ function Sidebar({
     };
 
     const isActive = (item) => {
-        if (effectiveRole === "ADMINISTRADOR") return item.key === adminPage;
+        if (effectiveRole === "SUPERVISOR") {
+            const supervisorPage = [
+                "dashboard",
+                "reports",
+                "grabaciones-outbound",
+                "grabaciones-inbound",
+            ].includes(adminPage)
+                ? adminPage
+                : "dashboard";
+            return item.key === supervisorPage;
+        }
+        if (effectiveRole === "ADMINISTRADOR") {
+            return item.key === adminPage;
+        }
         if (effectiveRole === "ASESOR") return item.key === agentPage;
         if (["CONSULTOR", "CONSULTOR_ADMIN"].includes(effectiveRole)) {
             return item.key === consultorPage;

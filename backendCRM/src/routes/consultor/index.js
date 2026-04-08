@@ -99,6 +99,36 @@ function getActor(req) {
     );
 }
 
+function isExpiredAssignment(lead = {}) {
+    const workflowStatus = normalizeValue(lead.workflow_status).toLowerCase();
+    if (workflowStatus !== "pendiente_completar") {
+        return false;
+    }
+
+    const assignedAt = lead.assigned_at ? new Date(lead.assigned_at) : null;
+    if (!assignedAt || Number.isNaN(assignedAt.getTime())) {
+        return false;
+    }
+
+    return assignedAt.getTime() <= Date.now() - 24 * 60 * 60 * 1000;
+}
+
+function mapLeadForResponse(lead = {}) {
+    if (!lead || typeof lead !== "object") {
+        return lead;
+    }
+
+    if (isExpiredAssignment(lead)) {
+        return {
+            ...lead,
+            workflow_status: "por_reasignar",
+            base_workflow_status: normalizeValue(lead.workflow_status),
+        };
+    }
+
+    return lead;
+}
+
 function canAccessLead(req, lead) {
     if (hasRole(req, "CONSULTOR_ADMIN")) {
         return true;
@@ -149,8 +179,80 @@ async function getConsultorPool() {
     }));
 }
 
+async function getConsultorAssignmentPool() {
+    const [rows] = await pool.query(
+        `
+        SELECT
+            u.IdUser,
+            CONCAT_WS(' ', u.Name1, u.Name2, u.Surname1, u.Surname2) AS full_name,
+            u.Email,
+            u.State,
+            COALESCE(cfg.assignment_percentage, 0) AS assignment_percentage,
+            COALESCE(cfg.is_active, 0) AS is_active
+        FROM user u
+        JOIN workgroup w ON w.Id = u.UserGroup
+        LEFT JOIN consultor_assignment_config cfg ON cfg.user_id = u.IdUser
+        WHERE UPPER(TRIM(w.Description)) = 'CONSULTOR'
+        ORDER BY u.IdUser ASC
+        `,
+    );
+
+    return rows.map((row) => ({
+        id: normalizeValue(row.IdUser),
+        name:
+            normalizeValue(row.full_name) ||
+            normalizeValue(row.Email) ||
+            normalizeValue(row.IdUser),
+        email: normalizeValue(row.Email),
+        state: normalizeValue(row.State),
+        assignment_percentage: Number(row.assignment_percentage || 0),
+        is_active: Number(row.is_active || 0) === 1,
+    }));
+}
+
+function hasWeightedConfiguration(pool = []) {
+    const active = pool.filter(
+        (item) => item.is_active && item.assignment_percentage > 0,
+    );
+    const total = active.reduce(
+        (acc, item) => acc + Number(item.assignment_percentage || 0),
+        0,
+    );
+
+    return active.length > 0 && Math.abs(total - 100) < 0.001;
+}
+
+function selectConsultorByWeight(pool = [], loads = new Map()) {
+    const eligible = pool.filter(
+        (item) => item.is_active && item.assignment_percentage > 0,
+    );
+    if (eligible.length === 0) {
+        return null;
+    }
+
+    return eligible
+        .slice()
+        .sort((a, b) => {
+            const aScore =
+                (loads.get(a.id) || 0) / Number(a.assignment_percentage || 1);
+            const bScore =
+                (loads.get(b.id) || 0) / Number(b.assignment_percentage || 1);
+
+            if (aScore !== bScore) {
+                return aScore - bScore;
+            }
+
+            const loadDiff = (loads.get(a.id) || 0) - (loads.get(b.id) || 0);
+            if (loadDiff !== 0) {
+                return loadDiff;
+            }
+
+            return Number(a.id) - Number(b.id);
+        })[0];
+}
+
 async function assignPendingLeadsRoundRobin() {
-    const consultors = await getConsultorPool();
+    const consultors = await getConsultorAssignmentPool();
     if (consultors.length === 0) {
         return { assigned: 0, consultors: 0 };
     }
@@ -179,9 +281,7 @@ async function assignPendingLeadsRoundRobin() {
         `,
     );
 
-    const loads = new Map(
-        consultors.map((consultor) => [consultor.id, 0]),
-    );
+    const loads = new Map(consultors.map((consultor) => [consultor.id, 0]));
 
     loadRows.forEach((row) => {
         const assignee = normalizeValue(row.assigned_to);
@@ -191,15 +291,26 @@ async function assignPendingLeadsRoundRobin() {
     });
 
     let assigned = 0;
+    const canUseWeighted = hasWeightedConfiguration(consultors);
 
     for (const row of pendingRows) {
-        const nextConsultor = consultors
-            .slice()
-            .sort((a, b) => {
-                const diff = (loads.get(a.id) || 0) - (loads.get(b.id) || 0);
-                if (diff !== 0) return diff;
-                return Number(a.id) - Number(b.id);
-            })[0];
+        const fallbackPool = consultors.filter(
+            (item) => normalizeValue(item.state) === "1",
+        );
+        const nextConsultor = canUseWeighted
+            ? selectConsultorByWeight(consultors, loads)
+            : fallbackPool
+                .slice()
+                .sort((a, b) => {
+                    const diff =
+                        (loads.get(a.id) || 0) - (loads.get(b.id) || 0);
+                    if (diff !== 0) return diff;
+                    return Number(a.id) - Number(b.id);
+                })[0] || consultors[0];
+
+        if (!nextConsultor) {
+            break;
+        }
 
         await pool.query(
             `
@@ -239,8 +350,14 @@ function buildLeadFilters(req, { includeWorkflow = true, includePromotion = true
     }
 
     if (includeWorkflow && workflowStatus) {
-        where.push("el.workflow_status = ?");
-        params.push(workflowStatus);
+        if (workflowStatus === "por_reasignar") {
+            where.push(
+                "el.workflow_status = 'pendiente_completar' AND el.assigned_at IS NOT NULL AND el.assigned_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)",
+            );
+        } else {
+            where.push("el.workflow_status = ?");
+            params.push(workflowStatus);
+        }
     }
 
     if (includePromotion && promotionStatus) {
@@ -319,6 +436,7 @@ router.get("/leads", async (req, res) => {
                 el.observacion_externo,
                 el.producto,
                 el.seguimiento_kimobill,
+                el.assigned_at,
                 el.fecha_origen_dt,
                 el.updated_at,
                 el.promoted_at
@@ -327,8 +445,13 @@ router.get("/leads", async (req, res) => {
             ${whereSql}
             ORDER BY
                 CASE el.workflow_status
-                    WHEN 'listo_para_promocion' THEN 0
-                    WHEN 'pendiente_completar' THEN 1
+                    WHEN 'pendiente_completar' THEN
+                        CASE
+                            WHEN el.assigned_at IS NOT NULL
+                             AND el.assigned_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                            THEN 0
+                            ELSE 1
+                        END
                     WHEN 'ya_gestionado' THEN 2
                     WHEN 'promovido' THEN 3
                     ELSE 4
@@ -340,7 +463,7 @@ router.get("/leads", async (req, res) => {
             [...params, limit],
         );
 
-        return res.json({ data: rows });
+        return res.json({ data: rows.map(mapLeadForResponse) });
     } catch (err) {
         console.error("Error GET /consultor/leads:", err);
         return res.status(500).json({
@@ -362,8 +485,23 @@ router.get("/leads-stats", async (req, res) => {
             `
             SELECT
                 COUNT(*) AS total,
-                SUM(CASE WHEN el.workflow_status = 'pendiente_completar' THEN 1 ELSE 0 END) AS pending,
-                SUM(CASE WHEN el.workflow_status = 'listo_para_promocion' THEN 1 ELSE 0 END) AS ready,
+                SUM(
+                    CASE
+                        WHEN el.workflow_status = 'pendiente_completar'
+                         AND (el.assigned_at IS NULL OR el.assigned_at > DATE_SUB(NOW(), INTERVAL 24 HOUR))
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS pending,
+                SUM(
+                    CASE
+                        WHEN el.workflow_status = 'pendiente_completar'
+                         AND el.assigned_at IS NOT NULL
+                         AND el.assigned_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS expired,
                 SUM(CASE WHEN el.workflow_status = 'promovido' THEN 1 ELSE 0 END) AS promoted
             FROM external_leads el
             ${whereSql}
@@ -376,7 +514,7 @@ router.get("/leads-stats", async (req, res) => {
             data: {
                 total: Number(stats.total || 0),
                 pending: Number(stats.pending || 0),
-                ready: Number(stats.ready || 0),
+                expired: Number(stats.expired || 0),
                 promoted: Number(stats.promoted || 0),
             },
         });
@@ -414,11 +552,63 @@ router.get("/performance-summary", async (req, res) => {
                 COUNT(el.id) AS total_assigned,
                 SUM(CASE WHEN LOWER(el.source_channel) = 'mail' THEN 1 ELSE 0 END) AS assigned_mail,
                 SUM(CASE WHEN LOWER(el.source_channel) = 'rrss' THEN 1 ELSE 0 END) AS assigned_rrss,
-                SUM(CASE WHEN el.workflow_status = 'pendiente_completar' THEN 1 ELSE 0 END) AS total_pending,
+                SUM(
+                    CASE
+                        WHEN el.workflow_status = 'pendiente_completar'
+                         AND (el.assigned_at IS NULL OR el.assigned_at > DATE_SUB(NOW(), INTERVAL 24 HOUR))
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS total_pending,
+                SUM(
+                    CASE
+                        WHEN el.workflow_status = 'pendiente_completar'
+                         AND el.assigned_at IS NOT NULL
+                         AND el.assigned_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS total_expired,
                 SUM(CASE WHEN el.workflow_status = 'promovido' THEN 1 ELSE 0 END) AS total_promoted,
                 SUM(CASE WHEN el.workflow_status = 'ya_gestionado' THEN 1 ELSE 0 END) AS total_historical,
-                SUM(CASE WHEN LOWER(el.source_channel) = 'mail' AND el.workflow_status = 'pendiente_completar' THEN 1 ELSE 0 END) AS pending_mail,
-                SUM(CASE WHEN LOWER(el.source_channel) = 'rrss' AND el.workflow_status = 'pendiente_completar' THEN 1 ELSE 0 END) AS pending_rrss,
+                SUM(
+                    CASE
+                        WHEN LOWER(el.source_channel) = 'mail'
+                         AND el.workflow_status = 'pendiente_completar'
+                         AND (el.assigned_at IS NULL OR el.assigned_at > DATE_SUB(NOW(), INTERVAL 24 HOUR))
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS pending_mail,
+                SUM(
+                    CASE
+                        WHEN LOWER(el.source_channel) = 'rrss'
+                         AND el.workflow_status = 'pendiente_completar'
+                         AND (el.assigned_at IS NULL OR el.assigned_at > DATE_SUB(NOW(), INTERVAL 24 HOUR))
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS pending_rrss,
+                SUM(
+                    CASE
+                        WHEN LOWER(el.source_channel) = 'mail'
+                         AND el.workflow_status = 'pendiente_completar'
+                         AND el.assigned_at IS NOT NULL
+                         AND el.assigned_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS expired_mail,
+                SUM(
+                    CASE
+                        WHEN LOWER(el.source_channel) = 'rrss'
+                         AND el.workflow_status = 'pendiente_completar'
+                         AND el.assigned_at IS NOT NULL
+                         AND el.assigned_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS expired_rrss,
                 SUM(CASE WHEN LOWER(el.source_channel) = 'mail' AND el.workflow_status = 'promovido' THEN 1 ELSE 0 END) AS promoted_mail,
                 SUM(CASE WHEN LOWER(el.source_channel) = 'rrss' AND el.workflow_status = 'promovido' THEN 1 ELSE 0 END) AS promoted_rrss
             FROM user u
@@ -444,10 +634,13 @@ router.get("/performance-summary", async (req, res) => {
             assigned_mail: Number(row.assigned_mail || 0),
             assigned_rrss: Number(row.assigned_rrss || 0),
             total_pending: Number(row.total_pending || 0),
+            total_expired: Number(row.total_expired || 0),
             total_promoted: Number(row.total_promoted || 0),
             total_historical: Number(row.total_historical || 0),
             pending_mail: Number(row.pending_mail || 0),
             pending_rrss: Number(row.pending_rrss || 0),
+            expired_mail: Number(row.expired_mail || 0),
+            expired_rrss: Number(row.expired_rrss || 0),
             promoted_mail: Number(row.promoted_mail || 0),
             promoted_rrss: Number(row.promoted_rrss || 0),
         }));
@@ -458,6 +651,7 @@ router.get("/performance-summary", async (req, res) => {
                 assigned_mail: acc.assigned_mail + row.assigned_mail,
                 assigned_rrss: acc.assigned_rrss + row.assigned_rrss,
                 total_pending: acc.total_pending + row.total_pending,
+                total_expired: acc.total_expired + row.total_expired,
                 total_promoted: acc.total_promoted + row.total_promoted,
                 total_historical: acc.total_historical + row.total_historical,
             }),
@@ -466,6 +660,7 @@ router.get("/performance-summary", async (req, res) => {
                 assigned_mail: 0,
                 assigned_rrss: 0,
                 total_pending: 0,
+                total_expired: 0,
                 total_promoted: 0,
                 total_historical: 0,
             },
@@ -481,6 +676,127 @@ router.get("/performance-summary", async (req, res) => {
         console.error("Error GET /consultor/performance-summary:", err);
         return res.status(500).json({
             error: "Error obteniendo resumen por consultor",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
+router.get("/consultors", async (req, res) => {
+    try {
+        if (!hasRole(req, "CONSULTOR_ADMIN")) {
+            return res.status(403).json({
+                error: "Solo CONSULTOR_ADMIN puede ver consultores",
+            });
+        }
+
+        const consultors = await getConsultorPool();
+        return res.json({ data: consultors });
+    } catch (err) {
+        console.error("Error GET /consultor/consultors:", err);
+        return res.status(500).json({
+            error: "Error obteniendo consultores",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
+router.get("/assignment-config", async (req, res) => {
+    try {
+        if (!hasRole(req, "CONSULTOR_ADMIN")) {
+            return res.status(403).json({
+                error: "Solo CONSULTOR_ADMIN puede ver esta configuracion",
+            });
+        }
+
+        const items = await getConsultorAssignmentPool();
+        const totalPercentage = items
+            .filter((item) => item.is_active)
+            .reduce(
+                (acc, item) => acc + Number(item.assignment_percentage || 0),
+                0,
+            );
+
+        return res.json({
+            data: {
+                items,
+                totalPercentage,
+                isValid: Math.abs(totalPercentage - 100) < 0.001,
+            },
+        });
+    } catch (err) {
+        console.error("Error GET /consultor/assignment-config:", err);
+        return res.status(500).json({
+            error: "Error obteniendo configuracion de asignacion",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
+router.put("/assignment-config", async (req, res) => {
+    try {
+        if (!hasRole(req, "CONSULTOR_ADMIN")) {
+            return res.status(403).json({
+                error: "Solo CONSULTOR_ADMIN puede actualizar esta configuracion",
+            });
+        }
+
+        const items = Array.isArray(req.body?.items) ? req.body.items : [];
+        if (items.length === 0) {
+            return res.status(400).json({
+                error: "Debes enviar al menos un consultor para configurar",
+            });
+        }
+
+        const normalizedItems = items.map((item) => ({
+            user_id: normalizeValue(item.user_id),
+            assignment_percentage: Number(item.assignment_percentage || 0),
+            is_active:
+                item.is_active === undefined
+                    ? Number(item.assignment_percentage || 0) > 0
+                    : Boolean(item.is_active),
+        }));
+
+        const totalPercentage = normalizedItems
+            .filter((item) => item.is_active)
+            .reduce((acc, item) => acc + item.assignment_percentage, 0);
+
+        if (Math.abs(totalPercentage - 100) >= 0.001) {
+            return res.status(400).json({
+                error: "La suma de porcentajes activos debe ser exactamente 100",
+            });
+        }
+
+        for (const item of normalizedItems) {
+            await pool.query(
+                `
+                INSERT INTO consultor_assignment_config (
+                    user_id,
+                    assignment_percentage,
+                    is_active
+                ) VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    assignment_percentage = VALUES(assignment_percentage),
+                    is_active = VALUES(is_active),
+                    updated_at = CURRENT_TIMESTAMP
+                `,
+                [
+                    item.user_id,
+                    item.assignment_percentage,
+                    item.is_active ? 1 : 0,
+                ],
+            );
+        }
+
+        return res.json({
+            message: "Configuracion de asignacion actualizada correctamente",
+            data: {
+                totalPercentage,
+            },
+        });
+    } catch (err) {
+        console.error("Error PUT /consultor/assignment-config:", err);
+        return res.status(500).json({
+            error: "Error actualizando configuracion de asignacion",
             detail: err?.sqlMessage || err?.message || "",
         });
     }
@@ -509,6 +825,93 @@ router.post("/assign-pending", async (req, res) => {
     }
 });
 
+router.post("/reassign-manual", async (req, res) => {
+    try {
+        if (!hasRole(req, "CONSULTOR_ADMIN")) {
+            return res.status(403).json({
+                error: "Solo CONSULTOR_ADMIN puede reasignar registros",
+            });
+        }
+
+        const targetUserId = normalizeValue(req.body?.targetUserId);
+        const sourceChannel = normalizeValue(req.body?.sourceChannel).toLowerCase();
+        const quantity = Math.min(
+            Math.max(Number(req.body?.quantity || 0), 1),
+            500,
+        );
+        if (!targetUserId) {
+            return res.status(400).json({ error: "Selecciona un consultor destino" });
+        }
+
+        const consultors = await getConsultorPool();
+        const targetExists = consultors.some(
+            (consultor) => consultor.id === targetUserId,
+        );
+
+        if (!targetExists) {
+            return res.status(400).json({ error: "El consultor destino no es valido" });
+        }
+
+        const where = ["workflow_status = 'pendiente_completar'", "assigned_to IS NOT NULL"];
+        const params = [];
+
+        where.push(
+            "assigned_at IS NOT NULL AND assigned_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)",
+        );
+
+        if (sourceChannel) {
+            where.push("LOWER(source_channel) = ?");
+            params.push(sourceChannel);
+        }
+
+        where.push("assigned_to <> ?");
+        params.push(targetUserId);
+
+        const [rows] = await pool.query(
+            `
+            SELECT id
+            FROM external_leads
+            WHERE ${where.join(" AND ")}
+            ORDER BY assigned_at ASC, id ASC
+            LIMIT ?
+            `,
+            [...params, quantity],
+        );
+
+        const ids = rows.map((row) => Number(row.id)).filter(Boolean);
+        if (ids.length === 0) {
+            return res.json({
+                message: "No se encontraron registros para reasignar",
+                data: { reassigned: 0 },
+            });
+        }
+
+        const placeholders = ids.map(() => "?").join(", ");
+        await pool.query(
+            `
+            UPDATE external_leads
+            SET
+                assigned_to = ?,
+                assigned_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id IN (${placeholders})
+            `,
+            [targetUserId, ...ids],
+        );
+
+        return res.json({
+            message: `Se reasignaron ${ids.length} leads correctamente`,
+            data: { reassigned: ids.length },
+        });
+    } catch (err) {
+        console.error("Error POST /consultor/reassign-manual:", err);
+        return res.status(500).json({
+            error: "Error reasignando registros",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
 router.get("/leads/:id", async (req, res) => {
     try {
         const id = Number(req.params?.id || 0);
@@ -530,7 +933,7 @@ router.get("/leads/:id", async (req, res) => {
             return res.status(403).json({ error: "No puedes acceder a este lead" });
         }
 
-        return res.json({ data: lead });
+        return res.json({ data: mapLeadForResponse(lead) });
     } catch (err) {
         console.error("Error GET /consultor/leads/:id:", err);
         return res.status(500).json({
@@ -707,7 +1110,7 @@ router.patch("/leads/:id", async (req, res) => {
             message: autoPromote
                 ? "Lead calificado y promovido correctamente"
                 : "Lead externo actualizado correctamente",
-            data: updatedRows[0] || null,
+            data: mapLeadForResponse(updatedRows[0] || null),
         });
     } catch (err) {
         console.error("Error PATCH /consultor/leads/:id:", err);
@@ -768,7 +1171,7 @@ router.post("/leads/:id/mark-promoted", async (req, res) => {
 
         return res.json({
             message: "Lead marcado como promovido",
-            data: updatedRows[0] || null,
+            data: mapLeadForResponse(updatedRows[0] || null),
         });
     } catch (err) {
         console.error("Error POST /consultor/leads/:id/mark-promoted:", err);

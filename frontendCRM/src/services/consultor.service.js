@@ -71,6 +71,25 @@ export const fetchConsultorPerformanceSummary = ({
     return request(`consultor/performance-summary?${params.toString()}`);
 };
 
+export const fetchConsultorUsers = () => request("consultor/consultors");
+
+export const reassignConsultorLeads = (payload) =>
+    request("consultor/reassign-manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+export const fetchConsultorAssignmentConfig = () =>
+    request("consultor/assignment-config");
+
+export const updateConsultorAssignmentConfig = (payload) =>
+    request("consultor/assignment-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
 export const fetchConsultorLeadById = (id) =>
     request(`consultor/leads/${encodeURIComponent(String(id || "").trim())}`);
 

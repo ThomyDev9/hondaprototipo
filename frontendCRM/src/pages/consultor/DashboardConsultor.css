@@ -82,13 +82,37 @@
     margin-bottom: 18px;
 }
 
+.consultor-panel-head-inline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.consultor-panel-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .consultor-panel-head h2 {
     margin: 0;
+}
+
+.consultor-panel-head h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #0f172a;
 }
 
 .consultor-panel-head p {
     margin: 6px 0 0;
     color: #64748b;
+}
+
+.consultor-panel-head--compact {
+    margin-bottom: 12px;
+    align-items: center;
 }
 
 .consultor-toolbar {
@@ -99,8 +123,21 @@
 }
 
 .consultor-toolbar--summary {
-    grid-template-columns: repeat(2, minmax(180px, 220px));
+    grid-template-columns: 200px 200px auto;
     align-items: end;
+}
+
+.consultor-summary-actions {
+    display: flex;
+    gap: 10px;
+    align-items: end;
+    flex-wrap: wrap;
+}
+
+.consultor-toolbar--reassign {
+    grid-template-columns: minmax(240px, 1.2fr) 120px 180px auto auto;
+    align-items: end;
+    margin-bottom: 0;
 }
 
 .consultor-filter-field {
@@ -110,6 +147,29 @@
     font-size: 0.82rem;
     color: #334155;
     font-weight: 700;
+}
+
+.consultor-filter-field--inline {
+    justify-content: flex-end;
+}
+
+.consultor-filter-field--inline strong {
+    font-size: 1rem;
+    color: #0f172a;
+}
+
+.consultor-filter-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: #334155;
+    font-weight: 700;
+    padding-bottom: 10px;
+}
+
+.consultor-filter-check input {
+    width: auto;
 }
 
 .consultor-toolbar select,
@@ -140,6 +200,62 @@
 
 .consultor-table-wrap--summary {
     max-height: none;
+}
+
+.consultor-assignment-config {
+    margin-bottom: 18px;
+    padding: 16px;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.consultor-reassign-box {
+    margin-bottom: 16px;
+    padding: 14px;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.consultor-inline-count {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    color: #9a3412;
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.consultor-inline-count--ok {
+    background: #ecfdf5;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.consultor-inline-count--warn {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: #991b1b;
+}
+
+.consultor-reassign-box h3 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    color: #0f172a;
+}
+
+.consultor-reassign-copy {
+    margin: 0 0 12px;
+    font-size: 0.84rem;
+    color: #475569;
+}
+
+.consultor-reassign-copy strong {
+    color: #0f172a;
 }
 
 .consultor-table {
@@ -181,9 +297,31 @@
     border-bottom: none;
 }
 
+.consultor-table-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.consultor-table-row-actions {
+    display: flex;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.consultor-assignment-footer {
+    margin-top: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .consultor-summary-cards {
     display: grid;
-    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
     gap: 12px;
     margin-bottom: 16px;
 }
@@ -217,6 +355,36 @@
 .consultor-summary-name span {
     font-size: 0.78rem;
     color: #64748b;
+}
+
+.consultor-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.consultor-switch input {
+    width: auto;
+}
+
+.consultor-percentage-input {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 130px;
+}
+
+.consultor-percentage-input input {
+    width: 90px;
+}
+
+.consultor-percentage-input span {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #475569;
 }
 
 .consultor-table td small {
@@ -497,6 +665,14 @@
     .consultor-toolbar,
     .consultor-stats {
         grid-template-columns: 1fr;
+    }
+
+    .consultor-toolbar--summary {
+        grid-template-columns: 1fr;
+    }
+
+    .consultor-summary-actions {
+        justify-content: flex-start;
     }
 
     .consultor-summary-cards {
