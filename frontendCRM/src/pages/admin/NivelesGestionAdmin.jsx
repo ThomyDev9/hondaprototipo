@@ -21,7 +21,10 @@ import {
     listarCategoriasMenu,
 } from "../../services/campaign.service";
 
-const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+function isFlexibleManagementCategoryLabel(label = "") {
+    const normalized = String(label || "").trim().toLowerCase();
+    return normalized.includes("inbound") || normalized.includes("redes");
+}
 
 export default function NivelesGestionAdmin() {
     const [activeTab, setActiveTab] = useState("view");
@@ -50,8 +53,12 @@ export default function NivelesGestionAdmin() {
     const [editLevel1, setEditLevel1] = useState("");
     const [editLevel2, setEditLevel2] = useState("");
     const effectiveCampaignId = String(selectedSubcampaignId || "").trim();
-    const isInboundCategory =
-        String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
+    const selectedCategory = categoryOptions.find(
+        (item) => String(item?.id || "") === String(categoryId || "").trim(),
+    );
+    const isFlexibleCategory = isFlexibleManagementCategoryLabel(
+        selectedCategory?.label,
+    );
 
     useEffect(() => {
         const loadCategories = async () => {
@@ -332,7 +339,7 @@ export default function NivelesGestionAdmin() {
                         </h3>
 
                         <div className="niveles-gestion-grid">
-                            {isInboundCategory && (
+                            {isFlexibleCategory && (
                                 <label className="label">
                                     <span>Categorización</span>
                                     <input
@@ -346,7 +353,7 @@ export default function NivelesGestionAdmin() {
                                 </label>
                             )}
 
-                            {isInboundCategory ? (
+                            {isFlexibleCategory ? (
                                 <label className="label">
                                     <span>Level1</span>
                                     <input
@@ -389,13 +396,13 @@ export default function NivelesGestionAdmin() {
                                     type="number"
                                     min="0"
                                     value={code}
-                                    readOnly={!isInboundCategory}
+                                    readOnly={!isFlexibleCategory}
                                     onChange={(e) =>
-                                        isInboundCategory &&
+                                        isFlexibleCategory &&
                                         setCode(e.target.value)
                                     }
                                     placeholder={
-                                        isInboundCategory
+                                        isFlexibleCategory
                                             ? "Ej: 0"
                                             : "Se asigna por Level1"
                                     }
@@ -424,7 +431,7 @@ export default function NivelesGestionAdmin() {
                                 disabled={
                                     saving ||
                                     !effectiveCampaignId ||
-                                    (!isInboundCategory &&
+                                    (!isFlexibleCategory &&
                                         !selectedLevel1Option)
                                 }
                             >
@@ -490,7 +497,7 @@ export default function NivelesGestionAdmin() {
                                 disabled={
                                     saving ||
                                     !effectiveCampaignId ||
-                                    (!isInboundCategory &&
+                                    (!isFlexibleCategory &&
                                         !selectedLevel1Option) ||
                                     level2Pool.length === 0
                                 }
@@ -557,7 +564,7 @@ export default function NivelesGestionAdmin() {
                                     alignItems: "end",
                                 }}
                             >
-                                {isInboundCategory && (
+                                {isFlexibleCategory && (
                                     <label className="label">
                                         <span>Categorización</span>
                                         <input
@@ -723,7 +730,7 @@ export default function NivelesGestionAdmin() {
     }, [loadRows]);
 
     useEffect(() => {
-        if (isInboundCategory) {
+        if (isFlexibleCategory) {
             if (!String(code || "").trim()) {
                 setCode("0");
             }
@@ -736,7 +743,7 @@ export default function NivelesGestionAdmin() {
         }
 
         setCode(String(selectedLevel1Option.code || ""));
-    }, [code, isInboundCategory, selectedLevel1Option]);
+    }, [code, isFlexibleCategory, selectedLevel1Option]);
 
     useEffect(() => {
         setLevel2("");
@@ -744,10 +751,10 @@ export default function NivelesGestionAdmin() {
     }, [level1]);
 
     useEffect(() => {
-        if (!isInboundCategory) {
+        if (!isFlexibleCategory) {
             setDescription("");
         }
-    }, [isInboundCategory]);
+    }, [isFlexibleCategory]);
 
     useEffect(() => {
         setEditingId("");
@@ -764,7 +771,7 @@ export default function NivelesGestionAdmin() {
             return;
         }
 
-        if (!selectedLevel1Option && !isInboundCategory) {
+        if (!selectedLevel1Option && !isFlexibleCategory) {
             setAlert({
                 type: "error",
                 message: "Selecciona un Level1 vÃ¡lido de la lista",
@@ -780,7 +787,7 @@ export default function NivelesGestionAdmin() {
             return;
         }
 
-        if (isInboundCategory && !String(description || "").trim()) {
+        if (isFlexibleCategory && !String(description || "").trim()) {
             setAlert({
                 type: "error",
                 message: "Ingresa una categorización",
@@ -856,7 +863,7 @@ export default function NivelesGestionAdmin() {
             return;
         }
 
-        if (!selectedLevel1Option && !isInboundCategory) {
+        if (!selectedLevel1Option && !isFlexibleCategory) {
             setAlert({
                 type: "error",
                 message: "Selecciona un Level1 vÃ¡lido de la lista",
@@ -971,10 +978,11 @@ export default function NivelesGestionAdmin() {
             return;
         }
 
-        if (isInboundCategory && !String(editDescription || "").trim()) {
+        if (isFlexibleCategory && !String(editDescription || "").trim()) {
             setAlert({
                 type: "error",
-                message: "Categorización es obligatoria para inbound",
+                message:
+                    "Categorización es obligatoria para campañas inbound y redes",
             });
             return;
         }

@@ -5,6 +5,20 @@ export class AdminManagementDAO {
         this.pool = dbPool;
     }
 
+    async getCategoryNameById(categoryId, executor = this.pool) {
+        const [rows] = await executor.query(
+            `
+            SELECT TRIM(nombre_categoria) AS category_name
+            FROM menu_categorias
+            WHERE id = ?
+            LIMIT 1
+            `,
+            [categoryId],
+        );
+
+        return String(rows?.[0]?.category_name || "").trim();
+    }
+
     async isActiveSubcampaignByCategory(
         categoryId,
         campaignId,

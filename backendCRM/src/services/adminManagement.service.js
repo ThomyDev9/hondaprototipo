@@ -44,10 +44,16 @@ function createHttpError(status, message, data) {
     return error;
 }
 
-const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+function isFlexibleManagementCategoryName(categoryName = "") {
+    const normalized = String(categoryName || "").trim().toLowerCase();
+    return normalized.includes("inbound") || normalized.includes("redes");
+}
 
-function isInboundCategoryId(categoryId) {
-    return String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
+async function isFlexibleManagementCategory(adminManagementDAO, categoryId) {
+    const categoryName = await adminManagementDAO.getCategoryNameById(
+        categoryId,
+    );
+    return isFlexibleManagementCategoryName(categoryName);
 }
 
 export async function createManagementLevelsFromPairs(
@@ -82,7 +88,10 @@ export async function createManagementLevelsFromPairs(
 
     const level1List = [...new Set(normalizedItems.map((item) => item.level1))];
     const level2List = [...new Set(normalizedItems.map((item) => item.level2))];
-    const allowCustomLevel1 = isInboundCategoryId(categoryId);
+    const allowCustomLevel1 = await isFlexibleManagementCategory(
+        adminManagementDAO,
+        categoryId,
+    );
     const fallbackCode = Number.isFinite(Number(code)) ? Number(code) : 0;
 
     const codeByLevel1 = allowCustomLevel1
@@ -206,7 +215,12 @@ export async function validateManagementCampaignAndCode(
         );
     }
 
-    if (!level1 || isInboundCategoryId(categoryId)) {
+    const allowCustomLevel1 = await isFlexibleManagementCategory(
+        adminManagementDAO,
+        categoryId,
+    );
+
+    if (!level1 || allowCustomLevel1) {
         return;
     }
 
