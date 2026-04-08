@@ -269,6 +269,8 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
                             { value: "2", label: "SUPERVISOR" },
                             { value: "3", label: "ASESOR" },
                             { value: "4", label: "ESCUELA" },
+                            { value: "5", label: "CONSULTOR" },
+                            { value: "6", label: "CONSULTOR_ADMIN" },
                         ]}
                         required
                     />

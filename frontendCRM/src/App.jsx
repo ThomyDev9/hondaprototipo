@@ -6,6 +6,7 @@ import GrabacionesOutboundPage from "./pages/supervisor/GrabacionesOutboundPage"
 import GrabacionesInboundPage from "./pages/supervisor/GrabacionesInboundPage";
 import DashboardAgente from "./pages/agente/DashboardAgente";
 import InboundEmailComposerPage from "./pages/agente/InboundEmailComposerPage";
+import DashboardConsultor from "./pages/consultor/DashboardConsultor";
 import AdministrarBases from "./pages/admin/AdministrarBases";
 import UsuariosAdmin from "./pages/admin/UsuariosAdmin";
 import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
@@ -36,10 +37,6 @@ function App() {
     const [error, setError] = useState("");
     const { userInfo, setUserInfo } = useContext(AuthContext);
 
-    if (standaloneMode === "inbound-email") {
-        return <InboundEmailComposerPage />;
-    }
-
     // 'administrar-bases' | 'campanias' | 'management-levels' | 'users' | 'settings' | 'scripts'
     const [adminPage, setAdminPage] = useState("administrar-bases");
     const [selectedAgentCampaign, setSelectedAgentCampaign] = useState({
@@ -54,6 +51,7 @@ function App() {
         followupInboundManual: false,
     });
     const [agentPage, setAgentPage] = useState("inicio");
+    const [consultorPage, setConsultorPage] = useState("consultor-leads");
     const [selectedAgentStatus, setSelectedAgentStatus] = useState("");
 
     // ✅ Validar token al cargar la página
@@ -100,6 +98,10 @@ function App() {
 
         validateToken();
     }, []);
+
+    if (standaloneMode === "inbound-email") {
+        return <InboundEmailComposerPage />;
+    }
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -249,6 +251,8 @@ function App() {
                         });
                     }
                 }}
+                consultorPage={consultorPage}
+                onChangeConsultorPage={setConsultorPage}
             >
                 {userInfo.roles?.includes("ADMINISTRADOR") && (
                     <>
@@ -320,6 +324,11 @@ function App() {
                         }}
                         onChangeAgentPage={setAgentPage}
                     />
+                )}
+
+                {(userInfo.roles?.includes("CONSULTOR") ||
+                    userInfo.roles?.includes("CONSULTOR_ADMIN")) && (
+                    <DashboardConsultor key={consultorPage} />
                 )}
             </DashboardLayout>
         );

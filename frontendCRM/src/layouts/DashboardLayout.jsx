@@ -12,17 +12,34 @@ export default function DashboardLayout({
     onSelectCampaign,
     agentPage,
     onChangeAgentPage,
+    consultorPage,
+    onChangeConsultorPage,
 }) {
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    const resolvedRole = roles.includes("CONSULTOR_ADMIN")
+        ? "CONSULTOR_ADMIN"
+        : roles.includes("CONSULTOR")
+          ? "CONSULTOR"
+          : roles.includes("ADMINISTRADOR")
+            ? "ADMINISTRADOR"
+            : roles.includes("SUPERVISOR")
+              ? "SUPERVISOR"
+              : roles.includes("ASESOR")
+                ? "ASESOR"
+                : roles[0];
+
     return (
         <div style={{ ...styles.wrapper }}>
             <Sidebar
                 user={user}
-                role={user.roles?.[0]}
+                role={resolvedRole}
                 adminPage={adminPage}
                 onChangeAdminPage={onChangeAdminPage}
                 onSelectCampaign={onSelectCampaign}
                 agentPage={agentPage}
                 onChangeAgentPage={onChangeAgentPage}
+                consultorPage={consultorPage}
+                onChangeConsultorPage={onChangeConsultorPage}
                 onLogout={onLogout}
                 agentStatus={selectedAgentStatus}
                 onChangeAgentStatus={onChangeAgentStatus}
@@ -79,4 +96,6 @@ DashboardLayout.propTypes = {
     onSelectCampaign: PropTypes.func,
     agentPage: PropTypes.string,
     onChangeAgentPage: PropTypes.func,
+    consultorPage: PropTypes.string,
+    onChangeConsultorPage: PropTypes.func,
 };

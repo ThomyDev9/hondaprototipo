@@ -3,7 +3,6 @@ import { esGestionOutbound } from "../../utils/gestionOutbound";
 import {
     fetchInboundClientByIdentification,
     fetchInboundCurrentCall,
-    fetchRedesClientByIdentification,
 } from "../../services/dashboard.service";
 import {
     buildInitialSurveyAnswers,
@@ -636,85 +635,6 @@ export default function useDashboardAgenteState({
                 isRedesManualFlow && fieldKey === "IDENTIFICACION";
 
             if (isRedesIdentificationField) {
-                const identification = nextValue.trim();
-                if (identification.length < 5) {
-                    return;
-                }
-
-                const selectedRedesChildMenuItemId = String(
-                    dynamicFormAnswers?.__redes_nombre_cliente || "",
-                ).trim();
-                const selectedRedesChild = (inboundChildOptions || []).find(
-                    (item) =>
-                        String(item.menuItemId || item.value || "").trim() ===
-                        selectedRedesChildMenuItemId,
-                );
-
-                const { ok, status, json } =
-                    await fetchRedesClientByIdentification({
-                        identification,
-                        campaignId:
-                            String(selectedRedesChild?.campaignId || "").trim() ||
-                            String(campaignIdSeleccionada || "").trim(),
-                    });
-
-                if (status === 404 || !json?.data || !ok) {
-                    return;
-                }
-
-                const client = json.data;
-                const fullNameFieldKey = findDynamicFieldKeyByLabels([
-                    "Apellidos y Nombres",
-                    "Nombre Cliente",
-                ]);
-                const celularFieldKey = findDynamicFieldKeyByLabels([
-                    "Celular",
-                    "Telefono celular",
-                    "Teléfono celular",
-                ]);
-
-                setDynamicFormAnswers((prev) => ({
-                    ...prev,
-                    IDENTIFICACION: identification,
-                    NOMBRE_CLIENTE:
-                        String(prev?.NOMBRE_CLIENTE || "").trim() ||
-                        String(prev?.ApellidosNombres || "").trim() ||
-                        String(client.fullName || "").trim(),
-                    ApellidosNombres:
-                        String(client.fullName || "").trim() ||
-                        String(prev?.ApellidosNombres || "").trim(),
-                    apellidosNombres:
-                        String(client.fullName || "").trim() ||
-                        String(prev?.apellidosNombres || "").trim(),
-                    CAMPO3:
-                        String(prev?.CAMPO3 || "").trim() ||
-                        String(client.celular || "").trim(),
-                    celular:
-                        String(client.celular || "").trim() ||
-                        String(prev?.celular || "").trim(),
-                    ...(fullNameFieldKey
-                        ? {
-                              [fullNameFieldKey]:
-                                  String(client.fullName || "").trim() ||
-                                  String(prev?.[fullNameFieldKey] || "").trim(),
-                          }
-                        : {}),
-                    ...(celularFieldKey
-                        ? {
-                              [celularFieldKey]:
-                                  String(client.celular || "").trim() ||
-                                  String(prev?.[celularFieldKey] || "").trim(),
-                          }
-                        : {}),
-                    __redes_tipo_cliente:
-                        String(client.tipoCliente || "").trim() ||
-                        prev.__redes_tipo_cliente ||
-                        "Asesor",
-                    __redes_tipo_red_social:
-                        String(client.tipoRedSocial || "").trim() ||
-                        prev.__redes_tipo_red_social ||
-                        "",
-                }));
                 return;
             }
 

@@ -578,6 +578,10 @@
     grid-column: 1 / -1;
 }
 
+.agent-inbound-detail-actions--redes {
+    justify-content: flex-start;
+}
+
 .agent-inbound-image-row .agent-inbound-detail-actions {
     grid-column: auto;
     justify-content: flex-start;

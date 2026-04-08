@@ -26,6 +26,7 @@ const MENU_ICONS = {
     gestion: "\u260E\uFE0F",
     "grabaciones-outbound": "\u{1F399}\uFE0F",
     "grabaciones-inbound": "\u{1F4DE}",
+    "consultor-leads": "\u{1F4CB}",
 };
 
 function normalizeInboundAccessLabel(value) {
@@ -64,6 +65,8 @@ function Sidebar({
     onSelectCampaign,
     agentPage,
     onChangeAgentPage,
+    consultorPage,
+    onChangeConsultorPage,
     onLogout,
     agentStatus,
     onChangeAgentStatus,
@@ -279,10 +282,14 @@ function Sidebar({
         { label: "Grabaciones Inbound", key: "grabaciones-inbound" },
     ];
     const menuAgente = [{ label: "Inicio", key: "inicio" }];
+    const menuConsultor = [{ label: "Gestion Externa", key: "consultor-leads" }];
 
     const getMenu = () => {
         if (effectiveRole === "ADMINISTRADOR") return menuAdmin;
         if (effectiveRole === "SUPERVISOR") return menuSupervisor;
+        if (["CONSULTOR", "CONSULTOR_ADMIN"].includes(effectiveRole)) {
+            return menuConsultor;
+        }
         return menuAgente;
     };
 
@@ -321,11 +328,21 @@ function Sidebar({
         ) {
             onChangeAdminPage(item.key);
         }
+
+        if (
+            ["CONSULTOR", "CONSULTOR_ADMIN"].includes(effectiveRole.toUpperCase()) &&
+            onChangeConsultorPage
+        ) {
+            onChangeConsultorPage(item.key);
+        }
     };
 
     const isActive = (item) => {
         if (effectiveRole === "ADMINISTRADOR") return item.key === adminPage;
         if (effectiveRole === "ASESOR") return item.key === agentPage;
+        if (["CONSULTOR", "CONSULTOR_ADMIN"].includes(effectiveRole)) {
+            return item.key === consultorPage;
+        }
         return false;
     };
 
@@ -743,6 +760,8 @@ Sidebar.propTypes = {
     onSelectCampaign: PropTypes.func,
     agentPage: PropTypes.string,
     onChangeAgentPage: PropTypes.func,
+    consultorPage: PropTypes.string,
+    onChangeConsultorPage: PropTypes.func,
     onLogout: PropTypes.func,
     agentStatus: PropTypes.string,
     onChangeAgentStatus: PropTypes.func,

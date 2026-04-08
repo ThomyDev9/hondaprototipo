@@ -63,6 +63,11 @@ export const routeRegistry = [
         module: () => import("./supervisor/index.js"),
         description: "Funcionalidades del supervisor",
     },
+    {
+        path: "/consultor",
+        module: () => import("./consultor/index.js"),
+        description: "Gestion externa para rol consultor",
+    },
 
     {
         path: "/campaigns",

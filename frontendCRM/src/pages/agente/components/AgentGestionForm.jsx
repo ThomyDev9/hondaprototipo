@@ -114,6 +114,26 @@ function normalizeFlowLabel(value) {
         .toLowerCase();
 }
 
+function findOptionValueIgnoreCase(options = [], target = "") {
+    const normalizedTarget = normalizeFlowLabel(target);
+    const matchedOption = (options || []).find((option) => {
+        const optionValue =
+            typeof option === "string"
+                ? option
+                : option?.value || option?.label || "";
+
+        return normalizeFlowLabel(optionValue) === normalizedTarget;
+    });
+
+    if (!matchedOption) {
+        return String(target || "").trim();
+    }
+
+    return typeof matchedOption === "string"
+        ? matchedOption
+        : String(matchedOption?.value || matchedOption?.label || "").trim();
+}
+
 function getRedesFieldOrder(field = {}) {
     const normalizedKey = normalizeFlowLabel(field?.key);
     const normalizedLabel = normalizeFlowLabel(field?.label);
@@ -306,6 +326,62 @@ function InboundInteractionDetailsSection({
                             )
                             .map((item) => item.level2),
                     );
+                    const applyRedesPreset = ({
+                        categorizacion,
+                        motivo,
+                        submotivo,
+                        observaciones,
+                    }) => {
+                        const matchedCategorizacion = findOptionValueIgnoreCase(
+                            categorizacionOptions,
+                            categorizacion,
+                        );
+                        const matchedMotivo = findOptionValueIgnoreCase(
+                            buildUniqueOptions(
+                                (levels || [])
+                                    .filter(
+                                        (item) =>
+                                            normalizeFlowLabel(
+                                                item?.description,
+                                            ) ===
+                                            normalizeFlowLabel(
+                                                matchedCategorizacion,
+                                            ),
+                                    )
+                                    .map((item) => item.level1),
+                            ),
+                            motivo,
+                        );
+                        const matchedSubmotivo = findOptionValueIgnoreCase(
+                            buildUniqueOptions(
+                                (levels || [])
+                                    .filter(
+                                        (item) =>
+                                            normalizeFlowLabel(
+                                                item?.description,
+                                            ) ===
+                                                normalizeFlowLabel(
+                                                    matchedCategorizacion,
+                                                ) &&
+                                            normalizeFlowLabel(item?.level1) ===
+                                                normalizeFlowLabel(
+                                                    matchedMotivo,
+                                                ),
+                                    )
+                                    .map((item) => item.level2),
+                            ),
+                            submotivo,
+                        );
+
+                        onChange(
+                            index,
+                            "categorizacion",
+                            matchedCategorizacion,
+                        );
+                        onChange(index, "motivo", matchedMotivo);
+                        onChange(index, "submotivo", matchedSubmotivo);
+                        onChange(index, "observaciones", observaciones);
+                    };
 
                     return (
                         <div
@@ -421,6 +497,43 @@ function InboundInteractionDetailsSection({
                                     }
                                 />
                             </div>
+                            {isRedesMode && (
+                                <div className="agent-inbound-detail-actions agent-inbound-detail-actions--redes">
+                                    <Button
+                                        variant="secondary"
+                                        type="button"
+                                        onClick={() =>
+                                            applyRedesPreset({
+                                                categorizacion:
+                                                    "CALIDAD DE MENSAJES",
+                                                motivo: "COMUNICACION",
+                                                submotivo: "MENSAJE SIN DATOS",
+                                                observaciones:
+                                                    "Conversación sin datos.",
+                                            })
+                                        }
+                                    >
+                                        Sin datos
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        type="button"
+                                        onClick={() =>
+                                            applyRedesPreset({
+                                                categorizacion:
+                                                    "CALIDAD DE MENSAJES",
+                                                motivo: "COMUNICACION",
+                                                submotivo:
+                                                    "MENSAJE SIN INTERACCION",
+                                                observaciones:
+                                                    "Conversación abandonada.",
+                                            })
+                                        }
+                                    >
+                                        Sin interacción
+                                    </Button>
+                                </div>
+                            )}
                             {!isRedesMode && (
                                 <div className="agent-inbound-detail-actions">
                                     {index === 0 && (
@@ -449,12 +562,7 @@ function InboundInteractionDetailsSection({
     );
 }
 
-function InboundImagesSection({
-    items,
-    onAdd,
-    onRemove,
-    onChange,
-}) {
+function InboundImagesSection({ items, onAdd, onRemove, onChange }) {
     return (
         <section className="agent-form-card agent-form-card--tertiary">
             <div className="agent-form-header-row agent-inbound-detail-header">
@@ -471,9 +579,7 @@ function InboundImagesSection({
                             {index + 1}
                         </div>
                         <div className="agent-form-field">
-                            <span className="agent-dynamic-label">
-                                Archivo
-                            </span>
+                            <span className="agent-dynamic-label">Archivo</span>
                             <input
                                 type="file"
                                 accept=".png,.jpg,.jpeg,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt"
@@ -570,29 +676,26 @@ function AgentGestionForm({
         String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
     const isEditableTicketInboundManualFlow =
         isInboundManualFlow &&
-        (
-            secureInboundManual ||
+        (secureInboundManual ||
             isEditableTicketInboundFlow(
                 campaignLabel,
                 campaignId,
                 dynamicFormAnswers?.__inbound_nombre_cliente_label,
                 dynamicFormConfig?.title,
-            )
-        );
+            ));
     const isRedesManualFlow =
         manualFlow &&
-        (
-            String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
+        (String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
             normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL ||
-            normalizeFlowLabel(dynamicFormConfig?.title) === REDES_SHARED_LABEL
-        );
+            normalizeFlowLabel(dynamicFormConfig?.title) ===
+                REDES_SHARED_LABEL);
     const dynamicSectionVariant = isRedesManualFlow
         ? "redes"
         : isEditableTicketInboundManualFlow
           ? "inbound-editable-ticket"
-        : isInboundManualFlow
-          ? "inbound"
-          : "standard";
+          : isInboundManualFlow
+            ? "inbound"
+            : "standard";
     const manualInboundDisplayTitle = String(
         campaignLabel || dynamicFormConfig?.title || "Gestion Inbound",
     ).trim();
@@ -606,8 +709,7 @@ function AgentGestionForm({
         const draft = isRedesManualFlow
             ? buildRedesEmailDraft(dynamicFormAnswers, user)
             : buildInboundEmailDraft(dynamicFormAnswers, user);
-        const draftId =
-            globalThis.crypto?.randomUUID?.() || String(Date.now());
+        const draftId = globalThis.crypto?.randomUUID?.() || String(Date.now());
 
         try {
             localStorage.setItem(
@@ -665,9 +767,7 @@ function AgentGestionForm({
             return baseRows;
         }
 
-        if (
-            isRedesManualFlow
-        ) {
+        if (isRedesManualFlow) {
             const redesFilteredRows = baseRows
                 .map((row) =>
                     row.filter((field) => {
@@ -706,7 +806,8 @@ function AgentGestionForm({
             ];
             const redesBodyFields = [...redesFilteredRows.flat()].sort(
                 (leftField, rightField) =>
-                    getRedesFieldOrder(leftField) - getRedesFieldOrder(rightField),
+                    getRedesFieldOrder(leftField) -
+                    getRedesFieldOrder(rightField),
             );
             const takeRedesFieldByOrder = (order) => {
                 const fieldIndex = redesBodyFields.findIndex(
@@ -949,7 +1050,6 @@ function AgentGestionForm({
                     </div>
                 </section>
             )}
-
         </div>
     );
 
