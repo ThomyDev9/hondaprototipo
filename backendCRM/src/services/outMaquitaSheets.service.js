@@ -106,12 +106,20 @@ export function buildOutMaquitaMailPayload(formData = {}, actor = "") {
     const observaciones = String(
         formData?.observaciones || formData?.Observaciones || "",
     ).trim();
+    const entregaDocumentos = String(
+        formData?.entregaDocumentos || formData?.["Entrega de documentos"] || "",
+    ).trim();
+    const agenciaAsistir = String(
+        formData?.agenciaAsistir || formData?.["Agencia asistir"] || "",
+    ).trim();
 
     return {
         identification,
         motivoInteraccion,
         submotivoInteraccion,
         observaciones,
+        entregaDocumentos,
+        agenciaAsistir,
         // Compatibilidad con webhooks que actualizan Google Sheets por letra
         // de columna en el flujo mail.
         K: motivoInteraccion,
@@ -120,11 +128,20 @@ export function buildOutMaquitaMailPayload(formData = {}, actor = "") {
         estado: motivoInteraccion,
         subEstado: submotivoInteraccion,
         seguimiento: observaciones,
+        entrega_documentos: entregaDocumentos,
+        agencia_asistir: agenciaAsistir,
         updatedBy: String(actor || "").trim(),
     };
 }
 
 export function buildOutMaquitaRrssGestionPayload(formData = {}, actor = "") {
+    const entregaDocumentos = String(
+        formData?.entregaDocumentos || formData?.["Entrega de documentos"] || "",
+    ).trim();
+    const agenciaAsistir = String(
+        formData?.agenciaAsistir || formData?.["Agencia asistir"] || "",
+    ).trim();
+
     return {
         identification: String(
             formData?.identificacion ||
@@ -139,6 +156,10 @@ export function buildOutMaquitaRrssGestionPayload(formData = {}, actor = "") {
         seguimiento: String(
             formData?.observaciones || formData?.Observaciones || "",
         ).trim(),
+        entregaDocumentos,
+        agenciaAsistir,
+        entrega_documentos: entregaDocumentos,
+        agencia_asistir: agenciaAsistir,
         updatedBy: String(actor || "").trim(),
     };
 }

@@ -10,6 +10,28 @@ export const OUT_MAQUITA_FLOW_OPTIONS = [
         title: "Gestion Leads RRSS",
         description: "Trabaja los registros que llegan desde redes sociales.",
     },
+    {
+        id: "documentos",
+        title: "Cargar documentos",
+        description:
+            "Gestiona los registros con entrega digital y adjunta su PDF.",
+    },
+];
+
+export const OUT_MAQUITA_ENTREGA_DOCUMENTOS_OPTIONS = [
+    "Entrega digital",
+    "Entrega fisica",
+];
+
+export const OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS = [
+    "QUITO SUR",
+    "ARCADIA",
+    "CHILLOGALLO",
+    "AMERICA",
+    "CENTRO",
+    "CARAPUNGO",
+    "TUMBACO",
+    "PORTOVIEJO",
 ];
 
 export const OUT_MAQUITA_MAIL_MOTIVOS = [

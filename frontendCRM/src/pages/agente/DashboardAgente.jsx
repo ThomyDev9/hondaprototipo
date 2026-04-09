@@ -20,8 +20,6 @@ export default function DashboardAgente({
     selectedMenuItemId,
     selectedCategoryId,
     selectedManualFlow,
-    selectedSecureInboundManual,
-    selectedFollowupInboundManual,
     requestedAgentStatus,
     onAgentStatusSync,
     agentPage,
@@ -91,8 +89,6 @@ export default function DashboardAgente({
         selectedMenuItemId,
         selectedCategoryId,
         selectedManualFlow,
-        selectedSecureInboundManual:
-            selectedSecureInboundManual || selectedFollowupInboundManual,
         requestedAgentStatus,
         onAgentStatusSync,
         agentPage,
@@ -321,10 +317,6 @@ export default function DashboardAgente({
                             onCancelarGestion={handleCancelarGestion}
                             user={user}
                             isSaving={isSavingGestion}
-                            secureInboundManual={
-                                selectedSecureInboundManual ||
-                                selectedFollowupInboundManual
-                            }
                         />
                     )}
                     {isAgente &&
@@ -387,8 +379,6 @@ DashboardAgente.propTypes = {
     selectedMenuItemId: PropTypes.string,
     selectedCategoryId: PropTypes.string,
     selectedManualFlow: PropTypes.bool,
-    selectedSecureInboundManual: PropTypes.bool,
-    selectedFollowupInboundManual: PropTypes.bool,
     requestedAgentStatus: PropTypes.string,
     onAgentStatusSync: PropTypes.func,
     agentPage: PropTypes.string,

@@ -200,7 +200,30 @@ function buildOutboundQuestionPayload(entries = []) {
     return { preguntas, respuestas };
 }
 
-function buildOutboundCampos(formData = {}) {
+function buildOutboundCampos(formData = {}, campaignId = "") {
+    if (isOutMaquitaCampaign(campaignId)) {
+        return [
+            String(formData?.tipoCampana || "").trim(),
+            String(
+                formData?.entregaDocumentos ||
+                    formData?.["Entrega de documentos"] ||
+                    "",
+            ).trim(),
+            String(
+                formData?.agenciaAsistir ||
+                    formData?.["Agencia asistir"] ||
+                    "",
+            ).trim(),
+            String(formData?.Plataforma || "").trim(),
+            String(formData?.Provincia || "").trim(),
+            String(formData?.Gestion || "").trim(),
+            String(formData?.FechaAgenda || "").trim(),
+            String(formData?.Email || "").trim(),
+            String(formData?.motivoInteraccion || "").trim(),
+            String(formData?.submotivoInteraccion || "").trim(),
+        ];
+    }
+
     return [
         String(formData?.tipoCampana || "").trim(),
         String(formData?.Concesionario || "").trim(),

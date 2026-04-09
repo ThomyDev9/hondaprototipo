@@ -9,7 +9,6 @@ import AgentGestionPrimarySection from "./AgentGestionPrimarySection";
 import AgentGestionDynamicSection from "./AgentGestionDynamicSection";
 import AgentGestionSurveySection from "./AgentGestionSurveySection";
 import { buildCrmEmailDraft } from "../crmEmailDraft.helpers";
-import { isEditableTicketInboundFlow } from "../inboundFlow.helpers";
 import {
     buildDynamicFormRows,
     buildExtraFields,
@@ -667,22 +666,12 @@ function AgentGestionForm({
     onCancelarGestion,
     user,
     isSaving = false,
-    secureInboundManual = false,
 }) {
     const firstRender = useRef(true);
     const [activeTab, setActiveTab] = useState("gestion");
     const isInboundManualFlow =
         manualFlow &&
         String(categoryId || "").trim() === INBOUND_MENU_CATEGORY_ID;
-    const isEditableTicketInboundManualFlow =
-        isInboundManualFlow &&
-        (secureInboundManual ||
-            isEditableTicketInboundFlow(
-                campaignLabel,
-                campaignId,
-                dynamicFormAnswers?.__inbound_nombre_cliente_label,
-                dynamicFormConfig?.title,
-            ));
     const isRedesManualFlow =
         manualFlow &&
         (String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
@@ -691,9 +680,7 @@ function AgentGestionForm({
                 REDES_SHARED_LABEL);
     const dynamicSectionVariant = isRedesManualFlow
         ? "redes"
-        : isEditableTicketInboundManualFlow
-          ? "inbound-editable-ticket"
-          : isInboundManualFlow
+        : isInboundManualFlow
             ? "inbound"
             : "standard";
     const manualInboundDisplayTitle = String(
@@ -869,30 +856,15 @@ function AgentGestionForm({
             const field = pickField(key);
             return field ? { ...field, required: true } : null;
         };
-        const inboundClientOptions = (inboundChildOptions || [])
-            .map((item) => ({
-                value: String(item?.menuItemId || item?.value || "").trim(),
-                label: String(item?.label || item?.campaignId || "").trim(),
-            }))
-            .filter((item) => item.value && item.label);
-
         const compactRows = [
             INBOUND_FIXED_FIELDS_PRIMARY_ROW,
             [
-                secureInboundManual
-                    ? {
-                          key: "__inbound_nombre_cliente",
-                          label: "Nombre Cliente",
-                          type: "select",
-                          required: true,
-                          options: inboundClientOptions,
-                      }
-                    : {
-                          key: "__inbound_nombre_cliente_label",
-                          label: "Nombre Cliente",
-                          type: "text",
-                          readOnly: true,
-                      },
+                {
+                    key: "__inbound_nombre_cliente_label",
+                    label: "Nombre Cliente",
+                    type: "text",
+                    readOnly: true,
+                },
                 ...INBOUND_FIXED_FIELDS_SECONDARY_ROW,
             ],
             [pickField("IDENTIFICACION"), pickField("NOMBRE_CLIENTE")].filter(
@@ -911,12 +883,10 @@ function AgentGestionForm({
     }, [
         categoryId,
         inboundChildOptions,
-        isEditableTicketInboundManualFlow,
         isRedesManualFlow,
         dynamicFormRowsWithValues,
         inboundChildOptions,
         manualFlow,
-        secureInboundManual,
     ]);
 
     const extraFields = useMemo(
@@ -1193,5 +1163,4 @@ AgentGestionForm.propTypes = {
         username: PropTypes.string,
     }),
     isSaving: PropTypes.bool,
-    secureInboundManual: PropTypes.bool,
 };

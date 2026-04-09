@@ -22,7 +22,6 @@ export default function useDashboardAgenteState({
     selectedMenuItemId,
     selectedCategoryId,
     selectedManualFlow,
-    selectedSecureInboundManual,
     requestedAgentStatus,
     onAgentStatusSync,
     agentPage,
@@ -38,16 +37,6 @@ export default function useDashboardAgenteState({
             .replace(/[\u0300-\u036f]/g, "")
             .trim()
             .toLowerCase();
-    const allowsInboundOpenWithoutCall = (...values) => {
-        const normalizedValues = values.map(normalizeFlowLabel);
-
-        return (
-            normalizedValues.includes("kullki wasi") ||
-            normalizedValues.includes("atm") ||
-            normalizedValues.includes("oscus") ||
-            normalizedValues.includes("atm oscus")
-        );
-    };
     const isGestionRedesFlow = ({ menuItemId = "", campaignId = "" }) =>
         String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
         normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL;
@@ -129,7 +118,6 @@ export default function useDashboardAgenteState({
         selectedMenuItemId,
         selectedCategoryId,
         selectedManualFlow,
-        selectedSecureInboundManual,
         agentPage,
         bloqueado,
         handle403,
@@ -584,17 +572,6 @@ export default function useDashboardAgenteState({
                     childMenuItemId: selectedOption?.menuItemId || "",
                     childCampaignId: selectedOption?.campaignId || "",
                 });
-                if (selectedSecureInboundManual) {
-                    setDynamicFormAnswers((prev) => ({
-                        ...prev,
-                        __inbound_nombre_cliente:
-                            selectedOption?.menuItemId || String(value || ""),
-                        __inbound_nombre_cliente_label: String(
-                            selectedOption?.label || "",
-                        ).trim(),
-                    }));
-                    return;
-                }
                 const currentCall = await hydrateInboundCurrentCall();
                 const queueMatchedChild = resolveInboundChildByQueue(
                     currentCall?.queue,
@@ -741,7 +718,6 @@ export default function useDashboardAgenteState({
             inboundChildOptions,
             manualFlowActivo,
             menuItemIdSeleccionado,
-            selectedSecureInboundManual,
             resolveInboundChildByQueue,
             setDynamicFormAnswers,
             setError,
@@ -856,17 +832,10 @@ export default function useDashboardAgenteState({
     ]);
 
     useEffect(() => {
-        const allowsOpenWithoutCall = allowsInboundOpenWithoutCall(
-            selectedCampaignLabel,
-            selectedCampaignId,
-            campaignIdSeleccionada,
-        );
         const shouldValidateInboundAccess =
             manualFlowActivo &&
             String(categoryIdSeleccionada || "").trim() ===
                 INBOUND_MENU_CATEGORY_ID &&
-            !selectedSecureInboundManual &&
-            !allowsOpenWithoutCall &&
             agentPage !== "inicio";
 
         if (!shouldValidateInboundAccess) {
@@ -902,7 +871,6 @@ export default function useDashboardAgenteState({
         onChangeAgentPage,
         selectedCampaignId,
         selectedCampaignLabel,
-        selectedSecureInboundManual,
         setError,
     ]);
 

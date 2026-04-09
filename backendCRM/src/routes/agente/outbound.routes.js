@@ -1,4 +1,70 @@
+import fs from "node:fs";
+import path from "node:path";
+import multer from "multer";
 import { formatLocalDateTime } from "../../utils/dateTime.js";
+
+const outMaquitaUploadsDir =
+    process.env.ENTREGA_DOCUMENTOS_PATH ||
+    path.join(process.cwd(), "entrega_documentos");
+const outMaquitaDocumentStatusOptions = new Set(["Completos", "Incompletos"]);
+
+fs.mkdirSync(outMaquitaUploadsDir, { recursive: true });
+
+function sanitizeFileSegment(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .replace(/_+/g, "_")
+        .trim();
+}
+
+function buildOutMaquitaDocumentFileName(identification = "") {
+    const safeIdentification = sanitizeFileSegment(identification);
+    return `${safeIdentification}_out_maquita_documentos.pdf`;
+}
+
+function resolveOutMaquitaDocumentFileName(identification = "") {
+    const safeIdentification = sanitizeFileSegment(identification);
+    if (!safeIdentification) return null;
+
+    const preferredFile = buildOutMaquitaDocumentFileName(safeIdentification);
+    const preferredPath = path.join(outMaquitaUploadsDir, preferredFile);
+
+    if (fs.existsSync(preferredPath)) {
+        return preferredFile;
+    }
+
+    const files = fs.readdirSync(outMaquitaUploadsDir);
+    return (
+        files.find((fileName) => {
+            const normalized = String(fileName || "").toLowerCase();
+            return (
+                normalized.endsWith(".pdf") &&
+                normalized.startsWith(safeIdentification.toLowerCase())
+            );
+        }) || null
+    );
+}
+
+const outMaquitaDocumentUpload = multer({
+    storage: multer.memoryStorage(),
+    fileFilter: (_req, file, cb) => {
+        const mimeType = String(file?.mimetype || "").toLowerCase();
+        const ext = path.extname(String(file?.originalname || "")).toLowerCase();
+
+        if (mimeType === "application/pdf" || ext === ".pdf") {
+            cb(null, true);
+            return;
+        }
+
+        cb(new Error("Solo se permite subir archivos PDF"));
+    },
+    limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 1,
+    },
+});
 
 export function registerOutboundRoutes(
     router,
@@ -16,6 +82,243 @@ export function registerOutboundRoutes(
         linkManagementToRecording,
     },
 ) {
+    router.get(
+        "/out-maquita-documentos",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const campaignId = String(req.query?.campaignId || "").trim();
+
+                if (!campaignId) {
+                    return res.status(400).json({
+                        error: "campaignId es requerido",
+                    });
+                }
+
+                if (!isOutMaquitaCampaign(campaignId)) {
+                    return res.status(400).json({
+                        error: "campaignId invalido para Out Maquita",
+                    });
+                }
+
+                const rows = await agenteDAO.listOutMaquitaDocumentRows(
+                    `${campaignId}%`,
+                );
+                const latestByIdentification = new Map();
+
+                for (const row of rows) {
+                    const identification = String(
+                        row?.IDENTIFICACION || "",
+                    ).trim();
+
+                    if (!identification || latestByIdentification.has(identification)) {
+                        continue;
+                    }
+
+                    const fileName = resolveOutMaquitaDocumentFileName(
+                        identification,
+                    );
+                    let additionalPayload = {};
+
+                    try {
+                        additionalPayload = row?.ClienteCamposAdicionalesJson
+                            ? JSON.parse(row.ClienteCamposAdicionalesJson)
+                            : {};
+                    } catch {
+                        additionalPayload = {};
+                    }
+
+                    latestByIdentification.set(identification, {
+                        contactId: String(row?.ContactId || "").trim(),
+                        campaignId: String(row?.CampaignId || "").trim(),
+                        identification,
+                        fullName: String(
+                            row?.NOMBRE_CLIENTE || row?.ContactName || "",
+                        ).trim(),
+                        celular: String(row?.ContactAddress || "").trim(),
+                        entregaDocumentos: String(row?.CAMPO2 || "").trim(),
+                        agenciaAsistir: String(row?.CAMPO3 || "").trim(),
+                        documentStatus: String(row?.CAMPO4 || "").trim(),
+                        motivoInteraccion: String(row?.ResultLevel1 || "").trim(),
+                        submotivoInteraccion: String(row?.ResultLevel2 || "").trim(),
+                        observaciones: String(row?.Observaciones || "").trim(),
+                        documentComment: String(
+                            additionalPayload?.documentosComentario || "",
+                        ).trim(),
+                        updatedAt: row?.TmStmp || null,
+                        pdfFileName: fileName,
+                        pdfUrl: fileName
+                            ? `/entrega_documentos/${fileName}`
+                            : null,
+                    });
+                }
+
+                return res.json({
+                    success: true,
+                    data: Array.from(latestByIdentification.values()),
+                });
+            } catch (err) {
+                console.error("Error en /agente/out-maquita-documentos:", err);
+                return res.status(500).json({
+                    error: "Error listando documentos de Out Maquita",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.post(
+        "/guardar-out-maquita-documentos",
+        ...agenteMiddlewares,
+        (req, res, next) => {
+            outMaquitaDocumentUpload.single("document")(req, res, (error) => {
+                if (!error) {
+                    next();
+                    return;
+                }
+
+                if (error instanceof multer.MulterError) {
+                    return res.status(400).json({
+                        error: "No se pudo cargar el PDF",
+                        detail: error.message,
+                    });
+                }
+
+                return res.status(400).json({
+                    error: "Archivo invalido",
+                    detail: error?.message || "Solo se permite PDF",
+                });
+            });
+        },
+        async (req, res) => {
+            try {
+                const campaignId = String(
+                    req.body?.campaignId || req.body?.campaign_id || "",
+                ).trim();
+                const identification = String(
+                    req.body?.identification || req.body?.identificacion || "",
+                ).trim();
+                const documentStatus = String(
+                    req.body?.documentStatus || req.body?.estadoDocumentos || "",
+                ).trim();
+                const documentComment = String(
+                    req.body?.documentComment || req.body?.comentarioDocumentos || "",
+                ).trim();
+
+                if (!campaignId || !identification || !documentStatus) {
+                    return res.status(400).json({
+                        error: "campaignId, identification y documentStatus son requeridos",
+                    });
+                }
+
+                if (!isOutMaquitaCampaign(campaignId)) {
+                    return res.status(400).json({
+                        error: "campaignId invalido para Out Maquita",
+                    });
+                }
+
+                if (!outMaquitaDocumentStatusOptions.has(documentStatus)) {
+                    return res.status(400).json({
+                        error: "Estado documental invalido",
+                    });
+                }
+
+                const existingClient =
+                    await agenteDAO.getClienteByIdentificationAndCampaign(
+                        identification,
+                        `${campaignId}%`,
+                    );
+
+                if (!existingClient) {
+                    return res.status(404).json({
+                        error: "No se encontro el registro de Out Maquita",
+                    });
+                }
+
+                const contactId = String(
+                    existingClient?.ContactId || "",
+                ).trim();
+
+                if (!contactId) {
+                    return res.status(400).json({
+                        error: "El registro no tiene ContactId valido",
+                    });
+                }
+
+                let existingDynamicPayload = {};
+                try {
+                    existingDynamicPayload = existingClient?.CamposAdicionalesJson
+                        ? JSON.parse(existingClient.CamposAdicionalesJson)
+                        : {};
+                } catch {
+                    existingDynamicPayload = {};
+                }
+
+                const currentDocumentStatus = String(
+                    existingClient?.CAMPO4 || "",
+                ).trim();
+
+                if (
+                    currentDocumentStatus === "Completos" &&
+                    documentStatus === "Incompletos"
+                ) {
+                    return res.status(400).json({
+                        error: "El registro ya fue marcado como Completos y no puede volver a Incompletos",
+                    });
+                }
+
+                let fileName = resolveOutMaquitaDocumentFileName(identification);
+
+                if (req.file?.buffer) {
+                    fileName = buildOutMaquitaDocumentFileName(identification);
+                    fs.writeFileSync(
+                        path.join(outMaquitaUploadsDir, fileName),
+                        req.file.buffer,
+                    );
+                }
+
+                await agenteDAO.updateOutboundClienteDocumentMetadataByContactId({
+                    contactId,
+                    documentStatus,
+                    payloadJson: JSON.stringify({
+                        ...existingDynamicPayload,
+                        documentosComentario: documentComment,
+                    }),
+                });
+                await agenteDAO.updateOutboundGestionFinalDocumentMetadataByContactId(
+                    {
+                        contactId,
+                        documentStatus,
+                    },
+                );
+
+                return res.json({
+                    success: true,
+                    data: {
+                        contactId,
+                        identification,
+                        documentStatus,
+                        documentComment,
+                        pdfFileName: fileName,
+                        pdfUrl: fileName
+                            ? `/entrega_documentos/${fileName}`
+                            : null,
+                    },
+                    message: "Documentos de Out Maquita guardados",
+                });
+            } catch (err) {
+                console.error(
+                    "Error en /agente/guardar-out-maquita-documentos:",
+                    err,
+                );
+                return res.status(500).json({
+                    error: "Error guardando documentos de Out Maquita",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
     router.get(
         "/buscar-gestion-outbound",
         ...agenteMiddlewares,
@@ -231,6 +534,14 @@ export function registerOutboundRoutes(
                     (await agenteDAO.getClienteByIdentification(
                         identification,
                     ));
+                let existingDynamicPayload = {};
+                try {
+                    existingDynamicPayload = existingClient?.CamposAdicionalesJson
+                        ? JSON.parse(existingClient.CamposAdicionalesJson)
+                        : {};
+                } catch {
+                    existingDynamicPayload = {};
+                }
                 const contactId =
                     String(
                         existingClient?.ContactId ||
@@ -274,7 +585,7 @@ export function registerOutboundRoutes(
                 const fechaAgendamiento = String(
                     formData?.FechaAgenda || "",
                 ).trim();
-                const campos = buildOutboundCampos(formData);
+                const campos = buildOutboundCampos(formData, campaignId);
                 const questionEntries = fieldsMeta.map((field) => ({
                     label: field?.label || field?.name || "",
                     value: formData?.[field?.name] ?? "",
@@ -293,7 +604,10 @@ export function registerOutboundRoutes(
                     managementResultCode = String(codeRow?.code || "").trim();
                 }
 
-                const payloadJson = JSON.stringify(formData || {});
+                const payloadJson = JSON.stringify({
+                    ...existingDynamicPayload,
+                    ...(formData || {}),
+                });
                 const nextIntentos =
                     Math.max(Number(existingClient?.Intentos || 0), 0) + 1;
 

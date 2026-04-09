@@ -32,14 +32,19 @@ const recordingsPath =
 app.use("/grabaciones", express.static(recordingsPath));
 // Servir archivos PDF desde /uploads
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+const entregaDocumentosPath =
+    process.env.ENTREGA_DOCUMENTOS_PATH ||
+    path.join(process.cwd(), "entrega_documentos");
 const inboundImagesPath =
     process.env.INBOUND_IMAGES_PATH ||
     path.join(process.cwd(), "storage", "inbound-images");
 const inboundFilesPath =
     process.env.INBOUND_FILES_PATH ||
     path.join(process.cwd(), "storage", "inbound-archivos");
+fs.mkdirSync(entregaDocumentosPath, { recursive: true });
 fs.mkdirSync(inboundImagesPath, { recursive: true });
 fs.mkdirSync(inboundFilesPath, { recursive: true });
+app.use("/entrega_documentos", express.static(entregaDocumentosPath));
 app.use("/inbound-images", express.static(inboundImagesPath));
 app.use("/inbound-archivos", express.static(inboundFilesPath));
 

@@ -12,6 +12,8 @@ import {
     getFirstNonEmptyValue,
     getMailRegistroIdentification,
     getRegistroIdentification,
+    OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS,
+    OUT_MAQUITA_ENTREGA_DOCUMENTOS_OPTIONS,
     OUT_MAQUITA_MAIL_MOTIVOS,
     OUT_MAQUITA_MAIL_SUBMOTIVOS,
 } from "./outMaquitaConfig";
@@ -87,6 +89,26 @@ const MAIL_EXTRA_FIELDS = [
         required: false,
         readOnly: true,
     },
+    {
+        name: "entregaDocumentos",
+        label: "Entrega de documentos",
+        type: "select",
+        required: false,
+        options: OUT_MAQUITA_ENTREGA_DOCUMENTOS_OPTIONS.map((item) => ({
+            value: item,
+            label: item,
+        })),
+    },
+    {
+        name: "agenciaAsistir",
+        label: "Agencia asistir",
+        type: "select",
+        required: false,
+        options: OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS.map((item) => ({
+            value: item,
+            label: item,
+        })),
+    },
 ];
 
 function buildMailInitialValues(registro) {
@@ -146,6 +168,17 @@ function buildMailInitialValues(registro) {
             "Asesor Operativo ",
             "Asesor Operativo",
             "S",
+        ]),
+        entregaDocumentos: getFirstNonEmptyValue(registro, [
+            "Entrega de documentos",
+            "Entrega Documentos",
+            "Tipo entrega documentos",
+            "CAMPO2",
+        ]),
+        agenciaAsistir: getFirstNonEmptyValue(registro, [
+            "Agencia asistir",
+            "Agencia Asistir",
+            "CAMPO3",
         ]),
     };
 }

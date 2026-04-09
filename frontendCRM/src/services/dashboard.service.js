@@ -258,3 +258,16 @@ export const fetchOutboundClientByIdentification = ({
             campaignId,
         )}&identification=${encodeURIComponent(identification)}`,
     );
+
+export const fetchOutMaquitaDocumentos = ({ campaignId }) =>
+    request(
+        `agente/out-maquita-documentos?campaignId=${encodeURIComponent(
+            campaignId,
+        )}`,
+    );
+
+export const guardarOutMaquitaDocumentos = (formData) =>
+    request("agente/guardar-out-maquita-documentos", {
+        method: "POST",
+        body: formData,
+    });

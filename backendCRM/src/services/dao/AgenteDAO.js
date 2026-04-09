@@ -77,6 +77,31 @@ const GET_GESTION_FINAL_BY_CONTACT_ID = `
     LIMIT 1
 `;
 
+const LIST_OUT_MAQUITA_DOCUMENT_ROWS = `
+    SELECT
+        gf.ContactId,
+        gf.CampaignId,
+        gf.IDENTIFICACION,
+        gf.NOMBRE_CLIENTE,
+        gf.ContactName,
+        gf.ContactAddress,
+        gf.CAMPO2,
+        gf.CAMPO3,
+        gf.CAMPO4,
+        gf.TmStmp,
+        gf.ResultLevel1,
+        gf.ResultLevel2,
+        gf.Observaciones,
+        co.CamposAdicionalesJson AS ClienteCamposAdicionalesJson
+    FROM ${outboundSchema}.gestionfinal_outbound gf
+    LEFT JOIN ${outboundSchema}.clientes_outbound co
+      ON co.ContactId = gf.ContactId
+    WHERE gf.CampaignId LIKE ?
+      AND TRIM(COALESCE(gf.CAMPO2, '')) = 'Entrega digital'
+      AND TRIM(COALESCE(gf.CAMPO4, '')) <> 'Completos'
+    ORDER BY gf.TmStmp DESC, gf.ContactId DESC
+`;
+
 const INSERT_GESTION_FINAL_FROM_CLIENTE = `
   INSERT INTO ${outboundSchema}.gestionfinal_outbound (
       VCC, CampaignId, ContactId, ContactName, ContactAddress, InteractionId, ImportId, Agent,
@@ -1541,6 +1566,51 @@ export class AgenteDAO {
             WHERE ContactId = ?
             `,
             params,
+        );
+    }
+
+    async listOutMaquitaDocumentRows(campaignLike, executor = this.pool) {
+        const [rows] = await executor.query(LIST_OUT_MAQUITA_DOCUMENT_ROWS, [
+            campaignLike,
+        ]);
+        return rows;
+    }
+
+    async updateOutboundClienteDocumentMetadataByContactId(
+        {
+            contactId,
+            documentStatus = "",
+            payloadJson = null,
+        },
+        executor = this.pool,
+    ) {
+        return executor.query(
+            `
+            UPDATE ${outboundSchema}.clientes_outbound
+            SET CAMPO4 = ?,
+                CamposAdicionalesJson = COALESCE(?, CamposAdicionalesJson),
+                TmStmp = NOW()
+            WHERE ContactId = ?
+            `,
+            [documentStatus, payloadJson, contactId],
+        );
+    }
+
+    async updateOutboundGestionFinalDocumentMetadataByContactId(
+        {
+            contactId,
+            documentStatus = "",
+        },
+        executor = this.pool,
+    ) {
+        return executor.query(
+            `
+            UPDATE ${outboundSchema}.gestionfinal_outbound
+            SET CAMPO4 = ?,
+                TmStmp = NOW()
+            WHERE ContactId = ?
+            `,
+            [documentStatus, contactId],
         );
     }
 

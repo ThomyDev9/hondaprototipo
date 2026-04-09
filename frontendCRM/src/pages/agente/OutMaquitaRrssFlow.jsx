@@ -13,6 +13,8 @@ import {
     getRegistroIdentification,
     getRrssRegistroIdentification,
     getTodayFormatted,
+    OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS,
+    OUT_MAQUITA_ENTREGA_DOCUMENTOS_OPTIONS,
     OUT_MAQUITA_RRSS_MOTIVOS,
     OUT_MAQUITA_RRSS_SUBMOTIVOS,
 } from "./outMaquitaConfig";
@@ -106,6 +108,26 @@ const RRSS_EXTRA_FIELDS = [
         type: "text",
         required: false,
         readOnly: true,
+    },
+    {
+        name: "entregaDocumentos",
+        label: "Entrega de documentos",
+        type: "select",
+        required: false,
+        options: OUT_MAQUITA_ENTREGA_DOCUMENTOS_OPTIONS.map((item) => ({
+            value: item,
+            label: item,
+        })),
+    },
+    {
+        name: "agenciaAsistir",
+        label: "Agencia asistir",
+        type: "select",
+        required: false,
+        options: OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS.map((item) => ({
+            value: item,
+            label: item,
+        })),
     },
 ];
 
@@ -262,6 +284,17 @@ function buildRrssBaseValues(registro) {
         ),
         procesoARealizarRrss: getFirstNonEmptyValue(registro, RRSS_PROCESO_KEYS),
         usuarioMaquita: getFirstNonEmptyValue(registro, RRSS_USUARIO_KEYS),
+        entregaDocumentos: getFirstNonEmptyValue(registro, [
+            "Entrega de documentos",
+            "Entrega Documentos",
+            "Tipo entrega documentos",
+            "CAMPO2",
+        ]),
+        agenciaAsistir: getFirstNonEmptyValue(registro, [
+            "Agencia asistir",
+            "Agencia Asistir",
+            "CAMPO3",
+        ]),
         asesor: localStorage.getItem("import_user") || "",
         fecha: getTodayFormatted(),
         estadoCivil: "",

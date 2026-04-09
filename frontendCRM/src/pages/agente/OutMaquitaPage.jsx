@@ -1,6 +1,7 @@
 import React from "react";
 import OutMaquitaMailFlow from "./OutMaquitaMailFlow";
 import OutMaquitaRrssFlow from "./OutMaquitaRrssFlow";
+import OutMaquitaDocumentosFlow from "./OutMaquitaDocumentosFlow";
 import { OUT_MAQUITA_FLOW_OPTIONS } from "./outMaquitaConfig";
 import "./OutMaquitaPage.css";
 
@@ -13,6 +14,10 @@ export default function OutMaquitaPage() {
 
     if (selectedFlow === "rrss") {
         return <OutMaquitaRrssFlow onBack={() => setSelectedFlow("")} />;
+    }
+
+    if (selectedFlow === "documentos") {
+        return <OutMaquitaDocumentosFlow onBack={() => setSelectedFlow("")} />;
     }
 
     return (

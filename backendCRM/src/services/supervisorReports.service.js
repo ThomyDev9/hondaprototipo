@@ -164,6 +164,17 @@ export async function getOutboundReportRows(
     { campaignId, startDate, endDate },
     executor = pool,
 ) {
+    const campaignLike = `%${String(campaignId || "").trim()}%`;
+    const startDateTime = `${String(startDate || "").trim()} 00:00:00`;
+    const endExclusive = new Date(`${String(endDate || "").trim()}T00:00:00`);
+    endExclusive.setDate(endExclusive.getDate() + 1);
+    const endDateTime = `${endExclusive.getFullYear()}-${String(
+        endExclusive.getMonth() + 1,
+    ).padStart(2, "0")}-${String(endExclusive.getDate()).padStart(
+        2,
+        "0",
+    )} 00:00:00`;
+
     const [rows] = await executor.query(
         `
         SELECT
@@ -195,12 +206,12 @@ export async function getOutboundReportRows(
             RESPUESTA_21, RESPUESTA_22, RESPUESTA_23, RESPUESTA_24, RESPUESTA_25,
             RESPUESTA_26, RESPUESTA_27, RESPUESTA_28, RESPUESTA_29, RESPUESTA_30
         FROM ${outboundSchema}.gestionfinal_outbound
-        WHERE CampaignId = ?
+        WHERE CampaignId LIKE ?
           AND TmStmp > ?
           AND TmStmp < ?
         ORDER BY TmStmp DESC, ContactId DESC
         `,
-        [campaignId, startDate, endDate],
+        [campaignLike, startDateTime, endDateTime],
     );
 
     return rows;
