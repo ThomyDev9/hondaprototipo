@@ -247,8 +247,14 @@ export function registerOutboundRoutes(
                 const level2ToUse = String(
                     formData?.submotivoInteraccion || "",
                 ).trim();
-                const estadoFinalToUse =
-                    level2ToUse || level1ToUse || "sin_gestion";
+
+                if (!level1ToUse || !level2ToUse) {
+                    return res.status(400).json({
+                        error: "motivoInteraccion y submotivoInteraccion son obligatorios",
+                    });
+                }
+
+                const estadoFinalToUse = level2ToUse || level1ToUse;
                 const contactName = String(
                     formData?.apellidosNombres || formData?.NombreCliente || "",
                 ).trim();

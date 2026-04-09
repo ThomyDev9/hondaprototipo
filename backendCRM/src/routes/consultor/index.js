@@ -380,6 +380,9 @@ function buildLeadFilters(req, { includeWorkflow = true, includePromotion = true
     if (isConsultor) {
         where.push("el.assigned_to = ?");
         params.push(getCurrentAssignee(req));
+        where.push(
+            "NOT (el.workflow_status = 'pendiente_completar' AND el.assigned_at IS NOT NULL AND el.assigned_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR))",
+        );
     }
 
     return { where, params };
@@ -484,7 +487,13 @@ router.get("/leads-stats", async (req, res) => {
         const [rows] = await pool.query(
             `
             SELECT
-                COUNT(*) AS total,
+                SUM(
+                    CASE
+                        WHEN el.workflow_status IN ('pendiente_completar', 'promovido')
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS total,
                 SUM(
                     CASE
                         WHEN el.workflow_status = 'pendiente_completar'

@@ -262,6 +262,11 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
             : reassignForm.sourceChannel === "rrss"
               ? totalExpiredRrss
               : Number(summary.totals.total_expired || 0);
+    const visibleWorkflowOptions = isAdmin
+        ? WORKFLOW_OPTIONS
+        : WORKFLOW_OPTIONS.filter(
+            (option) => option.value !== "por_reasignar",
+        );
     const isAssignmentConfigValid =
         Math.abs(Number(assignmentTotal || 0) - 100) < 0.001;
     const hasAssignmentChanges = assignmentConfig.some((item) => {
@@ -821,7 +826,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                         </article>
                         <article>
                             <strong>{summary.totals.total_expired}</strong>
-                            <span>Por reasignar</span>
+                            <span>Vencidos totales</span>
                         </article>
                         <article>
                             <strong>{summary.totals.total_promoted}</strong>
@@ -837,10 +842,6 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                         <article>
                             <strong>{stats.pending}</strong>
                             <span>Pendientes</span>
-                        </article>
-                        <article>
-                            <strong>{stats.expired}</strong>
-                            <span>Por reasignar</span>
                         </article>
                         <article>
                             <strong>{stats.promoted}</strong>
@@ -1325,7 +1326,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 }))
                             }
                         >
-                            {WORKFLOW_OPTIONS.map((option) => (
+                            {visibleWorkflowOptions.map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
                                 </option>
