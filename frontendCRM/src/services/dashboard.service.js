@@ -259,6 +259,20 @@ export const fetchOutMaquitaDocumentos = ({ campaignId }) =>
         )}`,
     );
 
+export const fetchOutMaquitaDocumentosSeguimiento = ({ campaignId }) =>
+    request(
+        `agente/out-maquita-documentos-seguimiento?campaignId=${encodeURIComponent(
+            campaignId,
+        )}`,
+    );
+
+export const guardarOutMaquitaDocumentosSeguimiento = (payload) =>
+    request("agente/guardar-out-maquita-documentos-seguimiento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
 export const guardarOutMaquitaDocumentos = (formData) =>
     request("agente/guardar-out-maquita-documentos", {
         method: "POST",

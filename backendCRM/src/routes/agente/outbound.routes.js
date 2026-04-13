@@ -11,6 +11,20 @@ const outMaquitaDocumentStatusOptions = new Set(["Completos", "Incompletos"]);
 
 fs.mkdirSync(outMaquitaUploadsDir, { recursive: true });
 
+function normalizeOutMaquitaDocumentStatus(value) {
+    const raw = String(value || "").trim();
+    const upper = raw.toUpperCase();
+
+    if (upper === "COMPLETO" || upper === "COMPLETOS") {
+        return "Completos";
+    }
+    if (upper === "INCOMPLETO" || upper === "INCOMPLETOS") {
+        return "Incompletos";
+    }
+
+    return raw;
+}
+
 function sanitizeFileSegment(value) {
     return String(value || "")
         .normalize("NFD")
@@ -249,10 +263,27 @@ export function registerOutboundRoutes(
                         celular: String(row?.ContactAddress || "").trim(),
                         entregaDocumentos: String(row?.CAMPO2 || "").trim(),
                         agenciaAsistir: String(row?.CAMPO3 || "").trim(),
-                        documentStatus: String(row?.CAMPO4 || "").trim(),
+                        sourceChannel: String(
+                            row?.ImportId || "",
+                        ).toUpperCase().includes("REDES")
+                            ? "rrss"
+                            : String(row?.ImportId || "")
+                                    .toUpperCase()
+                                    .includes("MAIL")
+                              ? "mail"
+                              : "",
+                        documentStatus: normalizeOutMaquitaDocumentStatus(
+                            row?.CAMPO4,
+                        ),
                         motivoInteraccion: String(row?.ResultLevel1 || "").trim(),
                         submotivoInteraccion: String(row?.ResultLevel2 || "").trim(),
                         observaciones: String(row?.Observaciones || "").trim(),
+                        creditStatus: String(
+                            row?.CAMPO6 ||
+                                row?.ClienteCampo6 ||
+                                additionalPayload?.estadoCredito ||
+                                "",
+                        ).trim(),
                         documentComment: String(
                             row?.CAMPO5 ||
                                 row?.ClienteCampo5 ||
@@ -275,6 +306,225 @@ export function registerOutboundRoutes(
                 console.error("Error en /agente/out-maquita-documentos:", err);
                 return res.status(500).json({
                     error: "Error listando documentos de Out Maquita",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.get(
+        "/out-maquita-documentos-seguimiento",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const campaignId = String(req.query?.campaignId || "").trim();
+
+                if (!campaignId) {
+                    return res.status(400).json({
+                        error: "campaignId es requerido",
+                    });
+                }
+
+                if (!isOutMaquitaCampaign(campaignId)) {
+                    return res.status(400).json({
+                        error: "campaignId invalido para Out Maquita",
+                    });
+                }
+
+                const rows = await agenteDAO.listOutMaquitaDocumentTrackingRows(
+                    `${campaignId}%`,
+                );
+                const latestByIdentification = new Map();
+
+                for (const row of rows) {
+                    const identification = String(
+                        row?.IDENTIFICACION || "",
+                    ).trim();
+
+                    if (!identification || latestByIdentification.has(identification)) {
+                        continue;
+                    }
+
+                    const fileName = resolveOutMaquitaDocumentFileName(
+                        identification,
+                    );
+                    let additionalPayload = {};
+
+                    try {
+                        additionalPayload = row?.ClienteCamposAdicionalesJson
+                            ? JSON.parse(row.ClienteCamposAdicionalesJson)
+                            : {};
+                    } catch {
+                        additionalPayload = {};
+                    }
+
+                    latestByIdentification.set(identification, {
+                        contactId: String(row?.ContactId || "").trim(),
+                        campaignId: String(row?.CampaignId || "").trim(),
+                        identification,
+                        fullName: String(
+                            row?.NOMBRE_CLIENTE || row?.ContactName || "",
+                        ).trim(),
+                        celular: String(row?.ContactAddress || "").trim(),
+                        entregaDocumentos: String(row?.CAMPO2 || "").trim(),
+                        agenciaAsistir: String(row?.CAMPO3 || "").trim(),
+                        sourceChannel: String(
+                            row?.ImportId || "",
+                        ).toUpperCase().includes("REDES")
+                            ? "rrss"
+                            : String(row?.ImportId || "")
+                                    .toUpperCase()
+                                    .includes("MAIL")
+                              ? "mail"
+                              : "",
+                        documentStatus: normalizeOutMaquitaDocumentStatus(
+                            row?.CAMPO4,
+                        ),
+                        motivoInteraccion: String(row?.ResultLevel1 || "").trim(),
+                        submotivoInteraccion: String(row?.ResultLevel2 || "").trim(),
+                        observaciones: String(row?.Observaciones || "").trim(),
+                        documentComment: String(
+                            row?.CAMPO5 ||
+                                row?.ClienteCampo5 ||
+                                additionalPayload?.documentosComentario ||
+                                "",
+                        ).trim(),
+                        updatedAt: row?.TmStmp || null,
+                        pdfFileName: fileName,
+                        pdfUrl: fileName
+                            ? `/entrega_documentos/${fileName}`
+                            : null,
+                    });
+                }
+
+                return res.json({
+                    success: true,
+                    data: Array.from(latestByIdentification.values()),
+                });
+            } catch (err) {
+                console.error(
+                    "Error en /agente/out-maquita-documentos-seguimiento:",
+                    err,
+                );
+                return res.status(500).json({
+                    error: "Error listando seguimiento de documentos Out Maquita",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.post(
+        "/guardar-out-maquita-documentos-seguimiento",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const agenteActor = getAgentActor(req);
+                const campaignId = String(
+                    req.body?.campaignId || req.body?.campaign_id || "",
+                ).trim();
+                const identification = String(
+                    req.body?.identification || req.body?.identificacion || "",
+                ).trim();
+                const motivoInteraccion = String(
+                    req.body?.motivoInteraccion || "",
+                ).trim();
+                const submotivoInteraccion = String(
+                    req.body?.submotivoInteraccion || "",
+                ).trim();
+                const observaciones = String(
+                    req.body?.observaciones || "",
+                ).trim();
+
+                if (
+                    !campaignId ||
+                    !identification ||
+                    !motivoInteraccion ||
+                    !submotivoInteraccion
+                ) {
+                    return res.status(400).json({
+                        error: "campaignId, identification, motivoInteraccion y submotivoInteraccion son requeridos",
+                    });
+                }
+
+                if (!isOutMaquitaCampaign(campaignId)) {
+                    return res.status(400).json({
+                        error: "campaignId invalido para Out Maquita",
+                    });
+                }
+
+                const existingClient =
+                    await agenteDAO.getClienteByIdentificationAndCampaign(
+                        identification,
+                        `${campaignId}%`,
+                    );
+
+                if (!existingClient) {
+                    return res.status(404).json({
+                        error: "No se encontro el registro de Out Maquita",
+                    });
+                }
+
+                const contactId = String(
+                    existingClient?.ContactId || "",
+                ).trim();
+
+                if (!contactId) {
+                    return res.status(400).json({
+                        error: "El registro no tiene ContactId valido",
+                    });
+                }
+
+                let existingDynamicPayload = {};
+                try {
+                    existingDynamicPayload = existingClient?.CamposAdicionalesJson
+                        ? JSON.parse(existingClient.CamposAdicionalesJson)
+                        : {};
+                } catch {
+                    existingDynamicPayload = {};
+                }
+
+                const payloadJson = JSON.stringify({
+                    ...existingDynamicPayload,
+                    motivoInteraccion,
+                    submotivoInteraccion,
+                    observaciones,
+                });
+
+                await agenteDAO.updateOutboundClienteFollowupByContactId({
+                    contactId,
+                    agent: agenteActor,
+                    resultLevel1: motivoInteraccion,
+                    resultLevel2: submotivoInteraccion,
+                    payloadJson,
+                });
+
+                await agenteDAO.updateOutboundGestionFinalFollowupByContactId({
+                    contactId,
+                    agent: agenteActor,
+                    resultLevel1: motivoInteraccion,
+                    resultLevel2: submotivoInteraccion,
+                    observaciones,
+                });
+
+                return res.json({
+                    success: true,
+                    data: {
+                        contactId,
+                        identification,
+                        motivoInteraccion,
+                        submotivoInteraccion,
+                        observaciones,
+                    },
+                    message: "Seguimiento documental guardado",
+                });
+            } catch (err) {
+                console.error(
+                    "Error en /agente/guardar-out-maquita-documentos-seguimiento:",
+                    err,
+                );
+                return res.status(500).json({
+                    error: "Error guardando seguimiento documental de Out Maquita",
                     detail: err?.sqlMessage || err?.message || "",
                 });
             }

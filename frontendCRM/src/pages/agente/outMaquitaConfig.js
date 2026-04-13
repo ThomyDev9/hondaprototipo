@@ -16,6 +16,12 @@ export const OUT_MAQUITA_FLOW_OPTIONS = [
         description:
             "Gestiona los registros con entrega digital y adjunta su PDF.",
     },
+    {
+        id: "seguimiento",
+        title: "Seguimiento",
+        description:
+            "Revisa registros con documentos Completos/Incompletos y agrega comentarios.",
+    },
 ];
 
 export const OUT_MAQUITA_ENTREGA_DOCUMENTOS_OPTIONS = [

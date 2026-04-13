@@ -81,6 +81,7 @@ const LIST_OUT_MAQUITA_DOCUMENT_ROWS = `
     SELECT
         gf.ContactId,
         gf.CampaignId,
+        gf.ImportId,
         gf.IDENTIFICACION,
         gf.NOMBRE_CLIENTE,
         gf.ContactName,
@@ -101,6 +102,36 @@ const LIST_OUT_MAQUITA_DOCUMENT_ROWS = `
     WHERE gf.CampaignId LIKE ?
       AND TRIM(COALESCE(gf.CAMPO2, '')) = 'Entrega digital'
       AND TRIM(COALESCE(gf.CAMPO4, '')) <> 'Completos'
+    ORDER BY gf.TmStmp DESC, gf.ContactId DESC
+`;
+
+const LIST_OUT_MAQUITA_DOCUMENT_TRACKING_ROWS = `
+    SELECT
+        gf.ContactId,
+        gf.CampaignId,
+        gf.ImportId,
+        gf.IDENTIFICACION,
+        gf.NOMBRE_CLIENTE,
+        gf.ContactName,
+        gf.ContactAddress,
+        gf.CAMPO2,
+        gf.CAMPO3,
+        gf.CAMPO4,
+        gf.CAMPO5,
+        gf.CAMPO6,
+        gf.TmStmp,
+        gf.ResultLevel1,
+        gf.ResultLevel2,
+        gf.Observaciones,
+        co.CAMPO5 AS ClienteCampo5,
+        co.CAMPO6 AS ClienteCampo6,
+        co.CamposAdicionalesJson AS ClienteCamposAdicionalesJson
+    FROM ${outboundSchema}.gestionfinal_outbound gf
+    LEFT JOIN ${outboundSchema}.clientes_outbound co
+      ON co.ContactId = gf.ContactId
+    WHERE gf.CampaignId LIKE ?
+      AND TRIM(COALESCE(gf.CAMPO2, '')) IN ('Entrega digital', 'Entrega fisica')
+      AND UPPER(TRIM(COALESCE(gf.CAMPO4, ''))) IN ('COMPLETO', 'COMPLETOS', 'INCOMPLETO', 'INCOMPLETOS')
     ORDER BY gf.TmStmp DESC, gf.ContactId DESC
 `;
 
@@ -1578,6 +1609,14 @@ export class AgenteDAO {
         return rows;
     }
 
+    async listOutMaquitaDocumentTrackingRows(campaignLike, executor = this.pool) {
+        const [rows] = await executor.query(
+            LIST_OUT_MAQUITA_DOCUMENT_TRACKING_ROWS,
+            [campaignLike],
+        );
+        return rows;
+    }
+
     async updateOutboundClienteDocumentMetadataByContactId(
         {
             contactId,
@@ -1617,6 +1656,54 @@ export class AgenteDAO {
             WHERE ContactId = ?
             `,
             [documentStatus, documentComment, contactId],
+        );
+    }
+
+    async updateOutboundClienteFollowupByContactId(
+        {
+            contactId,
+            agent = "",
+            resultLevel1 = "",
+            resultLevel2 = "",
+            payloadJson = null,
+        },
+        executor = this.pool,
+    ) {
+        return executor.query(
+            `
+            UPDATE ${outboundSchema}.clientes_outbound
+            SET LastAgent = ?,
+                ResultLevel1 = ?,
+                ResultLevel2 = ?,
+                CamposAdicionalesJson = COALESCE(?, CamposAdicionalesJson),
+                TmStmp = NOW()
+            WHERE ContactId = ?
+            `,
+            [agent, resultLevel1, resultLevel2, payloadJson, contactId],
+        );
+    }
+
+    async updateOutboundGestionFinalFollowupByContactId(
+        {
+            contactId,
+            agent = "",
+            resultLevel1 = "",
+            resultLevel2 = "",
+            observaciones = "",
+        },
+        executor = this.pool,
+    ) {
+        return executor.query(
+            `
+            UPDATE ${outboundSchema}.gestionfinal_outbound
+            SET Agent = ?,
+                ResultLevel1 = ?,
+                ResultLevel2 = ?,
+                Observaciones = ?,
+                TmStmp = NOW()
+            WHERE ContactId = ?
+            `,
+            [agent, resultLevel1, resultLevel2, observaciones, contactId],
         );
     }
 
