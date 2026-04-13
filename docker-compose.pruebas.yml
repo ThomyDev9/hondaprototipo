@@ -25,7 +25,7 @@ services:
       context: ./frontendCRM
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE: ${VITE_API_BASE_PRUEBAS:-http://186.5.32.134:4005}
+        VITE_API_BASE: ${VITE_API_BASE_PRUEBAS:-/api}
     container_name: frontendCRM_pruebas
     restart: always
     ports:
