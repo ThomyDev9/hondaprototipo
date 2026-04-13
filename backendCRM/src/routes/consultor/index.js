@@ -1,4 +1,6 @@
 import express from "express";
+import fs from "node:fs";
+import path from "node:path";
 import pool from "../../services/db.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
@@ -7,6 +9,15 @@ import {
 } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
+const entregaDocumentosDir =
+    process.env.ENTREGA_DOCUMENTOS_PATH ||
+    path.join(process.cwd(), "entrega_documentos");
+const CREDIT_STATUS_OPTIONS = new Set([
+    "Negado",
+    "Aprobado",
+    "Desembolsado",
+    "Pendiente regularizacion",
+]);
 
 router.use(
     requireAuth,
@@ -16,6 +27,32 @@ router.use(
 
 function normalizeValue(value) {
     return String(value || "").trim();
+}
+
+function parseJsonObject(value) {
+    try {
+        const parsed = value ? JSON.parse(value) : {};
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? parsed
+            : {};
+    } catch {
+        return {};
+    }
+}
+
+function normalizeDocumentStatus(value) {
+    const raw = normalizeValue(value);
+    const upper = raw.toUpperCase();
+
+    if (["COMPLETO", "COMPLETOS"].includes(upper)) {
+        return "Completos";
+    }
+
+    if (["INCOMPLETO", "INCOMPLETOS"].includes(upper)) {
+        return "Incompletos";
+    }
+
+    return raw || "Sin estado";
 }
 
 function hasRole(req, role) {
@@ -406,6 +443,562 @@ function buildAssignedDateRange(req, alias = "el") {
 
     return { where, params };
 }
+
+function sanitizeDocumentSegment(value) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9_-]/g, "_")
+        .replace(/_+/g, "_")
+        .trim();
+}
+
+function resolveConsultorDocumentFile(identification = "") {
+    const safeIdentification = sanitizeDocumentSegment(identification);
+    if (!safeIdentification || !fs.existsSync(entregaDocumentosDir)) {
+        return null;
+    }
+
+    const files = fs.readdirSync(entregaDocumentosDir);
+    const fileName =
+        files.find((file) => {
+            const normalized = String(file || "").toLowerCase();
+            return (
+                normalized.endsWith(".pdf") &&
+                normalized.startsWith(safeIdentification.toLowerCase())
+            );
+        }) || null;
+
+    if (!fileName) {
+        return null;
+    }
+
+    return {
+        fileName,
+        url: `/entrega_documentos/${fileName}`,
+    };
+}
+
+router.get("/document-tracking", async (req, res) => {
+    try {
+        const deliveryMode = normalizeValue(req.query?.deliveryMode);
+        const documentStatus = normalizeValue(req.query?.documentStatus);
+        const search = normalizeValue(req.query?.search);
+        const where = [
+            "gf.CampaignId LIKE 'Out Maquita Cushunchic%'",
+            "TRIM(COALESCE(gf.CAMPO2, '')) IN ('Entrega digital', 'Entrega fisica')",
+        ];
+        const params = [];
+
+        if (deliveryMode) {
+            where.push("TRIM(COALESCE(gf.CAMPO2, '')) = ?");
+            params.push(deliveryMode);
+        }
+
+        if (documentStatus === "Sin estado") {
+            where.push("TRIM(COALESCE(gf.CAMPO4, '')) = ''");
+        } else if (documentStatus) {
+            where.push("TRIM(COALESCE(gf.CAMPO4, '')) = ?");
+            params.push(documentStatus);
+        }
+
+        if (search) {
+            where.push(
+                "(gf.IDENTIFICACION LIKE ? OR gf.NOMBRE_CLIENTE LIKE ? OR gf.ContactName LIKE ? OR gf.ContactAddress LIKE ?)",
+            );
+            params.push(
+                `%${search}%`,
+                `%${search}%`,
+                `%${search}%`,
+                `%${search}%`,
+            );
+        }
+
+        const [rows] = await pool.query(
+            `
+            SELECT
+                gf.Id,
+                gf.ContactId,
+                gf.CampaignId,
+                gf.ImportId,
+                gf.IDENTIFICACION,
+                gf.NOMBRE_CLIENTE,
+                gf.ContactName,
+                gf.ContactAddress,
+                gf.CAMPO2,
+                gf.CAMPO3,
+                gf.CAMPO4,
+                gf.CAMPO5,
+                gf.CAMPO6,
+                gf.TmStmp,
+                gf.RESPUESTA_11,
+                gf.RESPUESTA_13,
+                gf.RESPUESTA_14,
+                gf.RESPUESTA_15,
+                co.CAMPO5 AS CLIENTE_CAMPO5,
+                co.CAMPO6 AS CLIENTE_CAMPO6,
+                co.CamposAdicionalesJson
+            FROM gestionfinal_outbound gf
+            LEFT JOIN clientes_outbound co
+              ON co.ContactId = gf.ContactId
+            WHERE ${where.join(" AND ")}
+            ORDER BY gf.TmStmp DESC, gf.Id DESC
+            `,
+            params,
+        );
+
+        const latestByIdentification = new Map();
+
+        rows.forEach((row) => {
+            const identification = normalizeValue(row.IDENTIFICACION);
+            if (!identification || latestByIdentification.has(identification)) {
+                return;
+            }
+
+            let payload = {};
+            try {
+                payload = row?.CamposAdicionalesJson
+                    ? JSON.parse(row.CamposAdicionalesJson)
+                    : {};
+            } catch {
+                payload = {};
+            }
+            const documentFile = resolveConsultorDocumentFile(
+                row.IDENTIFICACION,
+            );
+
+            const normalizedStatus = normalizeDocumentStatus(row.CAMPO4);
+            const importId = normalizeValue(row.ImportId).toUpperCase();
+            const sourceChannel = importId.includes("REDES")
+                ? "rrss"
+                : importId.includes("MAIL")
+                  ? "mail"
+                  : "";
+
+            latestByIdentification.set(identification, {
+                id: Number(row.Id || 0),
+                contact_id: normalizeValue(row.ContactId),
+                campaign_id: normalizeValue(row.CampaignId),
+                source_channel: sourceChannel,
+                identification,
+                full_name:
+                    normalizeValue(row.NOMBRE_CLIENTE) ||
+                    normalizeValue(row.ContactName),
+                celular: normalizeValue(row.ContactAddress),
+                delivery_mode: normalizeValue(row.CAMPO2),
+                agency: normalizeValue(row.CAMPO3),
+                document_status: normalizedStatus,
+                credit_status:
+                    normalizeValue(row.CAMPO6) ||
+                    normalizeValue(row.CLIENTE_CAMPO6) ||
+                    normalizeValue(payload.estadoCredito),
+                comment:
+                    normalizeValue(row.CAMPO5) ||
+                    normalizeValue(row.CLIENTE_CAMPO5) ||
+                    normalizeValue(payload.documentosComentario),
+                respuesta_11: normalizeValue(row.RESPUESTA_11),
+                respuesta_13: normalizeValue(row.RESPUESTA_13),
+                respuesta_14: normalizeValue(row.RESPUESTA_14),
+                respuesta_15: normalizeValue(row.RESPUESTA_15),
+                pdf_file_name: documentFile?.fileName || "",
+                pdf_url: documentFile?.url || "",
+                updated_at: row.TmStmp || null,
+            });
+        });
+
+        const items = Array.from(latestByIdentification.values());
+
+        const totals = items.reduce(
+            (acc, item) => {
+                acc.total += 1;
+                if (item.delivery_mode === "Entrega digital") {
+                    acc.digital += 1;
+                }
+                if (item.delivery_mode === "Entrega fisica") {
+                    acc.fisica += 1;
+                }
+                if (item.document_status === "Completos") {
+                    acc.completos += 1;
+                } else if (item.document_status === "Incompletos") {
+                    acc.incompletos += 1;
+                } else {
+                    acc.sin_estado += 1;
+                }
+                return acc;
+            },
+            {
+                total: 0,
+                digital: 0,
+                fisica: 0,
+                completos: 0,
+                incompletos: 0,
+                sin_estado: 0,
+            },
+        );
+
+        return res.json({
+            data: {
+                items,
+                totals,
+            },
+        });
+    } catch (err) {
+        console.error("Error GET /consultor/document-tracking:", err);
+        return res.status(500).json({
+            error: "Error obteniendo seguimiento documental",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
+router.get("/credit-status-tracking", async (req, res) => {
+    try {
+        const creditStatus = normalizeValue(req.query?.creditStatus);
+        const search = normalizeValue(req.query?.search);
+        const where = [
+            "gf.CampaignId LIKE 'Out Maquita Cushunchic%'",
+            "TRIM(COALESCE(gf.CAMPO2, '')) IN ('Entrega digital', 'Entrega fisica')",
+            "UPPER(TRIM(COALESCE(gf.CAMPO4, ''))) IN ('COMPLETO', 'COMPLETOS')",
+        ];
+        const params = [];
+
+        if (search) {
+            where.push(
+                "(gf.IDENTIFICACION LIKE ? OR gf.NOMBRE_CLIENTE LIKE ? OR gf.ContactName LIKE ? OR gf.ContactAddress LIKE ?)",
+            );
+            params.push(
+                `%${search}%`,
+                `%${search}%`,
+                `%${search}%`,
+                `%${search}%`,
+            );
+        }
+
+        const [rows] = await pool.query(
+            `
+            SELECT
+                gf.Id,
+                gf.ContactId,
+                gf.CampaignId,
+                gf.ImportId,
+                gf.IDENTIFICACION,
+                gf.NOMBRE_CLIENTE,
+                gf.ContactName,
+                gf.ContactAddress,
+                gf.CAMPO2,
+                gf.CAMPO3,
+                gf.CAMPO4,
+                gf.CAMPO5,
+                gf.CAMPO6,
+                gf.TmStmp,
+                co.CAMPO5 AS CLIENTE_CAMPO5,
+                co.CAMPO6 AS CLIENTE_CAMPO6,
+                co.CamposAdicionalesJson
+            FROM gestionfinal_outbound gf
+            LEFT JOIN clientes_outbound co
+              ON co.ContactId = gf.ContactId
+            WHERE ${where.join(" AND ")}
+            ORDER BY gf.TmStmp DESC, gf.Id DESC
+            `,
+            params,
+        );
+
+        const latestByIdentification = new Map();
+
+        rows.forEach((row) => {
+            const identification = normalizeValue(row.IDENTIFICACION);
+            if (!identification || latestByIdentification.has(identification)) {
+                return;
+            }
+
+            const payload = parseJsonObject(row.CamposAdicionalesJson);
+            const normalizedCreditStatus =
+                normalizeValue(row.CAMPO6) ||
+                normalizeValue(row.CLIENTE_CAMPO6) ||
+                normalizeValue(payload.estadoCredito);
+
+            if (creditStatus === "Sin estado" && normalizedCreditStatus) {
+                return;
+            }
+            if (
+                creditStatus &&
+                creditStatus !== "Sin estado" &&
+                normalizedCreditStatus !== creditStatus
+            ) {
+                return;
+            }
+
+            latestByIdentification.set(identification, {
+                id: Number(row.Id || 0),
+                contact_id: normalizeValue(row.ContactId),
+                campaign_id: normalizeValue(row.CampaignId),
+                source_channel: normalizeValue(row.ImportId).toUpperCase().includes("REDES")
+                    ? "rrss"
+                    : normalizeValue(row.ImportId).toUpperCase().includes("MAIL")
+                      ? "mail"
+                      : "",
+                identification,
+                full_name:
+                    normalizeValue(row.NOMBRE_CLIENTE) ||
+                    normalizeValue(row.ContactName),
+                celular: normalizeValue(row.ContactAddress),
+                delivery_mode: normalizeValue(row.CAMPO2),
+                agency: normalizeValue(row.CAMPO3),
+                document_status: "Completos",
+                credit_status: normalizedCreditStatus,
+                updated_at: row.TmStmp || null,
+            });
+        });
+
+        const items = Array.from(latestByIdentification.values());
+        const totals = items.reduce(
+            (acc, item) => {
+                acc.total += 1;
+
+                const status = item.credit_status;
+                if (status === "Negado") {
+                    acc.negado += 1;
+                } else if (status === "Aprobado") {
+                    acc.aprobado += 1;
+                } else if (status === "Desembolsado") {
+                    acc.desembolsado += 1;
+                } else if (status === "Pendiente regularizacion") {
+                    acc.pendiente_regularizacion += 1;
+                } else {
+                    acc.sin_estado += 1;
+                }
+
+                return acc;
+            },
+            {
+                total: 0,
+                negado: 0,
+                aprobado: 0,
+                desembolsado: 0,
+                pendiente_regularizacion: 0,
+                sin_estado: 0,
+            },
+        );
+
+        return res.json({
+            data: {
+                items,
+                totals,
+            },
+        });
+    } catch (err) {
+        console.error("Error GET /consultor/credit-status-tracking:", err);
+        return res.status(500).json({
+            error: "Error obteniendo estado de credito",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
+router.patch("/credit-status", async (req, res) => {
+    try {
+        const contactId = normalizeValue(req.body?.contactId);
+        const identification = normalizeValue(req.body?.identification);
+        const creditStatus = normalizeValue(req.body?.creditStatus);
+
+        if (!creditStatus || !CREDIT_STATUS_OPTIONS.has(creditStatus)) {
+            return res.status(400).json({
+                error: "Estado de credito invalido",
+            });
+        }
+
+        if (!contactId && !identification) {
+            return res.status(400).json({
+                error: "Debes enviar contactId o identification",
+            });
+        }
+
+        const whereByContact =
+            "TRIM(COALESCE(gf.ContactId, '')) = ? AND gf.CampaignId LIKE 'Out Maquita Cushunchic%'";
+        const whereByIdentification =
+            "TRIM(COALESCE(gf.IDENTIFICACION, '')) = ? AND gf.CampaignId LIKE 'Out Maquita Cushunchic%'";
+
+        const [latestRows] = await pool.query(
+            `
+            SELECT
+                gf.ContactId,
+                gf.IDENTIFICACION,
+                gf.CAMPO4,
+                gf.CAMPO5,
+                gf.CAMPO6,
+                co.CAMPO5 AS CLIENTE_CAMPO5,
+                co.CAMPO6 AS CLIENTE_CAMPO6,
+                co.CamposAdicionalesJson
+            FROM gestionfinal_outbound gf
+            LEFT JOIN clientes_outbound co
+              ON co.ContactId = gf.ContactId
+            WHERE ${
+                contactId
+                    ? whereByContact
+                    : whereByIdentification
+            }
+            ORDER BY gf.TmStmp DESC, gf.Id DESC
+            LIMIT 1
+            `,
+            [contactId || identification],
+        );
+
+        const row = latestRows[0] || null;
+        if (!row) {
+            return res.status(404).json({
+                error: "No se encontro el registro en Out Maquita",
+            });
+        }
+
+        if (normalizeDocumentStatus(row.CAMPO4) !== "Completos") {
+            return res.status(400).json({
+                error: "Solo se puede actualizar estado de credito con documentos Completos",
+            });
+        }
+
+        const resolvedContactId = normalizeValue(row.ContactId);
+        if (!resolvedContactId) {
+            return res.status(400).json({
+                error: "El registro no tiene ContactId valido",
+            });
+        }
+
+        const payload = parseJsonObject(row.CamposAdicionalesJson);
+        payload.estadoCredito = creditStatus;
+
+        await pool.query(
+            `
+            UPDATE clientes_outbound
+            SET
+                CAMPO6 = ?,
+                CamposAdicionalesJson = ?,
+                TmStmp = CURRENT_TIMESTAMP
+            WHERE ContactId = ?
+            `,
+            [creditStatus, JSON.stringify(payload), resolvedContactId],
+        );
+
+        await pool.query(
+            `
+            UPDATE gestionfinal_outbound
+            SET
+                CAMPO6 = ?,
+                TmStmp = CURRENT_TIMESTAMP
+            WHERE ContactId = ?
+            `,
+            [creditStatus, resolvedContactId],
+        );
+
+        return res.json({
+            message: "Estado de credito actualizado correctamente",
+            data: {
+                contact_id: resolvedContactId,
+                identification: normalizeValue(row.IDENTIFICACION),
+                credit_status: creditStatus,
+            },
+        });
+    } catch (err) {
+        console.error("Error PATCH /consultor/credit-status:", err);
+        return res.status(500).json({
+            error: "Error actualizando estado de credito",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
+router.patch("/document-comment", async (req, res) => {
+    try {
+        const contactId = normalizeValue(req.body?.contactId);
+        const identification = normalizeValue(req.body?.identification);
+        const documentComment = normalizeValue(req.body?.documentComment);
+
+        if (!contactId && !identification) {
+            return res.status(400).json({
+                error: "Debes enviar contactId o identification",
+            });
+        }
+
+        const whereByContact =
+            "TRIM(COALESCE(gf.ContactId, '')) = ? AND gf.CampaignId LIKE 'Out Maquita Cushunchic%'";
+        const whereByIdentification =
+            "TRIM(COALESCE(gf.IDENTIFICACION, '')) = ? AND gf.CampaignId LIKE 'Out Maquita Cushunchic%'";
+
+        const [latestRows] = await pool.query(
+            `
+            SELECT
+                gf.ContactId,
+                gf.IDENTIFICACION,
+                co.CamposAdicionalesJson
+            FROM gestionfinal_outbound gf
+            LEFT JOIN clientes_outbound co
+              ON co.ContactId = gf.ContactId
+            WHERE ${
+                contactId
+                    ? whereByContact
+                    : whereByIdentification
+            }
+            ORDER BY gf.TmStmp DESC, gf.Id DESC
+            LIMIT 1
+            `,
+            [contactId || identification],
+        );
+
+        const row = latestRows[0] || null;
+        if (!row) {
+            return res.status(404).json({
+                error: "No se encontro el registro en Out Maquita",
+            });
+        }
+
+        const resolvedContactId = normalizeValue(row.ContactId);
+        if (!resolvedContactId) {
+            return res.status(400).json({
+                error: "El registro no tiene ContactId valido",
+            });
+        }
+
+        const payload = parseJsonObject(row.CamposAdicionalesJson);
+        payload.documentosComentario = documentComment;
+
+        await pool.query(
+            `
+            UPDATE clientes_outbound
+            SET
+                CAMPO5 = ?,
+                CamposAdicionalesJson = ?,
+                TmStmp = CURRENT_TIMESTAMP
+            WHERE ContactId = ?
+            `,
+            [documentComment, JSON.stringify(payload), resolvedContactId],
+        );
+
+        await pool.query(
+            `
+            UPDATE gestionfinal_outbound
+            SET
+                CAMPO5 = ?,
+                TmStmp = CURRENT_TIMESTAMP
+            WHERE ContactId = ?
+            `,
+            [documentComment, resolvedContactId],
+        );
+
+        return res.json({
+            message: "Comentario documental actualizado correctamente",
+            data: {
+                contact_id: resolvedContactId,
+                identification: normalizeValue(row.IDENTIFICACION),
+                comment: documentComment,
+            },
+        });
+    } catch (err) {
+        console.error("Error PATCH /consultor/document-comment:", err);
+        return res.status(500).json({
+            error: "Error actualizando comentario documental",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
 
 router.get("/leads", async (req, res) => {
     try {

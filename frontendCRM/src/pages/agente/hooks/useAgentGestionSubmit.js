@@ -21,11 +21,25 @@ const INBOUND_SPECIAL_FIELDS_META = [
 const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
 const REDES_SHARED_LABEL = "gestion redes";
 const MANUAL_DUPLICATE_WINDOW_MS = 15000;
+const INBOUND_UPLOAD_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const INBOUND_UPLOAD_ALLOWED_MIME_TYPES = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+]);
 let isManualGestionSubmitInFlight = false;
 let lastSuccessfulManualSubmit = {
     signature: "",
     savedAt: 0,
 };
+let pendingManualImageUpload = null;
 
 function normalizeFlowLabel(value) {
     return String(value || "")
@@ -387,9 +401,126 @@ export default function useAgentGestionSubmit({
                         return;
                     }
 
+                    if (
+                        pendingManualImageUpload &&
+                        pendingManualImageUpload.signature !== manualSubmitSignature
+                    ) {
+                        pendingManualImageUpload = null;
+                    }
+
                     const saveManualGestion = isRedesManualFlow
                         ? guardarGestionRedes
                         : guardarGestionInbound;
+
+                    const imagesToUpload = (inboundImageDrafts || []).filter(
+                        (item) => item?.file instanceof File,
+                    );
+
+                    const invalidImageType = imagesToUpload.find((item) => {
+                        const mimeType = String(
+                            item?.file?.type || "",
+                        ).toLowerCase();
+                        return !INBOUND_UPLOAD_ALLOWED_MIME_TYPES.has(mimeType);
+                    });
+
+                    if (invalidImageType) {
+                        setError(
+                            "Formato de archivo no permitido. Usa PNG, JPG, JPEG, WEBP, PDF, Word, Excel o TXT.",
+                        );
+                        return;
+                    }
+
+                    const oversizedImage = imagesToUpload.find(
+                        (item) =>
+                            Number(item?.file?.size || 0) >
+                            INBOUND_UPLOAD_MAX_FILE_SIZE_BYTES,
+                    );
+
+                    if (oversizedImage) {
+                        setError(
+                            "Uno o más archivos superan el límite de 10MB. Reduce el tamaño antes de guardar.",
+                        );
+                        return;
+                    }
+
+                    const uploadInboundDraftImages = async ({
+                        interactionId,
+                        contactId,
+                        clienteInboundId,
+                        gestionInboundId,
+                    }) => {
+                        const formData = new FormData();
+                        formData.append("interactionId", String(interactionId || "").trim());
+                        formData.append("contactId", String(contactId || "").trim());
+                        formData.append(
+                            "clienteInboundId",
+                            String(clienteInboundId || "").trim(),
+                        );
+                        formData.append(
+                            "gestionInboundId",
+                            String(gestionInboundId || "").trim(),
+                        );
+                        formData.append("campaignId", campaignIdToUse);
+                        formData.append(
+                            "categoryId",
+                            String(categoryIdSeleccionada || "").trim(),
+                        );
+                        formData.append(
+                            "menuItemId",
+                            String(menuItemIdToUse || "").trim(),
+                        );
+                        formData.append(
+                            "nombreClienteRef",
+                            String(
+                                inboundFormData?.nombreCliente ||
+                                    selectedInboundOption?.label ||
+                                    "",
+                            ).trim(),
+                        );
+                        for (const item of imagesToUpload) {
+                            formData.append("images", item.file);
+                        }
+
+                        return uploadInboundImages(formData);
+                    };
+
+                    if (
+                        pendingManualImageUpload &&
+                        pendingManualImageUpload.signature === manualSubmitSignature
+                    ) {
+                        if (imagesToUpload.length === 0) {
+                            setError(
+                                "La gestión ya está creada. Adjunta archivos válidos para completar la carga de imágenes.",
+                            );
+                            return;
+                        }
+
+                        const uploadResponse = await uploadInboundDraftImages({
+                            interactionId: pendingManualImageUpload.interactionId,
+                            contactId: pendingManualImageUpload.contactId,
+                            clienteInboundId:
+                                pendingManualImageUpload.clienteInboundId,
+                            gestionInboundId:
+                                pendingManualImageUpload.gestionInboundId,
+                        });
+
+                        if (!uploadResponse.ok) {
+                            setError(
+                                uploadResponse?.json?.detail ||
+                                    uploadResponse?.json?.error ||
+                                    "No se pudo cargar las imágenes. Corrige los archivos e inténtalo de nuevo.",
+                            );
+                            return;
+                        }
+
+                        pendingManualImageUpload = null;
+                        lastSuccessfulManualSubmit = {
+                            signature: manualSubmitSignature,
+                            savedAt: Date.now(),
+                        };
+                        resetManualGestionDraft?.();
+                        return;
+                    }
 
                     const { status, ok, json } = await saveManualGestion({
                         campaignId: campaignIdToUse,
@@ -422,61 +553,38 @@ export default function useAgentGestionSubmit({
                         return;
                     }
 
-                    const imagesToUpload = (inboundImageDrafts || []).filter(
-                        (item) => item?.file instanceof File,
-                    );
-
                     if (imagesToUpload.length > 0) {
-                        const formData = new FormData();
-                        formData.append(
-                            "interactionId",
-                            String(json?.interactionId || "").trim(),
-                        );
-                        formData.append(
-                            "contactId",
-                            String(json?.contactId || "").trim(),
-                        );
-                        formData.append(
-                            "clienteInboundId",
-                            String(json?.clienteInboundId || "").trim(),
-                        );
-                        formData.append(
-                            "gestionInboundId",
-                            String(json?.gestionInboundId || "").trim(),
-                        );
-                        formData.append("campaignId", campaignIdToUse);
-                        formData.append(
-                            "categoryId",
-                            String(categoryIdSeleccionada || "").trim(),
-                        );
-                        formData.append(
-                            "menuItemId",
-                            String(menuItemIdToUse || "").trim(),
-                        );
-                        formData.append(
-                            "nombreClienteRef",
-                            String(
-                                inboundFormData?.nombreCliente ||
-                                    selectedInboundOption?.label ||
-                                    "",
-                            ).trim(),
-                        );
-                        for (const item of imagesToUpload) {
-                            formData.append("images", item.file);
-                        }
-
-                        const uploadResponse = await uploadInboundImages(formData);
+                        const uploadResponse = await uploadInboundDraftImages({
+                            interactionId: json?.interactionId,
+                            contactId: json?.contactId,
+                            clienteInboundId: json?.clienteInboundId,
+                            gestionInboundId: json?.gestionInboundId,
+                        });
 
                         if (!uploadResponse.ok) {
+                            pendingManualImageUpload = {
+                                signature: manualSubmitSignature,
+                                interactionId: String(
+                                    json?.interactionId || "",
+                                ).trim(),
+                                contactId: String(json?.contactId || "").trim(),
+                                clienteInboundId: String(
+                                    json?.clienteInboundId || "",
+                                ).trim(),
+                                gestionInboundId: String(
+                                    json?.gestionInboundId || "",
+                                ).trim(),
+                            };
                             setError(
                                 uploadResponse?.json?.detail ||
                                     uploadResponse?.json?.error ||
-                                    "La gestión se guardó, pero falló la carga de imágenes.",
+                                    "No se pudo cargar las imágenes. Corrige los archivos y vuelve a guardar; se reintentará solo la carga sin duplicar la gestión.",
                             );
                             return;
                         }
                     }
 
+                    pendingManualImageUpload = null;
                     lastSuccessfulManualSubmit = {
                         signature: manualSubmitSignature,
                         savedAt: Date.now(),

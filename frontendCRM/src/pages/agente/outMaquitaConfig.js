@@ -39,11 +39,11 @@ export const OUT_MAQUITA_MAIL_MOTIVOS = [
     "No contactado",
     "Volver a llamar",
     "Numero equivocado",
-    "Grabadora.",
-    "Contesta tercero.",
-    "Cuelga llamada.",
-    "Seguimiento.",
-    "Inubicalbe",
+    "Grabadora",
+    "Contesta tercero",
+    "Cuelga llamada",
+    "Seguimiento",
+    "Inubicable",
     "No aplica",
     "Duplicado",
 ];
@@ -60,6 +60,7 @@ export const OUT_MAQUITA_MAIL_SUBMOTIVOS = [
     "Desembolsado",
     "Telefono imcompleto",
     "Duplicado",
+    "No acepta producto sugerido",
     "Rechazado",
 ];
 
@@ -77,6 +78,14 @@ export const OUT_MAQUITA_RRSS_SUBMOTIVOS = [
     "Se acercara a la agencia",
     "Contesta tercero",
     "Volver a llamar",
+    "Proces de venta",
+    "Sin cobertura",
+    "Equivocado",
+    "cliente indeciso",
+    "Informacion incorrecta",
+    "Grabadora",
+    "Se entrega informacion por redes",
+    "No acepta producto sugerido",
     "Duplicado",
 ];
 
@@ -97,7 +106,9 @@ export function getFirstNonEmptyValue(source, keys = []) {
 
 export function getRegistroIdentification(source) {
     return String(
-        source?.identificacion ||
+        source?.identification ||
+            source?.IDENTIFICACION ||
+            source?.identificacion ||
             source?.Identificacion ||
             source?.["N�mero de Cedula"] ||
             source?.["Numero de Cedula"] ||
@@ -115,7 +126,9 @@ export function getRegistroIdentification(source) {
 
 export function getMailRegistroIdentification(source) {
     return String(
-        source?.identificacion ||
+        source?.identification ||
+            source?.IDENTIFICACION ||
+            source?.identificacion ||
             source?.Identificacion ||
             source?.["N� de c�dula"] ||
             source?.["N� de c�dula"] ||
@@ -129,7 +142,9 @@ export function getMailRegistroIdentification(source) {
 
 export function getRrssRegistroIdentification(source) {
     return String(
-        source?.identificacion ||
+        source?.identification ||
+            source?.IDENTIFICACION ||
+            source?.identificacion ||
             source?.Identificacion ||
             source?.["N�mero de Cedula"] ||
             source?.["Numero de Cedula"] ||

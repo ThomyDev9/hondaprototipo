@@ -60,6 +60,44 @@ export const fetchConsultorLeadStats = ({
     return request(`consultor/leads-stats?${params.toString()}`);
 };
 
+export const fetchConsultorDocumentTracking = ({
+    deliveryMode = "",
+    documentStatus = "",
+    search = "",
+} = {}) => {
+    const params = new URLSearchParams();
+    if (deliveryMode) params.set("deliveryMode", deliveryMode);
+    if (documentStatus) params.set("documentStatus", documentStatus);
+    if (search) params.set("search", search);
+
+    return request(`consultor/document-tracking?${params.toString()}`);
+};
+
+export const fetchConsultorCreditStatusTracking = ({
+    creditStatus = "",
+    search = "",
+} = {}) => {
+    const params = new URLSearchParams();
+    if (creditStatus) params.set("creditStatus", creditStatus);
+    if (search) params.set("search", search);
+
+    return request(`consultor/credit-status-tracking?${params.toString()}`);
+};
+
+export const updateConsultorCreditStatus = (payload) =>
+    request("consultor/credit-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+export const updateConsultorDocumentComment = (payload) =>
+    request("consultor/document-comment", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
 export const fetchConsultorPerformanceSummary = ({
     dateFrom = "",
     dateTo = "",

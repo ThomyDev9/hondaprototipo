@@ -3,12 +3,16 @@ import { AuthContext } from "../../context/AuthContext";
 import {
     assignPendingConsultorLeads,
     fetchConsultorAssignmentConfig,
+    fetchConsultorCreditStatusTracking,
+    fetchConsultorDocumentTracking,
     fetchConsultorLeadById,
     fetchConsultorLeads,
     fetchConsultorLeadStats,
     fetchConsultorPerformanceSummary,
     fetchConsultorUsers,
     reassignConsultorLeads,
+    updateConsultorCreditStatus,
+    updateConsultorDocumentComment,
     updateConsultorAssignmentConfig,
     updateConsultorLead,
 } from "../../services/consultor.service";
@@ -34,6 +38,41 @@ const REASSIGN_CHANNEL_OPTIONS = [
     { value: "rrss", label: "RRSS" },
 ];
 
+const DOCUMENT_DELIVERY_OPTIONS = [
+    { value: "", label: "Todas las entregas" },
+    { value: "Entrega digital", label: "Entrega digital" },
+    { value: "Entrega fisica", label: "Entrega fisica" },
+];
+
+const DOCUMENT_STATUS_OPTIONS = [
+    { value: "", label: "Todos los estados" },
+    { value: "Completos", label: "Completos" },
+    { value: "Incompletos", label: "Incompletos" },
+    { value: "Sin estado", label: "Sin estado" },
+];
+
+const CREDIT_STATUS_FILTER_OPTIONS = [
+    { value: "", label: "Todos los estados" },
+    { value: "Negado", label: "Negado" },
+    { value: "Aprobado", label: "Aprobado" },
+    { value: "Desembolsado", label: "Desembolsado" },
+    {
+        value: "Pendiente regularizacion",
+        label: "Pendiente regularizacion",
+    },
+    { value: "Sin estado", label: "Sin estado" },
+];
+
+const CREDIT_STATUS_OPTIONS = [
+    { value: "Negado", label: "Negado" },
+    { value: "Aprobado", label: "Aprobado" },
+    { value: "Desembolsado", label: "Desembolsado" },
+    {
+        value: "Pendiente regularizacion",
+        label: "Pendiente regularizacion",
+    },
+];
+
 const RRSS_PRODUCT_OPTIONS = [
     { value: "", label: "Selecciona producto" },
     { value: "credito", label: "Credito" },
@@ -53,25 +92,6 @@ const RRSS_PROCESS_OPTIONS = [
     { value: "agencia", label: "Agencia" },
     { value: "cedula no existe", label: "Cedula no existe" },
     { value: "cedula incorrecta", label: "Cedula incorrecta" },
-];
-
-const MAIL_ESTATUS_OPTIONS = [
-    { value: "", label: "Selecciona estatus" },
-    { value: "desembolso", label: "Desembolso" },
-    { value: "entrega de documentos", label: "Entrega de documentos" },
-    { value: "negado", label: "Negado" },
-];
-
-const MAIL_AGENCIA_OPTIONS = [
-    { value: "", label: "Selecciona agencia" },
-    { value: "quito sur", label: "Quito Sur" },
-    { value: "arcadia", label: "Arcadia" },
-    { value: "chillogallo", label: "Chillogallo" },
-    { value: "america", label: "America" },
-    { value: "centro", label: "Centro" },
-    { value: "carapungo", label: "Carapungo" },
-    { value: "tumbaco", label: "Tumbaco" },
-    { value: "portoviejo", label: "Portoviejo" },
 ];
 
 function emptyForm() {
@@ -169,9 +189,47 @@ function getMissingFields(lead) {
     return missing;
 }
 
+function getDocumentAgencyFields(item) {
+    const channel = normalize(item?.source_channel).toLowerCase();
+
+    if (channel === "rrss") {
+        return [
+            {
+                label: "Producto",
+                value: item?.respuesta_13 || "",
+            },
+            {
+                label: "Observacion agente maquita",
+                value: item?.respuesta_14 || "",
+            },
+            {
+                label: "Proceso a realizar",
+                value: item?.respuesta_15 || "",
+            },
+        ];
+    }
+
+    return [
+        {
+            label: "Proceso a realizar",
+            value: item?.respuesta_11 || "",
+        },
+        {
+            label: "Estatus",
+            value: item?.respuesta_13 || "",
+        },
+        {
+            label: "Agencia",
+            value: item?.respuesta_14 || "",
+        },
+    ];
+}
+
 export default function DashboardConsultor({ page = "consultor-leads" }) {
     const { userInfo } = useContext(AuthContext);
     const isAdmin = Boolean(userInfo?.roles?.includes("CONSULTOR_ADMIN"));
+    const isDocumentsPage = page === "consultor-documents";
+    const isCreditStatusPage = page === "consultor-credit-status";
     const isReassignPage = isAdmin && page === "consultor-reassign";
     const isAssignmentConfigPage =
         isAdmin && page === "consultor-assignment";
@@ -244,6 +302,41 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         quantity: 1,
         sourceChannel: "",
     });
+    const [documentFilters, setDocumentFilters] = useState({
+        deliveryMode: "",
+        documentStatus: "",
+        search: "",
+    });
+    const [documentTracking, setDocumentTracking] = useState([]);
+    const [documentTrackingLoading, setDocumentTrackingLoading] = useState(false);
+    const [documentTrackingStats, setDocumentTrackingStats] = useState({
+        total: 0,
+        digital: 0,
+        fisica: 0,
+        completos: 0,
+        incompletos: 0,
+        sin_estado: 0,
+    });
+    const [selectedDocumentItem, setSelectedDocumentItem] = useState(null);
+    const [documentCommentDraft, setDocumentCommentDraft] = useState("");
+    const [documentCommentSaving, setDocumentCommentSaving] = useState(false);
+    const [creditFilters, setCreditFilters] = useState({
+        creditStatus: "",
+        search: "",
+    });
+    const [creditTracking, setCreditTracking] = useState([]);
+    const [creditTrackingLoading, setCreditTrackingLoading] = useState(false);
+    const [creditTrackingStats, setCreditTrackingStats] = useState({
+        total: 0,
+        negado: 0,
+        aprobado: 0,
+        desembolsado: 0,
+        pendiente_regularizacion: 0,
+        sin_estado: 0,
+    });
+    const [selectedCreditItem, setSelectedCreditItem] = useState(null);
+    const [creditStatusDraft, setCreditStatusDraft] = useState("");
+    const [creditStatusSaving, setCreditStatusSaving] = useState(false);
 
     const selectedChannel = normalize(
         selectedLead?.source_channel,
@@ -279,6 +372,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
             Number(original?.assignment_percentage || 0)
         );
     });
+    const selectedDocumentAgencyFields = selectedDocumentItem
+        ? getDocumentAgencyFields(selectedDocumentItem)
+        : [];
 
     const loadLeads = async () => {
         setLoading(true);
@@ -296,6 +392,91 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
             setError(err?.message || "Error cargando leads externos");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadDocumentTracking = async () => {
+        setDocumentTrackingLoading(true);
+        setError("");
+        try {
+            const { ok, json } = await fetchConsultorDocumentTracking(
+                documentFilters,
+            );
+
+            if (!ok) {
+                throw new Error(
+                    json?.error ||
+                        "No se pudo cargar el seguimiento documental",
+                );
+            }
+
+            setDocumentTracking(
+                Array.isArray(json?.data?.items) ? json.data.items : [],
+            );
+            setDocumentTrackingStats({
+                total: Number(json?.data?.totals?.total || 0),
+                digital: Number(json?.data?.totals?.digital || 0),
+                fisica: Number(json?.data?.totals?.fisica || 0),
+                completos: Number(json?.data?.totals?.completos || 0),
+                incompletos: Number(json?.data?.totals?.incompletos || 0),
+                sin_estado: Number(json?.data?.totals?.sin_estado || 0),
+            });
+        } catch (err) {
+            setDocumentTracking([]);
+            setDocumentTrackingStats({
+                total: 0,
+                digital: 0,
+                fisica: 0,
+                completos: 0,
+                incompletos: 0,
+                sin_estado: 0,
+            });
+            setError(err?.message || "Error cargando seguimiento documental");
+        } finally {
+            setDocumentTrackingLoading(false);
+        }
+    };
+
+    const loadCreditTracking = async () => {
+        setCreditTrackingLoading(true);
+        setError("");
+        try {
+            const { ok, json } = await fetchConsultorCreditStatusTracking(
+                creditFilters,
+            );
+
+            if (!ok) {
+                throw new Error(
+                    json?.error || "No se pudo cargar estado de credito",
+                );
+            }
+
+            setCreditTracking(
+                Array.isArray(json?.data?.items) ? json.data.items : [],
+            );
+            setCreditTrackingStats({
+                total: Number(json?.data?.totals?.total || 0),
+                negado: Number(json?.data?.totals?.negado || 0),
+                aprobado: Number(json?.data?.totals?.aprobado || 0),
+                desembolsado: Number(json?.data?.totals?.desembolsado || 0),
+                pendiente_regularizacion: Number(
+                    json?.data?.totals?.pendiente_regularizacion || 0,
+                ),
+                sin_estado: Number(json?.data?.totals?.sin_estado || 0),
+            });
+        } catch (err) {
+            setCreditTracking([]);
+            setCreditTrackingStats({
+                total: 0,
+                negado: 0,
+                aprobado: 0,
+                desembolsado: 0,
+                pendiente_regularizacion: 0,
+                sin_estado: 0,
+            });
+            setError(err?.message || "Error cargando estado de credito");
+        } finally {
+            setCreditTrackingLoading(false);
         }
     };
 
@@ -472,23 +653,30 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
     };
 
     useEffect(() => {
+        if (isDocumentsPage || isCreditStatusPage) return;
         loadLeads();
         loadStats();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [isDocumentsPage, isCreditStatusPage]);
 
     useEffect(() => {
-        if (!isAdmin) return;
+        if (!isAdmin || isDocumentsPage || isCreditStatusPage) return;
         loadSummary();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAdmin, summaryFilters.dateFrom, summaryFilters.dateTo]);
+    }, [
+        isAdmin,
+        isDocumentsPage,
+        isCreditStatusPage,
+        summaryFilters.dateFrom,
+        summaryFilters.dateTo,
+    ]);
 
     useEffect(() => {
-        if (!isAdmin) return;
+        if (!isAdmin || isDocumentsPage || isCreditStatusPage) return;
         loadConsultorUsers();
         loadAssignmentConfig();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAdmin]);
+    }, [isAdmin, isDocumentsPage, isCreditStatusPage]);
 
     useEffect(() => {
         if (!isAdmin) return;
@@ -514,19 +702,53 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
     }, [isAdmin, availableReassignCount]);
 
     useEffect(() => {
+        if (isDocumentsPage || isCreditStatusPage) return;
         loadLeads();
         loadStats();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filters.sourceChannel, filters.workflowStatus]);
+    }, [
+        filters.sourceChannel,
+        filters.workflowStatus,
+        isDocumentsPage,
+        isCreditStatusPage,
+    ]);
 
     useEffect(() => {
+        if (isDocumentsPage || isCreditStatusPage) return undefined;
         const timeoutId = window.setTimeout(() => {
             loadLeads();
             loadStats();
         }, 350);
         return () => window.clearTimeout(timeoutId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filters.search]);
+    }, [filters.search, isDocumentsPage, isCreditStatusPage]);
+
+    useEffect(() => {
+        if (!isDocumentsPage) return undefined;
+        const timeoutId = window.setTimeout(() => {
+            loadDocumentTracking();
+        }, 250);
+        return () => window.clearTimeout(timeoutId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        isDocumentsPage,
+        documentFilters.deliveryMode,
+        documentFilters.documentStatus,
+        documentFilters.search,
+    ]);
+
+    useEffect(() => {
+        if (!isCreditStatusPage) return undefined;
+        const timeoutId = window.setTimeout(() => {
+            loadCreditTracking();
+        }, 250);
+        return () => window.clearTimeout(timeoutId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        isCreditStatusPage,
+        creditFilters.creditStatus,
+        creditFilters.search,
+    ]);
 
     useEffect(() => {
         const identification = normalize(selectedLead?.identification);
@@ -607,8 +829,6 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                 observacion_externo: form.observacion_externo,
                 observacion_cooperativa: form.observacion_cooperativa,
                 proceso_a_realizar: form.proceso_a_realizar,
-                estatus: form.estatus,
-                agencia: form.agencia,
                 asesor_externo: form.asesor_externo,
                 usuario_maquita: form.usuario_maquita,
                 seguimiento_kimobill: form.seguimiento_kimobill,
@@ -634,6 +854,82 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
             setError(err?.message || "Error actualizando lead externo");
         } finally {
             setSaving(false);
+        }
+    };
+
+    useEffect(() => {
+        setCreditStatusDraft(selectedCreditItem?.credit_status || "");
+    }, [selectedCreditItem]);
+
+    useEffect(() => {
+        setDocumentCommentDraft(selectedDocumentItem?.comment || "");
+    }, [selectedDocumentItem]);
+
+    const handleSaveCreditStatus = async () => {
+        if (!selectedCreditItem) return;
+        if (!creditStatusDraft) {
+            setError("Selecciona un estado de credito.");
+            return;
+        }
+
+        setCreditStatusSaving(true);
+        setError("");
+        setSuccess("");
+        try {
+            const { ok, json } = await updateConsultorCreditStatus({
+                contactId: selectedCreditItem.contact_id,
+                identification: selectedCreditItem.identification,
+                creditStatus: creditStatusDraft,
+            });
+
+            if (!ok) {
+                throw new Error(
+                    json?.error || "No se pudo actualizar estado de credito",
+                );
+            }
+
+            setSuccess(
+                json?.message || "Estado de credito actualizado correctamente.",
+            );
+            await loadCreditTracking();
+            setSelectedCreditItem(null);
+        } catch (err) {
+            setError(err?.message || "Error actualizando estado de credito");
+        } finally {
+            setCreditStatusSaving(false);
+        }
+    };
+
+    const handleSaveDocumentComment = async () => {
+        if (!selectedDocumentItem) return;
+
+        setDocumentCommentSaving(true);
+        setError("");
+        setSuccess("");
+        try {
+            const { ok, json } = await updateConsultorDocumentComment({
+                contactId: selectedDocumentItem.contact_id,
+                identification: selectedDocumentItem.identification,
+                documentComment: documentCommentDraft,
+            });
+
+            if (!ok) {
+                throw new Error(
+                    json?.error ||
+                        "No se pudo actualizar comentario documental",
+                );
+            }
+
+            setSuccess(
+                json?.message ||
+                    "Comentario documental actualizado correctamente.",
+            );
+            await loadDocumentTracking();
+            setSelectedDocumentItem(null);
+        } catch (err) {
+            setError(err?.message || "Error actualizando comentario");
+        } finally {
+            setDocumentCommentSaving(false);
         }
     };
 
@@ -796,7 +1092,11 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
             <section className="consultor-hero">
                 <div>
                     <h1>
-                        {isReassignPage
+                        {isDocumentsPage
+                            ? "Seguimiento Documentos"
+                            : isCreditStatusPage
+                              ? "Estado Credito"
+                            : isReassignPage
                             ? "Reasignar Leads"
                             : isAssignmentConfigPage
                               ? "Configuracion Asignacion"
@@ -805,7 +1105,11 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 : "Gestion Externa"}
                     </h1>
                     <p>
-                        {isReassignPage
+                        {isDocumentsPage
+                            ? "Monitorea los registros de Out Maquita con entrega digital o fisica y su estado documental."
+                            : isCreditStatusPage
+                              ? "Actualiza el estado de credito para registros con documentos completos."
+                            : isReassignPage
                             ? "Gestiona los leads vencidos y reasignalos a otro consultor."
                             : isAssignmentConfigPage
                               ? "Configura el porcentaje de asignacion automatica para cada consultor."
@@ -814,7 +1118,45 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 : "Modulo de trabajo para consultores sobre leads externos."}
                     </p>
                 </div>
-                {isAdmin ? (
+                {isDocumentsPage ? (
+                    <div className="consultor-stats">
+                        <article>
+                            <strong>{documentTrackingStats.total}</strong>
+                            <span>Total</span>
+                        </article>
+                        <article>
+                            <strong>{documentTrackingStats.completos}</strong>
+                            <span>Completos</span>
+                        </article>
+                        <article>
+                            <strong>{documentTrackingStats.incompletos}</strong>
+                            <span>Incompletos</span>
+                        </article>
+                        <article>
+                            <strong>{documentTrackingStats.sin_estado}</strong>
+                            <span>Sin estado</span>
+                        </article>
+                    </div>
+                ) : isCreditStatusPage ? (
+                    <div className="consultor-stats">
+                        <article>
+                            <strong>{creditTrackingStats.total}</strong>
+                            <span>Total</span>
+                        </article>
+                        <article>
+                            <strong>{creditTrackingStats.aprobado}</strong>
+                            <span>Aprobados</span>
+                        </article>
+                        <article>
+                            <strong>{creditTrackingStats.desembolsado}</strong>
+                            <span>Desembolsados</span>
+                        </article>
+                        <article>
+                            <strong>{creditTrackingStats.sin_estado}</strong>
+                            <span>Sin estado</span>
+                        </article>
+                    </div>
+                ) : isAdmin ? (
                     <div className="consultor-stats">
                         <article>
                             <strong>{summary.totals.total_assigned}</strong>
@@ -850,6 +1192,264 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                     </div>
                 )}
             </section>
+
+            {isDocumentsPage ? (
+                <section className="consultor-panel">
+                    <div className="consultor-panel-head">
+                        <div>
+                            <h2>Seguimiento documental</h2>
+                            <p>
+                                Revisa los registros de Out Maquita por tipo de
+                                entrega y estado documental.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="consultor-toolbar">
+                        <select
+                            value={documentFilters.deliveryMode}
+                            onChange={(e) =>
+                                setDocumentFilters((prev) => ({
+                                    ...prev,
+                                    deliveryMode: e.target.value,
+                                }))
+                            }
+                        >
+                            {DOCUMENT_DELIVERY_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                        <select
+                            value={documentFilters.documentStatus}
+                            onChange={(e) =>
+                                setDocumentFilters((prev) => ({
+                                    ...prev,
+                                    documentStatus: e.target.value,
+                                }))
+                            }
+                        >
+                            {DOCUMENT_STATUS_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre, cedula o celular"
+                            value={documentFilters.search}
+                            onChange={(e) =>
+                                setDocumentFilters((prev) => ({
+                                    ...prev,
+                                    search: e.target.value,
+                                }))
+                            }
+                        />
+                    </div>
+
+                    {error ? (
+                        <div className="consultor-error">{error}</div>
+                    ) : null}
+
+                    {documentTrackingLoading ? (
+                        <div className="consultor-status">
+                            Cargando seguimiento documental...
+                        </div>
+                    ) : (
+                        <div className="consultor-table-wrap consultor-table-wrap--full">
+                            <table className="consultor-table">
+                                <thead>
+                                    <tr>
+                                        <th>Cedula</th>
+                                        <th>Cliente</th>
+                                        <th>Entrega</th>
+                                        <th>Agencia</th>
+                                        <th>Estado documental</th>
+                                        <th>Comentario</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {documentTracking.length === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan="7"
+                                                className="consultor-table-empty"
+                                            >
+                                                No hay registros documentales
+                                                para los filtros actuales.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        documentTracking.map((item) => (
+                                            <tr key={item.id || item.contact_id}>
+                                                <td>{item.identification}</td>
+                                                <td>{item.full_name || "-"}</td>
+                                                <td>{item.delivery_mode || "-"}</td>
+                                                <td>{item.agency || "-"}</td>
+                                                <td>
+                                                    <span className="consultor-badge">
+                                                        {item.document_status}
+                                                    </span>
+                                                </td>
+                                                <td>{item.comment || "-"}</td>
+                                                <td>
+                                                    <div className="consultor-document-actions">
+                                                        {item.pdf_url ? (
+                                                            <a
+                                                                href={`${import.meta.env.VITE_API_BASE}${item.pdf_url}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="consultor-icon-btn"
+                                                                title="Ver PDF"
+                                                                aria-label="Ver PDF"
+                                                            >
+                                                                <span aria-hidden="true">
+                                                                    👁
+                                                                </span>
+                                                            </a>
+                                                        ) : null}
+                                                        <button
+                                                            type="button"
+                                                            className="consultor-icon-btn consultor-icon-btn--secondary"
+                                                            title="Ver detalle"
+                                                            aria-label="Ver detalle"
+                                                            onClick={() =>
+                                                                setSelectedDocumentItem(
+                                                                    item,
+                                                                )
+                                                            }
+                                                        >
+                                                            <span aria-hidden="true">
+                                                                ℹ
+                                                            </span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
+            ) : null}
+
+            {isCreditStatusPage ? (
+                <section className="consultor-panel">
+                    <div className="consultor-panel-head">
+                        <div>
+                            <h2>Estado de credito</h2>
+                            <p>
+                                Registros con documentos completos para actualizar:
+                                Negado, Aprobado, Desembolsado o Pendiente
+                                regularizacion.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="consultor-toolbar">
+                        <select
+                            value={creditFilters.creditStatus}
+                            onChange={(e) =>
+                                setCreditFilters((prev) => ({
+                                    ...prev,
+                                    creditStatus: e.target.value,
+                                }))
+                            }
+                        >
+                            {CREDIT_STATUS_FILTER_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre, cedula o celular"
+                            value={creditFilters.search}
+                            onChange={(e) =>
+                                setCreditFilters((prev) => ({
+                                    ...prev,
+                                    search: e.target.value,
+                                }))
+                            }
+                        />
+                    </div>
+
+                    {error ? (
+                        <div className="consultor-error">{error}</div>
+                    ) : null}
+                    {success ? (
+                        <div className="consultor-success">{success}</div>
+                    ) : null}
+
+                    {creditTrackingLoading ? (
+                        <div className="consultor-status">
+                            Cargando estado de credito...
+                        </div>
+                    ) : (
+                        <div className="consultor-table-wrap consultor-table-wrap--full">
+                            <table className="consultor-table">
+                                <thead>
+                                    <tr>
+                                        <th>Cedula</th>
+                                        <th>Cliente</th>
+                                        <th>Celular</th>
+                                        <th>Agencia</th>
+                                        <th>Estado credito</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {creditTracking.length === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan="6"
+                                                className="consultor-table-empty"
+                                            >
+                                                No hay registros para los filtros
+                                                actuales.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        creditTracking.map((item) => (
+                                            <tr key={item.id || item.contact_id}>
+                                                <td>{item.identification}</td>
+                                                <td>{item.full_name || "-"}</td>
+                                                <td>{item.celular || "-"}</td>
+                                                <td>{item.agency || "-"}</td>
+                                                <td>
+                                                    <span className="consultor-badge">
+                                                        {item.credit_status ||
+                                                            "Sin estado"}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <button
+                                                        type="button"
+                                                        className="consultor-btn consultor-btn--small"
+                                                        onClick={() =>
+                                                            setSelectedCreditItem(
+                                                                item,
+                                                            )
+                                                        }
+                                                    >
+                                                        Actualizar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
+            ) : null}
 
             {isAdmin && isReassignPage ? (
                 <section className="consultor-panel consultor-panel--summary">
@@ -1133,7 +1733,11 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                 </section>
             ) : null}
 
-            {isAdmin && !isReassignPage && !isAssignmentConfigPage ? (
+            {isAdmin &&
+            !isDocumentsPage &&
+            !isCreditStatusPage &&
+            !isReassignPage &&
+            !isAssignmentConfigPage ? (
                 <section className="consultor-panel consultor-panel--summary">
                     <div className="consultor-panel-head">
                         <div>
@@ -1281,10 +1885,14 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                 </section>
             ) : null}
 
-            {!isAdmin ||
+            {!isDocumentsPage &&
+            !isCreditStatusPage &&
+            (!isAdmin ||
             (isAdmin &&
+                !isDocumentsPage &&
+                !isCreditStatusPage &&
                 !isReassignPage &&
-                !isAssignmentConfigPage) ? (
+                !isAssignmentConfigPage)) ? (
                 <section className="consultor-panel">
                     <div className="consultor-panel-head">
                         <div>
@@ -1418,6 +2026,235 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                         </div>
                     )}
                 </section>
+            ) : null}
+
+            {isDocumentsPage && selectedDocumentItem ? (
+                <div
+                    className="consultor-modal-backdrop"
+                    onClick={() => {
+                        if (documentCommentSaving) return;
+                        setSelectedDocumentItem(null);
+                    }}
+                >
+                    <div
+                        className="consultor-modal"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="consultor-detail-head">
+                            <div className="consultor-detail-meta">
+                                <h2>
+                                    {selectedDocumentItem.full_name ||
+                                        "Detalle documental"}
+                                </h2>
+                                <span>{selectedDocumentItem.identification}</span>
+                                <span>
+                                    {selectedDocumentItem.source_channel || "-"}
+                                </span>
+                            </div>
+                            <div className="consultor-detail-actions">
+                                <button
+                                    type="button"
+                                    className="consultor-close"
+                                    onClick={() => {
+                                        if (documentCommentSaving) return;
+                                        setSelectedDocumentItem(null);
+                                    }}
+                                >
+                                    Cerrar
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="consultor-form-grid consultor-form-grid--readonly">
+                            <label>
+                                Cedula
+                                <input
+                                    value={
+                                        selectedDocumentItem.identification || ""
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Cliente
+                                <input
+                                    value={selectedDocumentItem.full_name || ""}
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Entrega
+                                <input
+                                    value={
+                                        selectedDocumentItem.delivery_mode || ""
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Agencia
+                                <input
+                                    value={selectedDocumentItem.agency || ""}
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Estado documental
+                                <input
+                                    value={
+                                        selectedDocumentItem.document_status || ""
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Actualizado
+                                <input
+                                    value={
+                                        selectedDocumentItem.updated_at
+                                            ? new Date(
+                                                  selectedDocumentItem.updated_at,
+                                              ).toLocaleString("es-EC")
+                                            : ""
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            {selectedDocumentAgencyFields.map((field) => (
+                                <label key={field.label}>
+                                    {field.label}
+                                    <input value={field.value || ""} readOnly />
+                                </label>
+                            ))}
+                            <label className="consultor-field-full">
+                                Comentario
+                                <textarea
+                                    value={documentCommentDraft}
+                                    onChange={(event) =>
+                                        setDocumentCommentDraft(
+                                            event.target.value,
+                                        )
+                                    }
+                                />
+                            </label>
+                        </div>
+                        <div className="consultor-actions">
+                            <button
+                                type="button"
+                                className="consultor-btn consultor-btn--primary"
+                                onClick={handleSaveDocumentComment}
+                                disabled={documentCommentSaving}
+                            >
+                                {documentCommentSaving
+                                    ? "Guardando..."
+                                    : "Guardar comentario"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {isCreditStatusPage && selectedCreditItem ? (
+                <div
+                    className="consultor-modal-backdrop"
+                    onClick={() => {
+                        if (creditStatusSaving) return;
+                        setSelectedCreditItem(null);
+                    }}
+                >
+                    <div
+                        className="consultor-modal"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="consultor-detail-head">
+                            <div className="consultor-detail-meta">
+                                <h2>
+                                    {selectedCreditItem.full_name ||
+                                        "Estado de credito"}
+                                </h2>
+                                <span>{selectedCreditItem.identification}</span>
+                                <span>{selectedCreditItem.agency || "-"}</span>
+                            </div>
+                            <div className="consultor-detail-actions">
+                                <button
+                                    type="button"
+                                    className="consultor-close"
+                                    onClick={() => {
+                                        if (creditStatusSaving) return;
+                                        setSelectedCreditItem(null);
+                                    }}
+                                >
+                                    Cerrar
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="consultor-form-grid">
+                            <label>
+                                Cedula
+                                <input
+                                    value={
+                                        selectedCreditItem.identification || ""
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Cliente
+                                <input
+                                    value={selectedCreditItem.full_name || ""}
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Estado documental
+                                <input
+                                    value={
+                                        selectedCreditItem.document_status ||
+                                        "Completos"
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Estado de credito
+                                <select
+                                    value={creditStatusDraft}
+                                    onChange={(event) =>
+                                        setCreditStatusDraft(
+                                            event.target.value,
+                                        )
+                                    }
+                                >
+                                    <option value="">
+                                        Selecciona estado de credito
+                                    </option>
+                                    {CREDIT_STATUS_OPTIONS.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+
+                        <div className="consultor-actions">
+                            <button
+                                type="button"
+                                className="consultor-btn consultor-btn--primary"
+                                onClick={handleSaveCreditStatus}
+                                disabled={creditStatusSaving}
+                            >
+                                {creditStatusSaving
+                                    ? "Guardando..."
+                                    : "Guardar estado"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             ) : null}
 
             {detailOpen && selectedLead ? (
@@ -1566,17 +2403,21 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                             />
                                         </label>
                                         <label>
-                                            Estatus
+                                            Proceso a realizar
                                             <select
-                                                value={form.estatus || ""}
+                                                value={
+                                                    form.proceso_a_realizar ||
+                                                    ""
+                                                }
                                                 onChange={(e) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        estatus: e.target.value,
+                                                        proceso_a_realizar:
+                                                            e.target.value,
                                                     }))
                                                 }
                                             >
-                                                {MAIL_ESTATUS_OPTIONS.map(
+                                                {RRSS_PROCESS_OPTIONS.map(
                                                     (option) => (
                                                         <option
                                                             key={option.value}
@@ -1589,31 +2430,37 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                             </select>
                                         </label>
                                         <label>
-                                            Agencia
-                                            <select
-                                                value={form.agencia || ""}
+                                            Observacion cooperativa
+                                            <textarea
+                                                value={
+                                                    form.observacion_cooperativa ||
+                                                    ""
+                                                }
                                                 onChange={(e) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        agencia: e.target.value,
+                                                        observacion_cooperativa:
+                                                            e.target.value,
                                                     }))
                                                 }
-                                            >
-                                                {MAIL_AGENCIA_OPTIONS.map(
-                                                    (option) => (
-                                                        <option
-                                                            key={option.value}
-                                                            value={option.value}
-                                                        >
-                                                            {option.label}
-                                                        </option>
-                                                    ),
-                                                )}
-                                            </select>
+                                            />
                                         </label>
                                     </div>
                                 ) : (
                                     <div className="consultor-form-grid consultor-form-grid--rrss">
+                                        <label>
+                                            Monto aplica
+                                            <input
+                                                value={form.monto_aplica || ""}
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        monto_aplica:
+                                                            e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </label>
                                         <label>
                                             Producto
                                             <select
@@ -1668,62 +2515,10 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                     </div>
                                 )}
 
-                                <div
-                                    className={`consultor-form-grid consultor-form-grid--wide consultor-form-grid--${selectedChannel || "general"}`}
-                                >
-                                    {selectedChannel === "mail" ? (
-                                        <>
-                                            <label className="consultor-field-full">
-                                                Observacion cooperativa
-                                                <textarea
-                                                    value={
-                                                        form.observacion_cooperativa ||
-                                                        ""
-                                                    }
-                                                    onChange={(e) =>
-                                                        setForm((prev) => ({
-                                                            ...prev,
-                                                            observacion_cooperativa:
-                                                                e.target.value,
-                                                        }))
-                                                    }
-                                                />
-                                            </label>
-                                            <label className="consultor-field-full">
-                                                Proceso a realizar
-                                                <select
-                                                    value={
-                                                        form.proceso_a_realizar ||
-                                                        ""
-                                                    }
-                                                    onChange={(e) =>
-                                                        setForm((prev) => ({
-                                                            ...prev,
-                                                            proceso_a_realizar:
-                                                                e.target.value,
-                                                        }))
-                                                    }
-                                                >
-                                                    {RRSS_PROCESS_OPTIONS.map(
-                                                        (option) => (
-                                                            <option
-                                                                key={
-                                                                    option.value
-                                                                }
-                                                                value={
-                                                                    option.value
-                                                                }
-                                                            >
-                                                                {option.label}
-                                                            </option>
-                                                        ),
-                                                    )}
-                                                </select>
-                                            </label>
-                                        </>
-                                    ) : null}
-
-                                    {selectedChannel === "rrss" ? (
+                                {selectedChannel === "rrss" ? (
+                                    <div
+                                        className={`consultor-form-grid consultor-form-grid--wide consultor-form-grid--${selectedChannel || "general"}`}
+                                    >
                                         <label className="consultor-field-full">
                                             Observacion agente maquita
                                             <textarea
@@ -1740,8 +2535,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                 }
                                             />
                                         </label>
-                                    ) : null}
-                                </div>
+                                    </div>
+                                ) : null}
 
                                 <div className="consultor-actions">
                                     <button

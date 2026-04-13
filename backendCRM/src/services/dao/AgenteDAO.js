@@ -88,10 +88,12 @@ const LIST_OUT_MAQUITA_DOCUMENT_ROWS = `
         gf.CAMPO2,
         gf.CAMPO3,
         gf.CAMPO4,
+        gf.CAMPO5,
         gf.TmStmp,
         gf.ResultLevel1,
         gf.ResultLevel2,
         gf.Observaciones,
+        co.CAMPO5 AS ClienteCampo5,
         co.CamposAdicionalesJson AS ClienteCamposAdicionalesJson
     FROM ${outboundSchema}.gestionfinal_outbound gf
     LEFT JOIN ${outboundSchema}.clientes_outbound co
@@ -1580,6 +1582,7 @@ export class AgenteDAO {
         {
             contactId,
             documentStatus = "",
+            documentComment = "",
             payloadJson = null,
         },
         executor = this.pool,
@@ -1588,11 +1591,12 @@ export class AgenteDAO {
             `
             UPDATE ${outboundSchema}.clientes_outbound
             SET CAMPO4 = ?,
+                CAMPO5 = ?,
                 CamposAdicionalesJson = COALESCE(?, CamposAdicionalesJson),
                 TmStmp = NOW()
             WHERE ContactId = ?
             `,
-            [documentStatus, payloadJson, contactId],
+            [documentStatus, documentComment, payloadJson, contactId],
         );
     }
 
@@ -1600,6 +1604,7 @@ export class AgenteDAO {
         {
             contactId,
             documentStatus = "",
+            documentComment = "",
         },
         executor = this.pool,
     ) {
@@ -1607,10 +1612,11 @@ export class AgenteDAO {
             `
             UPDATE ${outboundSchema}.gestionfinal_outbound
             SET CAMPO4 = ?,
+                CAMPO5 = ?,
                 TmStmp = NOW()
             WHERE ContactId = ?
             `,
-            [documentStatus, contactId],
+            [documentStatus, documentComment, contactId],
         );
     }
 

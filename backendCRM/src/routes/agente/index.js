@@ -10,11 +10,6 @@ import {
     linkManagementToKnownRecording,
     linkManagementToRecording,
 } from "../../services/recording-link.service.js";
-import {
-    appendOutMaquitaRrssDriveData,
-    isOutMaquitaCampaign,
-    syncOutMaquitaSheet,
-} from "../../services/outMaquitaSheets.service.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { registerQueueRoutes } from "./queue.routes.js";
 import { registerFormRoutes } from "./form.routes.js";
@@ -28,11 +23,16 @@ import {
 } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
+const OUT_MAQUITA_CAMPAIGN = "out maquita cushunchic";
 const outboundSchema =
     process.env.MYSQL_DB ||
     process.env.MYSQL_DB_ENCUESTA ||
     "cck_dev_pruebas";
 const agenteDAO = new AgenteDAO(pool);
+
+function isOutMaquitaCampaign(campaignId) {
+    return String(campaignId || "").trim().toLowerCase() === OUT_MAQUITA_CAMPAIGN;
+}
 
 /**
  * Middleware: verifica que el agente NO esté bloqueado
@@ -277,8 +277,6 @@ registerOutboundRoutes(router, {
     buildOutboundQuestionPayload,
     saveDynamicResponseIfTemplateActive,
     isOutMaquitaCampaign,
-    syncOutMaquitaSheet,
-    appendOutMaquitaRrssDriveData,
     linkManagementToRecording,
 });
 

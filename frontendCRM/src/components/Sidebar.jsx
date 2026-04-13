@@ -27,6 +27,8 @@ const MENU_ICONS = {
     "grabaciones-outbound": "\u{1F399}\uFE0F",
     "grabaciones-inbound": "\u{1F4DE}",
     "consultor-leads": "\u{1F4CB}",
+    "consultor-documents": "\u{1F4C1}",
+    "consultor-credit-status": "\u{1F4B3}",
     "consultor-reassign": "\u{1F504}",
     "consultor-assignment": "\u2696\uFE0F",
 };
@@ -263,9 +265,15 @@ function Sidebar({
         { label: "Grabaciones Inbound", key: "grabaciones-inbound" },
     ];
     const menuAgente = [{ label: "Inicio", key: "inicio" }];
-    const menuConsultor = [{ label: "Gestion Externa", key: "consultor-leads" }];
+    const menuConsultor = [
+        { label: "Gestion Externa", key: "consultor-leads" },
+        { label: "Seguimiento Documentos", key: "consultor-documents" },
+        { label: "Estado Credito", key: "consultor-credit-status" },
+    ];
     const menuConsultorAdmin = [
         { label: "Gestion Externa", key: "consultor-leads" },
+        { label: "Seguimiento Documentos", key: "consultor-documents" },
+        { label: "Estado Credito", key: "consultor-credit-status" },
         { label: "Reasignar Leads", key: "consultor-reassign" },
         { label: "Configuracion Asignacion", key: "consultor-assignment" },
     ];

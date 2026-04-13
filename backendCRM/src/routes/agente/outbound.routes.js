@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import multer from "multer";
 import { formatLocalDateTime } from "../../utils/dateTime.js";
+import pool from "../../services/db.js";
 
 const outMaquitaUploadsDir =
     process.env.ENTREGA_DOCUMENTOS_PATH ||
@@ -77,11 +78,121 @@ export function registerOutboundRoutes(
         buildOutboundQuestionPayload,
         saveDynamicResponseIfTemplateActive,
         isOutMaquitaCampaign,
-        syncOutMaquitaSheet,
-        appendOutMaquitaRrssDriveData,
         linkManagementToRecording,
     },
 ) {
+    router.get(
+        "/out-maquita-external-leads",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const flow = String(req.query?.flow || "")
+                    .trim()
+                    .toLowerCase();
+                const mode = String(req.query?.mode || "gestion")
+                    .trim()
+                    .toLowerCase();
+                const search = String(req.query?.search || "").trim();
+                const limit = Math.min(
+                    Math.max(Number(req.query?.limit || 300), 1),
+                    1000,
+                );
+
+                if (!["mail", "rrss"].includes(flow)) {
+                    return res.status(400).json({
+                        error: "flow debe ser 'mail' o 'rrss'",
+                    });
+                }
+
+                if (!["gestion", "regestion"].includes(mode)) {
+                    return res.status(400).json({
+                        error: "mode debe ser 'gestion' o 'regestion'",
+                    });
+                }
+
+                const where = [
+                    "LOWER(el.source_provider) = 'maquita'",
+                    "LOWER(el.source_channel) = ?",
+                ];
+                const params = [flow];
+
+                if (mode === "gestion") {
+                    where.push("el.workflow_status IN ('listo_para_promocion', 'promovido')");
+                } else if (flow === "mail") {
+                    where.push(
+                        "LOWER(TRIM(COALESCE(el.external_status, ''))) IN ('volver a llamar', 'grabadora.', 'cuelga llamada.', 'seguimiento.')",
+                    );
+                } else {
+                    where.push(
+                        "LOWER(TRIM(COALESCE(el.external_status, ''))) IN ('no contesta', 'volver a llamar', 'seguimiento')",
+                    );
+                }
+
+                if (search) {
+                    where.push(
+                        "(el.identification LIKE ? OR el.full_name LIKE ? OR el.celular LIKE ?)",
+                    );
+                    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+                }
+
+                const [rows] = await pool.query(
+                    `
+                    SELECT
+                        el.id,
+                        el.source_channel,
+                        el.identification,
+                        el.full_name,
+                        el.celular,
+                        el.external_status,
+                        el.external_substatus,
+                        el.observacion_externo,
+                        el.workflow_status,
+                        el.workflow_substatus,
+                        el.monto_solicitado,
+                        el.proceso_a_realizar,
+                        el.monto_aplica,
+                        el.observacion_cooperativa,
+                        el.fecha_contacto_raw,
+                        el.estatus,
+                        el.agencia,
+                        el.asesor_operativo,
+                        el.autoriza_buro,
+                        el.city,
+                        el.destino_credito,
+                        el.ingreso_neto_recibir,
+                        el.tipo_relacion_laboral,
+                        el.actividad_economica,
+                        el.tipo_vivienda,
+                        el.mantiene_hijos,
+                        el.otros_ingresos,
+                        el.producto,
+                        el.asesor_externo,
+                        el.usuario_maquita,
+                        el.seguimiento_kimobill,
+                        el.payload_json,
+                        el.updated_at
+                    FROM external_leads el
+                    WHERE ${where.join(" AND ")}
+                    ORDER BY el.updated_at DESC, el.id DESC
+                    LIMIT ?
+                    `,
+                    [...params, limit],
+                );
+
+                return res.json({
+                    success: true,
+                    data: rows,
+                });
+            } catch (err) {
+                console.error("Error en /agente/out-maquita-external-leads:", err);
+                return res.status(500).json({
+                    error: "Error obteniendo leads externos de Out Maquita",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
     router.get(
         "/out-maquita-documentos",
         ...agenteMiddlewares,
@@ -143,7 +254,10 @@ export function registerOutboundRoutes(
                         submotivoInteraccion: String(row?.ResultLevel2 || "").trim(),
                         observaciones: String(row?.Observaciones || "").trim(),
                         documentComment: String(
-                            additionalPayload?.documentosComentario || "",
+                            row?.CAMPO5 ||
+                                row?.ClienteCampo5 ||
+                                additionalPayload?.documentosComentario ||
+                                "",
                         ).trim(),
                         updatedAt: row?.TmStmp || null,
                         pdfFileName: fileName,
@@ -280,6 +394,7 @@ export function registerOutboundRoutes(
                 await agenteDAO.updateOutboundClienteDocumentMetadataByContactId({
                     contactId,
                     documentStatus,
+                    documentComment,
                     payloadJson: JSON.stringify({
                         ...existingDynamicPayload,
                         documentosComentario: documentComment,
@@ -289,6 +404,7 @@ export function registerOutboundRoutes(
                     {
                         contactId,
                         documentStatus,
+                        documentComment,
                     },
                 );
 
@@ -593,6 +709,19 @@ export function registerOutboundRoutes(
                 const { preguntas, respuestas } =
                     buildOutboundQuestionPayload(questionEntries);
 
+                if (isOutMaquitaCampaign(campaignId)) {
+                    const montoAceptado = String(
+                        formData?.montoAceptado ||
+                            formData?.["Monto aceptado"] ||
+                            formData?.["Monto Aceptado"] ||
+                            "",
+                    ).trim();
+
+                    // Reservamos posicion fija para mantener trazabilidad en reportes.
+                    preguntas[18] = "Monto aceptado";
+                    respuestas[18] = montoAceptado;
+                }
+
                 let managementResultCode = "";
                 if (campaignId && level1ToUse && level2ToUse) {
                     const codeRow =
@@ -747,40 +876,7 @@ export function registerOutboundRoutes(
                     );
                 }
 
-                let outMaquitaSheetSync = null;
-                if (isOutMaquitaCampaign(campaignId)) {
-                    try {
-                        outMaquitaSheetSync = await syncOutMaquitaSheet(
-                            formData,
-                            agenteActor,
-                        );
-                    } catch (sheetError) {
-                        const outMaquitaFlow =
-                            String(
-                                formData?.outboundFlow || formData?.flow || "",
-                            )
-                                .trim()
-                                .toLowerCase() === "rrss"
-                                ? "rrss"
-                                : "mail";
-                        const syncTarget =
-                            outMaquitaFlow === "rrss"
-                                ? "estado RRSS en Google Sheets"
-                                : "gestion Mail en Google Sheets";
-
-                        console.error(
-                            "Error sincronizando Out Maquita con Google Sheets:",
-                            sheetError,
-                        );
-                        return res.status(500).json({
-                            error: `Gestion guardada en BD pero fallo la sincronizacion de ${syncTarget}`,
-                            detail:
-                                sheetError?.message ||
-                                "No se pudo actualizar Google Sheets",
-                            syncTarget,
-                        });
-                    }
-                }
+                const outMaquitaSheetSync = null;
 
                 return res.json({
                     success: true,
@@ -803,48 +899,6 @@ export function registerOutboundRoutes(
         },
     );
 
-    router.post(
-        "/guardar-out-maquita-rrss-drive",
-        ...agenteMiddlewares,
-        async (req, res) => {
-            try {
-                const agenteActor = getAgentActor(req);
-                const campaignId = String(
-                    req.body?.campaignId || req.body?.campaign_id || "",
-                ).trim();
-                const formData =
-                    req.body?.formData && typeof req.body.formData === "object"
-                        ? req.body.formData
-                        : {};
-
-                if (!isOutMaquitaCampaign(campaignId)) {
-                    return res.status(400).json({
-                        error: "campaignId invalido para Out Maquita RRSS",
-                    });
-                }
-
-                const driveSync = await appendOutMaquitaRrssDriveData(
-                    formData,
-                    agenteActor,
-                );
-
-                return res.json({
-                    success: true,
-                    driveSync,
-                    message: "Datos RRSS enviados al Drive",
-                });
-            } catch (err) {
-                console.error(
-                    "Error en /agente/guardar-out-maquita-rrss-drive:",
-                    err,
-                );
-                return res.status(500).json({
-                    error: "Error enviando datos RRSS al Drive",
-                    detail: err?.message || "",
-                });
-            }
-        },
-    );
 }
 
 export default registerOutboundRoutes;

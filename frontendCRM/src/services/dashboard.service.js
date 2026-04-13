@@ -232,13 +232,6 @@ export const guardarGestionOutbound = (payload) =>
         body: JSON.stringify(payload),
     });
 
-export const guardarOutMaquitaRrssDrive = (payload) =>
-    request("agente/guardar-out-maquita-rrss-drive", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-    });
-
 export const fetchGestionOutboundByIdentification = ({
     campaignId,
     identification,
