@@ -18,6 +18,7 @@ const CREDIT_STATUS_OPTIONS = new Set([
     "Desembolsado",
     "Pendiente regularizacion",
 ]);
+const DOCUMENT_REVIEW_STATUS_OPTIONS = new Set(["Completos", "Incompletos"]);
 
 router.use(
     requireAuth,
@@ -911,6 +912,7 @@ router.patch("/document-comment", async (req, res) => {
         const contactId = normalizeValue(req.body?.contactId);
         const identification = normalizeValue(req.body?.identification);
         const documentComment = normalizeValue(req.body?.documentComment);
+        const documentStatus = normalizeValue(req.body?.documentStatus);
 
         if (!contactId && !identification) {
             return res.status(400).json({
@@ -928,6 +930,7 @@ router.patch("/document-comment", async (req, res) => {
             SELECT
                 gf.ContactId,
                 gf.IDENTIFICACION,
+                gf.CAMPO2,
                 co.CamposAdicionalesJson
             FROM gestionfinal_outbound gf
             LEFT JOIN clientes_outbound co
@@ -957,30 +960,68 @@ router.patch("/document-comment", async (req, res) => {
             });
         }
 
+        const deliveryMode = normalizeValue(row.CAMPO2);
+        const shouldUpdateStatus = Boolean(documentStatus);
+
+        if (
+            shouldUpdateStatus &&
+            deliveryMode !== "Entrega fisica"
+        ) {
+            return res.status(400).json({
+                error: "Solo se puede actualizar estado documental desde consultor para Entrega fisica",
+            });
+        }
+
+        if (
+            shouldUpdateStatus &&
+            !DOCUMENT_REVIEW_STATUS_OPTIONS.has(documentStatus)
+        ) {
+            return res.status(400).json({
+                error: "Estado documental invalido",
+            });
+        }
+
+        if (documentStatus === "Incompletos" && !documentComment) {
+            return res.status(400).json({
+                error: "Debes ingresar comentario cuando el estado es Incompletos",
+            });
+        }
+
         const payload = parseJsonObject(row.CamposAdicionalesJson);
         payload.documentosComentario = documentComment;
+        if (shouldUpdateStatus) {
+            payload.estadoDocumentos = documentStatus;
+        }
+        const nextDocumentStatus = shouldUpdateStatus ? documentStatus : null;
 
         await pool.query(
             `
             UPDATE clientes_outbound
             SET
+                CAMPO4 = COALESCE(?, CAMPO4),
                 CAMPO5 = ?,
                 CamposAdicionalesJson = ?,
                 TmStmp = CURRENT_TIMESTAMP
             WHERE ContactId = ?
             `,
-            [documentComment, JSON.stringify(payload), resolvedContactId],
+            [
+                nextDocumentStatus,
+                documentComment,
+                JSON.stringify(payload),
+                resolvedContactId,
+            ],
         );
 
         await pool.query(
             `
             UPDATE gestionfinal_outbound
             SET
+                CAMPO4 = COALESCE(?, CAMPO4),
                 CAMPO5 = ?,
                 TmStmp = CURRENT_TIMESTAMP
             WHERE ContactId = ?
             `,
-            [documentComment, resolvedContactId],
+            [nextDocumentStatus, documentComment, resolvedContactId],
         );
 
         return res.json({
@@ -989,6 +1030,7 @@ router.patch("/document-comment", async (req, res) => {
                 contact_id: resolvedContactId,
                 identification: normalizeValue(row.IDENTIFICACION),
                 comment: documentComment,
+                document_status: nextDocumentStatus,
             },
         });
     } catch (err) {

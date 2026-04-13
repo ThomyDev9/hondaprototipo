@@ -50,6 +50,10 @@ const DOCUMENT_STATUS_OPTIONS = [
     { value: "Incompletos", label: "Incompletos" },
     { value: "Sin estado", label: "Sin estado" },
 ];
+const DOCUMENT_REVIEW_STATUS_OPTIONS = [
+    { value: "Completos", label: "Completos" },
+    { value: "Incompletos", label: "Incompletos" },
+];
 
 const CREDIT_STATUS_FILTER_OPTIONS = [
     { value: "", label: "Todos los estados" },
@@ -218,10 +222,6 @@ function getDocumentAgencyFields(item) {
             label: "Estatus",
             value: item?.respuesta_13 || "",
         },
-        {
-            label: "Agencia",
-            value: item?.respuesta_14 || "",
-        },
     ];
 }
 
@@ -319,6 +319,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
     });
     const [selectedDocumentItem, setSelectedDocumentItem] = useState(null);
     const [documentCommentDraft, setDocumentCommentDraft] = useState("");
+    const [documentStatusDraft, setDocumentStatusDraft] = useState("");
     const [documentCommentSaving, setDocumentCommentSaving] = useState(false);
     const [creditFilters, setCreditFilters] = useState({
         creditStatus: "",
@@ -863,6 +864,14 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
 
     useEffect(() => {
         setDocumentCommentDraft(selectedDocumentItem?.comment || "");
+        const normalizedStatus = normalize(
+            selectedDocumentItem?.document_status,
+        );
+        setDocumentStatusDraft(
+            normalizedStatus === "Completos" || normalizedStatus === "Incompletos"
+                ? normalizedStatus
+                : "Incompletos",
+        );
     }, [selectedDocumentItem]);
 
     const handleSaveCreditStatus = async () => {
@@ -902,15 +911,40 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
 
     const handleSaveDocumentComment = async () => {
         if (!selectedDocumentItem) return;
+        const isPhysicalDelivery =
+            normalize(selectedDocumentItem.delivery_mode) === "Entrega fisica";
+
+        if (isPhysicalDelivery && !documentStatusDraft) {
+            setError("Selecciona un estado documental para entrega fisica.");
+            return;
+        }
+
+        if (
+            isPhysicalDelivery &&
+            documentStatusDraft === "Incompletos" &&
+            !normalize(documentCommentDraft)
+        ) {
+            setError(
+                "Debes ingresar un comentario cuando el estado es Incompletos.",
+            );
+            return;
+        }
 
         setDocumentCommentSaving(true);
         setError("");
         setSuccess("");
         try {
-            const { ok, json } = await updateConsultorDocumentComment({
+            const payload = {
                 contactId: selectedDocumentItem.contact_id,
                 identification: selectedDocumentItem.identification,
                 documentComment: documentCommentDraft,
+            };
+            if (isPhysicalDelivery) {
+                payload.documentStatus = documentStatusDraft;
+            }
+
+            const { ok, json } = await updateConsultorDocumentComment({
+                ...payload,
             });
 
             if (!ok) {
@@ -2100,12 +2134,35 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                             </label>
                             <label>
                                 Estado documental
-                                <input
-                                    value={
-                                        selectedDocumentItem.document_status || ""
-                                    }
-                                    readOnly
-                                />
+                                {normalize(selectedDocumentItem.delivery_mode) ===
+                                "Entrega fisica" ? (
+                                    <select
+                                        value={documentStatusDraft}
+                                        onChange={(event) =>
+                                            setDocumentStatusDraft(
+                                                event.target.value,
+                                            )
+                                        }
+                                    >
+                                        {DOCUMENT_REVIEW_STATUS_OPTIONS.map(
+                                            (option) => (
+                                                <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                >
+                                                    {option.label}
+                                                </option>
+                                            ),
+                                        )}
+                                    </select>
+                                ) : (
+                                    <input
+                                        value={
+                                            selectedDocumentItem.document_status || ""
+                                        }
+                                        readOnly
+                                    />
+                                )}
                             </label>
                             <label>
                                 Actualizado

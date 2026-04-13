@@ -1,19 +1,34 @@
 services:
   backend:
+    build:
+      context: ./backendCRM
+      dockerfile: Dockerfile
     container_name: backendCRM_pruebas
+    restart: always
     env_file:
       - .env.docker.pruebas
+    environment:
+      UPLOADS_PATH: /app/uploads
+      INBOUND_IMAGES_PATH: /app/storage/inbound-images
+      INBOUND_FILES_PATH: /app/storage/inbound-archivos
+      ENTREGA_DOCUMENTOS_PATH: /app/entrega_documentos
     ports:
       - "4005:4004"
     volumes:
       - ./backendCRM/uploads_pruebas:/app/uploads
       - ./backend-storage-pruebas/inbound-images:/app/storage/inbound-images
       - ./backend-storage-pruebas/inbound-archivos:/app/storage/inbound-archivos
+      - ${ENTREGA_DOCUMENTOS_HOST_PATH:-./backend-storage-pruebas/entrega_documentos}:/app/entrega_documentos
 
   frontend:
-    container_name: frontendCRM_pruebas
     build:
+      context: ./frontendCRM
+      dockerfile: Dockerfile
       args:
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:4005}
+        VITE_API_BASE: ${VITE_API_BASE_PRUEBAS:-http://172.19.10.61:4005}
+    container_name: frontendCRM_pruebas
+    restart: always
     ports:
       - "5174:80"
+    depends_on:
+      - backend
