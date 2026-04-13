@@ -16,6 +16,7 @@ app.use(
             "http://localhost:5173",
             "http://localhost:5174",
             "http://172.19.10.61:5173",
+            "http://172.19.10.61:5174",
         ],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
