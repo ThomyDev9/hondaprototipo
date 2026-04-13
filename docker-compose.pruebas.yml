@@ -1,0 +1,19 @@
+services:
+  backend:
+    container_name: backendCRM_pruebas
+    env_file:
+      - .env.docker.pruebas
+    ports:
+      - "4005:4004"
+    volumes:
+      - ./backendCRM/uploads_pruebas:/app/uploads
+      - ./backend-storage-pruebas/inbound-images:/app/storage/inbound-images
+      - ./backend-storage-pruebas/inbound-archivos:/app/storage/inbound-archivos
+
+  frontend:
+    container_name: frontendCRM_pruebas
+    build:
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:4005}
+    ports:
+      - "5174:80"
