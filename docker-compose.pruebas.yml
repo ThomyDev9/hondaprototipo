@@ -18,7 +18,7 @@ services:
       - ./backendCRM/uploads_pruebas:/app/uploads
       - ./backend-storage-pruebas/inbound-images:/app/storage/inbound-images
       - ./backend-storage-pruebas/inbound-archivos:/app/storage/inbound-archivos
-      - ${ENTREGA_DOCUMENTOS_HOST_PATH:-./backend-storage-pruebas/entrega_documentos}:/app/entrega_documentos
+      - ./backend-storage-pruebas/entrega_documentos:/app/entrega_documentos
 
   frontend:
     build:

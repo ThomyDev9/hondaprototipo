@@ -12,6 +12,7 @@ dist/
 
 # Persistent runtime storage
 backend-storage/
+backend-storage-pruebas/
 backendCRM/storage/
 
 # OS

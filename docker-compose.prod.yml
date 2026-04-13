@@ -3,10 +3,16 @@ services:
     container_name: backendCRM
     env_file:
       - .env.docker
+    environment:
+      UPLOADS_PATH: /app/uploads
+      ENTREGA_DOCUMENTOS_PATH: /app/entrega_documentos
+      INBOUND_IMAGES_PATH: /app/storage/inbound-images
+      INBOUND_FILES_PATH: /app/storage/inbound-archivos
     ports:
       - "4004:4004"
     volumes:
       - ./backendCRM/uploads:/app/uploads
+      - ./backend-storage/entrega_documentos:/app/entrega_documentos
       - ./backend-storage/inbound-images:/app/storage/inbound-images
       - ./backend-storage/inbound-archivos:/app/storage/inbound-archivos
 
