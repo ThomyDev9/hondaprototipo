@@ -23,6 +23,73 @@ const TRAILING_COLUMNS = [
     "ResultLevel2",
 ];
 
+const SPECIAL_REPORT_DEFINITIONS = {
+    "out kullki wasi": {
+        columnOrder: [
+            "Cooperativa",
+            "TipoCampania",
+            "Identificacion",
+            "NombreCliente",
+            "Celular",
+            "Agente",
+            "Motivo",
+            "Submotivo",
+            "Observacion",
+            "Fecha_gestion",
+        ],
+        selectClause: `
+            CampaignId AS Cooperativa,
+            RESPUESTA_3 AS TipoCampania,
+            RESPUESTA_1 AS Identificacion,
+            RESPUESTA_2 AS NombreCliente,
+            RESPUESTA_4 AS Celular,
+            Agent AS Agente,
+            RESPUESTA_5 AS Motivo,
+            RESPUESTA_6 AS Submotivo,
+            RESPUESTA_7 AS Observacion,
+            TmStmp AS Fecha_gestion
+        `,
+    },
+    "out honda": {
+        columnOrder: [
+            "Cooperativa",
+            "Identificacion",
+            "NombreCliente",
+            "Celular",
+            "Agente",
+            "Motivo",
+            "Submotivo",
+            "Observacion",
+            "Respuesta_8",
+            "Respuesta_9",
+            "Respuesta_10",
+            "Respuesta_11",
+            "Respuesta_12",
+            "Respuesta_13",
+            "Respuesta_14",
+            "Fecha_gestion",
+        ],
+        selectClause: `
+            CampaignId AS Cooperativa,
+            RESPUESTA_1 AS Identificacion,
+            RESPUESTA_2 AS NombreCliente,
+            RESPUESTA_4 AS Celular,
+            Agent AS Agente,
+            RESPUESTA_5 AS Motivo,
+            RESPUESTA_6 AS Submotivo,
+            RESPUESTA_7 AS Observacion,
+            RESPUESTA_8 AS Respuesta_8,
+            RESPUESTA_9 AS Respuesta_9,
+            RESPUESTA_10 AS Respuesta_10,
+            RESPUESTA_11 AS Respuesta_11,
+            RESPUESTA_12 AS Respuesta_12,
+            RESPUESTA_13 AS Respuesta_13,
+            RESPUESTA_14 AS Respuesta_14,
+            TmStmp AS Fecha_gestion
+        `,
+    },
+};
+
 function normalizeCellValue(value) {
     if (value === null || value === undefined) {
         return "";
@@ -49,7 +116,7 @@ function formatExcelDate(value) {
 }
 
 function normalizeExportValue(key, value) {
-    if (key === "TmStmp") {
+    if (key === "TmStmp" || key === "Fecha_gestion") {
         return formatExcelDate(value);
     }
 
@@ -116,8 +183,8 @@ function buildColumnOrder(rows = []) {
     ];
 }
 
-function buildExportRows(rows = []) {
-    const columnOrder = buildColumnOrder(rows);
+function buildExportRows(rows = [], forcedColumnOrder = null) {
+    const columnOrder = forcedColumnOrder || buildColumnOrder(rows);
 
     return rows.map((row) => {
         const exportRow = {};
@@ -164,7 +231,10 @@ export async function getOutboundReportRows(
     { campaignId, startDate, endDate },
     executor = pool,
 ) {
-    const campaignLike = `%${String(campaignId || "").trim()}%`;
+    const normalizedCampaignId = String(campaignId || "").trim();
+    const normalizedCampaignKey = normalizedCampaignId.toLowerCase();
+    const specialDefinition = SPECIAL_REPORT_DEFINITIONS[normalizedCampaignKey];
+    const campaignLike = `%${normalizedCampaignId}%`;
     const startDateTime = `${String(startDate || "").trim()} 00:00:00`;
     const endExclusive = new Date(`${String(endDate || "").trim()}T00:00:00`);
     endExclusive.setDate(endExclusive.getDate() + 1);
@@ -174,6 +244,26 @@ export async function getOutboundReportRows(
         2,
         "0",
     )} 00:00:00`;
+
+    if (specialDefinition) {
+        const [rows] = await executor.query(
+            `
+            SELECT
+                ${specialDefinition.selectClause}
+            FROM ${outboundSchema}.gestionfinal_outbound
+            WHERE TRIM(CampaignId) = TRIM(?)
+              AND TmStmp >= ?
+              AND TmStmp < ?
+            ORDER BY TmStmp DESC, ContactId DESC
+            `,
+            [normalizedCampaignId, startDateTime, endDateTime],
+        );
+
+        return {
+            rows,
+            columnOrder: specialDefinition.columnOrder,
+        };
+    }
 
     const [rows] = await executor.query(
         `
@@ -207,14 +297,17 @@ export async function getOutboundReportRows(
             RESPUESTA_26, RESPUESTA_27, RESPUESTA_28, RESPUESTA_29, RESPUESTA_30
         FROM ${outboundSchema}.gestionfinal_outbound
         WHERE CampaignId LIKE ?
-          AND TmStmp > ?
+          AND TmStmp >= ?
           AND TmStmp < ?
         ORDER BY TmStmp DESC, ContactId DESC
         `,
         [campaignLike, startDateTime, endDateTime],
     );
 
-    return rows;
+    return {
+        rows,
+        columnOrder: null,
+    };
 }
 
 export async function buildOutboundReportWorkbook({
@@ -223,10 +316,11 @@ export async function buildOutboundReportWorkbook({
     endDate,
     executor = pool,
 }) {
-    const rows = await getOutboundReportRows(
+    const reportData = await getOutboundReportRows(
         { campaignId, startDate, endDate },
         executor,
     );
+    const rows = reportData.rows || [];
 
     if (rows.length === 0) {
         return {
@@ -236,7 +330,7 @@ export async function buildOutboundReportWorkbook({
         };
     }
 
-    const exportRows = buildExportRows(rows);
+    const exportRows = buildExportRows(rows, reportData.columnOrder);
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     worksheet["!cols"] = buildSheetColumns(exportRows);
 

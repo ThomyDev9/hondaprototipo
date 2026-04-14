@@ -132,6 +132,42 @@ function normalize(value) {
     return String(value || "").trim();
 }
 
+function normalizeDigits(value) {
+    return String(value || "").replace(/\D/g, "");
+}
+
+function stripLeadingZeros(value) {
+    const digits = normalizeDigits(value).replace(/^0+/, "");
+    return digits || "0";
+}
+
+function isPdfMatchByIdentification(fileName, identification) {
+    const safeFileName = String(fileName || "").trim();
+    const safeIdentification = normalize(identification);
+
+    if (!safeFileName || !safeIdentification) {
+        return false;
+    }
+
+    if (safeFileName.startsWith(safeIdentification)) {
+        return true;
+    }
+
+    const fileBaseName = safeFileName.replace(/\.pdf$/i, "");
+    const filePrefix = fileBaseName.split("_")[0];
+    const fileDigits = normalizeDigits(filePrefix);
+    const idDigits = normalizeDigits(safeIdentification);
+
+    if (!fileDigits || !idDigits) {
+        return false;
+    }
+
+    return (
+        fileDigits === idDigits ||
+        stripLeadingZeros(fileDigits) === stripLeadingZeros(idDigits)
+    );
+}
+
 function toInputDate(value) {
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) return "";
@@ -770,7 +806,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                 const files = await resp.json();
                 const match = Array.isArray(files)
                     ? files.find((name) =>
-                          String(name || "").startsWith(identification),
+                          isPdfMatchByIdentification(name, identification),
                       )
                     : null;
 
