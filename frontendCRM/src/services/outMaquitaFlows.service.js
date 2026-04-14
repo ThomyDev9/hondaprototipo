@@ -10,16 +10,19 @@ export async function fetchOutMaquitaFlowData({
     search = "",
     limit = 300,
 } = {}) {
-    const url = new URL(`${API_BASE}/agente/out-maquita-external-leads`);
-    url.searchParams.set("flow", String(flow || "").trim().toLowerCase());
-    url.searchParams.set("mode", String(mode || "").trim().toLowerCase());
+    const base = String(API_BASE || "").replace(/\/+$/, "");
+    const path = `${base}/agente/out-maquita-external-leads`;
+    const params = new URLSearchParams();
+    params.set("flow", String(flow || "").trim().toLowerCase());
+    params.set("mode", String(mode || "").trim().toLowerCase());
     if (search) {
-        url.searchParams.set("search", String(search).trim());
+        params.set("search", String(search).trim());
     }
-    url.searchParams.set("limit", String(limit));
+    params.set("limit", String(limit));
+    const url = `${path}?${params.toString()}`;
 
     const token = getAuthToken();
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
