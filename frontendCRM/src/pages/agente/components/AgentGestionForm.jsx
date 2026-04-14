@@ -856,14 +856,21 @@ function AgentGestionForm({
             const field = pickField(key);
             return field ? { ...field, required: true } : null;
         };
+        const inboundClientOptions = (inboundChildOptions || [])
+            .map((item) => ({
+                value: String(item?.menuItemId || item?.value || "").trim(),
+                label: String(item?.label || item?.campaignId || "").trim(),
+            }))
+            .filter((item) => item.value && item.label);
         const compactRows = [
             INBOUND_FIXED_FIELDS_PRIMARY_ROW,
             [
                 {
-                    key: "__inbound_nombre_cliente_label",
+                    key: "__inbound_nombre_cliente",
                     label: "Nombre Cliente",
-                    type: "text",
-                    readOnly: true,
+                    type: "select",
+                    required: true,
+                    options: inboundClientOptions,
                 },
                 ...INBOUND_FIXED_FIELDS_SECONDARY_ROW,
             ],
