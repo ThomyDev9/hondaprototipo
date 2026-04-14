@@ -46,6 +46,8 @@ function App() {
         menuItemId: "",
         categoryId: "",
         manualFlow: false,
+        secureInboundManual: false,
+        followupInboundManual: false,
     });
     const [agentPage, setAgentPage] = useState("inicio");
     const [consultorPage, setConsultorPage] = useState("consultor-leads");
@@ -79,6 +81,8 @@ function App() {
                     menuItemId: "",
                     categoryId: "",
                     manualFlow: false,
+                    secureInboundManual: false,
+                    followupInboundManual: false,
                 });
                 setAgentPage("inicio");
                 setUserInfo(meJson.user);
@@ -143,6 +147,8 @@ function App() {
                 menuItemId: "",
                 categoryId: "",
                 manualFlow: false,
+                secureInboundManual: false,
+                followupInboundManual: false,
             });
             setAgentPage("inicio");
             setUserInfo(meJson.user);
@@ -183,6 +189,8 @@ function App() {
             menuItemId: "",
             categoryId: "",
             manualFlow: false,
+            secureInboundManual: false,
+            followupInboundManual: false,
         });
         setAgentPage("inicio");
         setSelectedAgentStatus("");
@@ -206,6 +214,8 @@ function App() {
                     categoryId,
                     manualFlow = false,
                     campaignLabel = "",
+                    secureInboundManual = false,
+                    followupInboundManual = false,
                 ) => {
                     setAgentPage("gestion");
                     setSelectedAgentCampaign({
@@ -216,6 +226,8 @@ function App() {
                         menuItemId: menuItemId || "",
                         categoryId: categoryId || "",
                         manualFlow: Boolean(manualFlow),
+                        secureInboundManual: Boolean(secureInboundManual),
+                        followupInboundManual: Boolean(followupInboundManual),
                     });
                 }}
                 agentPage={agentPage}
@@ -230,6 +242,8 @@ function App() {
                             menuItemId: "",
                             categoryId: "",
                             manualFlow: false,
+                            secureInboundManual: false,
+                            followupInboundManual: false,
                         });
                     }
                 }}
@@ -276,6 +290,12 @@ function App() {
                         selectedMenuItemId={selectedAgentCampaign.menuItemId}
                         selectedCategoryId={selectedAgentCampaign.categoryId}
                         selectedManualFlow={selectedAgentCampaign.manualFlow}
+                        selectedSecureInboundManual={
+                            selectedAgentCampaign.secureInboundManual
+                        }
+                        selectedFollowupInboundManual={
+                            selectedAgentCampaign.followupInboundManual
+                        }
                         requestedAgentStatus={selectedAgentStatus}
                         onAgentStatusSync={setSelectedAgentStatus}
                         agentPage={agentPage}
@@ -286,6 +306,8 @@ function App() {
                             categoryId,
                             manualFlow = false,
                             campaignLabel = "",
+                            secureInboundManual = false,
+                            followupInboundManual = false,
                         ) => {
                             setAgentPage("gestion");
                             setSelectedAgentCampaign({
@@ -297,6 +319,12 @@ function App() {
                                 menuItemId: menuItemId || "",
                                 categoryId: categoryId || "",
                                 manualFlow: Boolean(manualFlow),
+                                secureInboundManual: Boolean(
+                                    secureInboundManual,
+                                ),
+                                followupInboundManual: Boolean(
+                                    followupInboundManual,
+                                ),
                             });
                         }}
                         onChangeAgentPage={setAgentPage}

@@ -86,6 +86,7 @@ export default function useRegistroQueue({
     selectedMenuItemId,
     selectedCategoryId,
     selectedManualFlow,
+    selectedSecureInboundManual,
     agentPage,
     bloqueado,
     handle403,
@@ -693,6 +694,15 @@ export default function useRegistroQueue({
                     return;
                 }
 
+                if (selectedSecureInboundManual) {
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __inbound_nombre_cliente: "",
+                        __inbound_nombre_cliente_label: "",
+                    }));
+                    return;
+                }
+
                 const preselectedChild = childData?.options?.find(
                     (item) =>
                         String(item.menuItemId) ===
@@ -774,6 +784,7 @@ export default function useRegistroQueue({
         selectedMenuItemId,
         selectedCategoryId,
         selectedManualFlow,
+        selectedSecureInboundManual,
         loadTemplatesAndCatalogs,
         loadInboundChildOptions,
         resetDynamicState,
