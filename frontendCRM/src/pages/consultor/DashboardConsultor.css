@@ -297,6 +297,17 @@
     border-bottom: none;
 }
 
+.consultor-table-check-col {
+    width: 44px;
+    text-align: center !important;
+}
+
+.consultor-table-check-col input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
 .consultor-table-actions {
     display: flex;
     justify-content: flex-end;

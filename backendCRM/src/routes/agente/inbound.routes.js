@@ -990,8 +990,7 @@ export function registerInboundRoutes(
                     let detailManagementResultCode = "";
                     if (campaignId && level1ToUse && level2ToUse) {
                         const codeRow =
-                            await agenteDAO.getManagementCodeByLevelsWithoutLevel3(
-                                campaignId,
+                            await agenteDAO.getRedesManagementCodeByLevelsWithoutLevel3(
                                 level1ToUse,
                                 level2ToUse,
                             );
@@ -1230,7 +1229,7 @@ export function registerInboundRoutes(
                     let detailManagementResultCode = "";
                     if (campaignId && detailLevel1 && detailLevel2) {
                         const codeRow =
-                            await agenteDAO.getManagementCodeByLevelsWithoutLevel3(
+                            await agenteDAO.getInboundManagementCodeByLevelsWithoutLevel3(
                                 campaignId,
                                 detailLevel1,
                                 detailLevel2,

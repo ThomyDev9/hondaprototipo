@@ -338,6 +338,10 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         quantity: 1,
         sourceChannel: "",
     });
+    const [reassignSearch, setReassignSearch] = useState("");
+    const [reassignLeads, setReassignLeads] = useState([]);
+    const [reassignLeadsLoading, setReassignLeadsLoading] = useState(false);
+    const [selectedReassignIds, setSelectedReassignIds] = useState([]);
     const [documentFilters, setDocumentFilters] = useState({
         deliveryMode: "",
         documentStatus: "",
@@ -386,12 +390,19 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         (acc, item) => acc + Number(item.expired_rrss || 0),
         0,
     );
-    const availableReassignCount =
+    const summaryAvailableReassignCount =
         reassignForm.sourceChannel === "mail"
             ? totalExpiredMail
             : reassignForm.sourceChannel === "rrss"
               ? totalExpiredRrss
               : Number(summary.totals.total_expired || 0);
+    const availableReassignCount = isReassignPage
+        ? reassignLeads.length
+        : summaryAvailableReassignCount;
+    const selectedReassignCount = selectedReassignIds.length;
+    const isAllReassignSelected =
+        reassignLeads.length > 0 &&
+        selectedReassignIds.length === reassignLeads.length;
     const visibleWorkflowOptions = isAdmin
         ? WORKFLOW_OPTIONS
         : WORKFLOW_OPTIONS.filter(
@@ -644,6 +655,43 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         }
     };
 
+    const loadReassignLeads = async () => {
+        if (!isAdmin || !isReassignPage) return;
+        setReassignLeadsLoading(true);
+        setError("");
+        try {
+            const { ok, json } = await fetchConsultorLeads({
+                sourceChannel: reassignForm.sourceChannel,
+                workflowStatus: "por_reasignar",
+                search: reassignSearch,
+                limit: 500,
+            });
+            if (!ok) {
+                throw new Error(
+                    json?.error ||
+                        "No se pudo cargar la lista de leads por reasignar",
+                );
+            }
+
+            const items = Array.isArray(json?.data) ? json.data : [];
+            setReassignLeads(items);
+            setSelectedReassignIds((prev) =>
+                prev.filter((id) =>
+                    items.some((lead) => Number(lead.id) === Number(id)),
+                ),
+            );
+        } catch (err) {
+            setReassignLeads([]);
+            setSelectedReassignIds([]);
+            setError(
+                err?.message ||
+                    "Error cargando la lista de leads por reasignar",
+            );
+        } finally {
+            setReassignLeadsLoading(false);
+        }
+    };
+
     const loadAssignmentConfig = async () => {
         if (!isAdmin) return;
         setAssignmentLoading(true);
@@ -714,6 +762,21 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         loadAssignmentConfig();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAdmin, isDocumentsPage, isCreditStatusPage]);
+
+    useEffect(() => {
+        if (!isReassignPage) {
+            setReassignLeads([]);
+            setSelectedReassignIds([]);
+            return undefined;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            loadReassignLeads();
+        }, 250);
+
+        return () => window.clearTimeout(timeoutId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isReassignPage, reassignForm.sourceChannel, reassignSearch]);
 
     useEffect(() => {
         if (!isAdmin) return;
@@ -1035,20 +1098,49 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         setError("");
         setSuccess("");
         try {
-            const { ok, json } = await reassignConsultorLeads(reassignForm);
+            const payload = {
+                ...reassignForm,
+                leadIds: selectedReassignIds,
+            };
+            const { ok, json } = await reassignConsultorLeads(payload);
             if (!ok) {
                 throw new Error(json?.error || "No se pudo reasignar");
             }
 
             setSuccess(json?.message || "Reasignacion completada.");
             await loadSummary();
+            await loadReassignLeads();
             await loadLeads();
             await loadStats();
+            setSelectedReassignIds([]);
         } catch (err) {
             setError(err?.message || "Error en reasignacion manual");
         } finally {
             setReassigning(false);
         }
+    };
+
+    const toggleReassignLead = (leadId) => {
+        const normalizedId = Number(leadId || 0);
+        if (!normalizedId) return;
+        setSelectedReassignIds((prev) =>
+            prev.includes(normalizedId)
+                ? prev.filter((id) => id !== normalizedId)
+                : [...prev, normalizedId],
+        );
+    };
+
+    const toggleAllReassignLeads = (checked) => {
+        if (!checked) {
+            setSelectedReassignIds([]);
+            return;
+        }
+
+        setSelectedReassignIds(
+            reassignLeads
+                .map((lead) => Number(lead.id || 0))
+                .filter((id) => id > 0),
+        );
     };
 
     const handleAssignmentRowChange = (userId, changes) => {
@@ -1336,7 +1428,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                         <th>Cliente</th>
                                         <th>Entrega</th>
                                         <th>Agencia</th>
+                                        <th>Consultor asignado</th>
                                         <th>Estado documental</th>
+                                        <th>Actualizado por</th>
                                         <th>Comentario</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -1345,7 +1439,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                     {documentTracking.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan="7"
+                                                colSpan="9"
                                                 className="consultor-table-empty"
                                             >
                                                 No hay registros documentales
@@ -1360,9 +1454,18 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                 <td>{item.delivery_mode || "-"}</td>
                                                 <td>{item.agency || "-"}</td>
                                                 <td>
+                                                    {item.assigned_to_name ||
+                                                        item.assigned_to ||
+                                                        "-"}
+                                                </td>
+                                                <td>
                                                     <span className="consultor-badge">
                                                         {item.document_status}
                                                     </span>
+                                                </td>
+                                                <td>
+                                                    {item.document_updated_by ||
+                                                        "-"}
                                                 </td>
                                                 <td>{item.comment || "-"}</td>
                                                 <td>
@@ -1470,7 +1573,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                         <th>Cliente</th>
                                         <th>Celular</th>
                                         <th>Agencia</th>
+                                        <th>Consultor asignado</th>
                                         <th>Estado credito</th>
+                                        <th>Actualizado por</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -1478,7 +1583,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                     {creditTracking.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan="6"
+                                                colSpan="8"
                                                 className="consultor-table-empty"
                                             >
                                                 No hay registros para los filtros
@@ -1493,10 +1598,19 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                 <td>{item.celular || "-"}</td>
                                                 <td>{item.agency || "-"}</td>
                                                 <td>
+                                                    {item.assigned_to_name ||
+                                                        item.assigned_to ||
+                                                        "-"}
+                                                </td>
+                                                <td>
                                                     <span className="consultor-badge">
                                                         {item.credit_status ||
                                                             "Sin estado"}
                                                     </span>
+                                                </td>
+                                                <td>
+                                                    {item.credit_updated_by ||
+                                                        "-"}
                                                 </td>
                                                 <td>
                                                     <button
@@ -1527,7 +1641,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                         <div className="consultor-panel-head-inline">
                             <h2>Reasignar leads vencidos</h2>
                             <span className="consultor-inline-count">
-                                Disponibles: {summary.totals.total_expired}
+                                Disponibles: {availableReassignCount}
                             </span>
                         </div>
                     </div>
@@ -1583,6 +1697,17 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 />
                             </label>
                             <label className="consultor-filter-field">
+                                <span>Buscar lead</span>
+                                <input
+                                    type="text"
+                                    placeholder="Nombre, cedula o celular"
+                                    value={reassignSearch}
+                                    onChange={(e) =>
+                                        setReassignSearch(e.target.value)
+                                    }
+                                />
+                            </label>
+                            <label className="consultor-filter-field">
                                 <span>Canal</span>
                                 <select
                                     value={reassignForm.sourceChannel}
@@ -1617,6 +1742,117 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 {reassigning ? "Reasignando..." : "Reasignar"}
                             </button>
                         </div>
+
+                        <p className="consultor-reassign-copy">
+                            Seleccionados: <strong>{selectedReassignCount}</strong>.
+                            Si no seleccionas ninguno, se reasignan por cantidad.
+                        </p>
+
+                        {reassignLeadsLoading ? (
+                            <div className="consultor-status">
+                                Cargando leads por reasignar...
+                            </div>
+                        ) : (
+                            <div className="consultor-table-wrap consultor-table-wrap--summary">
+                                <table className="consultor-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="consultor-table-check-col">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isAllReassignSelected}
+                                                    onChange={(e) =>
+                                                        toggleAllReassignLeads(
+                                                            e.target.checked,
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        reassignLeads.length ===
+                                                        0
+                                                    }
+                                                />
+                                            </th>
+                                            <th>ID</th>
+                                            <th>Canal</th>
+                                            <th>Cedula</th>
+                                            <th>Nombre</th>
+                                            <th>Celular</th>
+                                            <th>Asignado actual</th>
+                                            <th>Tiempo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {reassignLeads.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan="8"
+                                                    className="consultor-table-empty"
+                                                >
+                                                    No hay leads vencidos para
+                                                    reasignar con los filtros
+                                                    actuales.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            reassignLeads.map((lead) => {
+                                                const leadId = Number(
+                                                    lead.id || 0,
+                                                );
+                                                const isChecked =
+                                                    selectedReassignIds.includes(
+                                                        leadId,
+                                                    );
+
+                                                return (
+                                                    <tr key={lead.id}>
+                                                        <td className="consultor-table-check-col">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={
+                                                                    isChecked
+                                                                }
+                                                                onChange={() =>
+                                                                    toggleReassignLead(
+                                                                        leadId,
+                                                                    )
+                                                                }
+                                                            />
+                                                        </td>
+                                                        <td>{lead.id}</td>
+                                                        <td>
+                                                            {lead.source_channel ||
+                                                                "-"}
+                                                        </td>
+                                                        <td>
+                                                            {lead.identification ||
+                                                                "-"}
+                                                        </td>
+                                                        <td>
+                                                            {lead.full_name ||
+                                                                "-"}
+                                                        </td>
+                                                        <td>
+                                                            {lead.celular ||
+                                                                "-"}
+                                                        </td>
+                                                        <td>
+                                                            {lead.assigned_to_name ||
+                                                                lead.assigned_to ||
+                                                                "-"}
+                                                        </td>
+                                                        <td>
+                                                            {getRemainingDisplay(
+                                                                lead,
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </section>
             ) : null}
@@ -2043,6 +2279,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                         <th>Cedula</th>
                                         <th>Cliente</th>
                                         <th>Celular</th>
+                                        <th>Consultor asignado</th>
                                         <th>Tiempo</th>
                                         <th>Workflow</th>
                                         <th>Accion</th>
@@ -2052,7 +2289,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                     {leads.length === 0 ? (
                                         <tr>
                                             <td
-                                                colSpan="7"
+                                                colSpan="8"
                                                 className="consultor-table-empty"
                                             >
                                                 No hay leads para los filtros
@@ -2066,6 +2303,11 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                 <td>{lead.identification}</td>
                                                 <td>{lead.full_name || "-"}</td>
                                                 <td>{lead.celular || "-"}</td>
+                                                <td>
+                                                    {lead.assigned_to_name ||
+                                                        lead.assigned_to ||
+                                                        "-"}
+                                                </td>
                                                 <td>
                                                     {getRemainingDisplay(lead)}
                                                 </td>
@@ -2165,6 +2407,27 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 Agencia
                                 <input
                                     value={selectedDocumentItem.agency || ""}
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Consultor asignado
+                                <input
+                                    value={
+                                        selectedDocumentItem.assigned_to_name ||
+                                        selectedDocumentItem.assigned_to ||
+                                        ""
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Actualizado por
+                                <input
+                                    value={
+                                        selectedDocumentItem.document_updated_by ||
+                                        ""
+                                    }
                                     readOnly
                                 />
                             </label>
@@ -2305,6 +2568,27 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                     value={
                                         selectedCreditItem.document_status ||
                                         "Completos"
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Consultor asignado
+                                <input
+                                    value={
+                                        selectedCreditItem.assigned_to_name ||
+                                        selectedCreditItem.assigned_to ||
+                                        ""
+                                    }
+                                    readOnly
+                                />
+                            </label>
+                            <label>
+                                Actualizado por
+                                <input
+                                    value={
+                                        selectedCreditItem.credit_updated_by ||
+                                        ""
                                     }
                                     readOnly
                                 />

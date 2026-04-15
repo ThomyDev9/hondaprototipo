@@ -4,10 +4,29 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { registerRoutes } from "./routes/index.js";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 dotenv.config();
 
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function resolveDataPath(envValue, relativeName) {
+    const fromEnv = String(envValue || "").trim();
+    if (fromEnv) {
+        return fromEnv;
+    }
+
+    const candidates = [
+        path.join(process.cwd(), relativeName),
+        path.join(process.cwd(), "backendCRM", relativeName),
+        path.resolve(__dirname, "..", relativeName),
+    ];
+
+    const existing = candidates.find((candidate) => fs.existsSync(candidate));
+    return existing || candidates[0];
+}
 
 // CORS para el front (Vite)
 app.use(
@@ -37,7 +56,9 @@ const recordingsPath =
     process.env.RECORDINGS_PATH || path.join(process.cwd(), "grabaciones");
 app.use("/grabaciones", express.static(recordingsPath));
 // Servir archivos PDF desde /uploads
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+const uploadsPath = resolveDataPath(process.env.UPLOADS_PATH, "uploads");
+fs.mkdirSync(uploadsPath, { recursive: true });
+app.use("/uploads", express.static(uploadsPath));
 const entregaDocumentosPath =
     process.env.ENTREGA_DOCUMENTOS_PATH ||
     path.join(process.cwd(), "entrega_documentos");
@@ -79,10 +100,10 @@ async function start() {
 }
 // Endpoint para listar archivos PDF en uploads
 app.get("/uploads-list", (req, res) => {
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    fs.readdir(uploadsDir, (err, files) => {
-        if (err)
-            return res.status(500).json({ error: "No se pudo leer uploads" });
+    fs.readdir(uploadsPath, (err, files) => {
+        if (err) {
+            return res.json([]);
+        }
         // Solo archivos PDF
         const pdfs = files.filter((f) => f.toLowerCase().endsWith(".pdf"));
         res.json(pdfs);

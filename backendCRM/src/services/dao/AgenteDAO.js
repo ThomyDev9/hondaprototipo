@@ -284,19 +284,41 @@ const GET_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3 = `
     LIMIT 1
 `;
 
+const GET_INBOUND_MANAGEMENT_LEVELS_BY_CAMPAIGN = `
+    SELECT DISTINCT Description AS description, level1, level2, level3, code
+    FROM campaignresultmanagement
+    WHERE campaignid = ?
+      AND COALESCE(State, '1') = '1'
+      AND CAST(code AS UNSIGNED) BETWEEN 1000 AND 1020
+    ORDER BY CAST(code AS UNSIGNED) ASC, Description ASC, level1 ASC, level2 ASC, level3 ASC
+`;
+
+const GET_INBOUND_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3 = `
+    SELECT code
+    FROM campaignresultmanagement
+    WHERE campaignid = ?
+      AND COALESCE(State, '1') = '1'
+      AND CAST(code AS UNSIGNED) BETWEEN 1000 AND 1020
+      AND level1 = ?
+      AND level2 = ?
+      AND (level3 IS NULL OR level3 = '')
+    ORDER BY CAST(code AS UNSIGNED) ASC
+    LIMIT 1
+`;
+
 const GET_REDES_MANAGEMENT_LEVELS = `
     SELECT DISTINCT Description AS description, level1, level2, level3, code
     FROM campaignresultmanagement
     WHERE COALESCE(State, '1') = '1'
-      AND CAST(code AS UNSIGNED) > 2000
-    ORDER BY code ASC, Description ASC, level1 ASC, level2 ASC, level3 ASC
+      AND CAST(code AS UNSIGNED) BETWEEN 2000 AND 2020
+    ORDER BY CAST(code AS UNSIGNED) ASC, Description ASC, level1 ASC, level2 ASC, level3 ASC
 `;
 
 const GET_REDES_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3 = `
     SELECT code
     FROM campaignresultmanagement
     WHERE COALESCE(State, '1') = '1'
-      AND CAST(code AS UNSIGNED) > 2000
+      AND CAST(code AS UNSIGNED) BETWEEN 2000 AND 2020
       AND level1 = ?
       AND level2 = ?
       AND (level3 IS NULL OR level3 = '')
@@ -1333,6 +1355,27 @@ export class AgenteDAO {
     ) {
         const [rows] = await executor.query(
             GET_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3,
+            [campaignId, level1, level2],
+        );
+        return rows[0] || null;
+    }
+
+    async getInboundManagementLevelsByCampaign(campaignId, executor = this.pool) {
+        const [rows] = await executor.query(
+            GET_INBOUND_MANAGEMENT_LEVELS_BY_CAMPAIGN,
+            [campaignId],
+        );
+        return rows;
+    }
+
+    async getInboundManagementCodeByLevelsWithoutLevel3(
+        campaignId,
+        level1,
+        level2,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            GET_INBOUND_MANAGEMENT_CODE_BY_LEVELS_WITHOUT_LEVEL3,
             [campaignId, level1, level2],
         );
         return rows[0] || null;

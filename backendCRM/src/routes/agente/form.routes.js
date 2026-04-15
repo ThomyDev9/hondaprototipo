@@ -9,6 +9,7 @@ export function registerFormRoutes(
         getAgentActor,
     },
 ) {
+    const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
     const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
     const REDES_SHARED_LABEL = "gestion redes";
 
@@ -31,6 +32,12 @@ export function registerFormRoutes(
                 normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL ||
                 normalizeFlowLabel(menuItemId) === REDES_SHARED_LABEL ||
                 normalizeFlowLabel(categoryId) === REDES_SHARED_LABEL;
+            const isInboundFlow =
+                !isRedesFlow &&
+                (categoryId === INBOUND_MENU_CATEGORY_ID ||
+                    normalizeFlowLabel(campaignId).includes("inbound") ||
+                    normalizeFlowLabel(menuItemId).includes("inbound") ||
+                    normalizeFlowLabel(categoryId).includes("inbound"));
 
             if (!campaignId) {
                 return res.status(400).json({ error: "campaignId es requerido" });
@@ -38,7 +45,11 @@ export function registerFormRoutes(
 
             const levels = isRedesFlow
                 ? await agenteDAO.getRedesManagementLevels()
-                : await agenteDAO.getManagementLevelsByCampaign(campaignId);
+                : isInboundFlow
+                  ? await agenteDAO.getInboundManagementLevelsByCampaign(
+                        campaignId,
+                    )
+                  : await agenteDAO.getManagementLevelsByCampaign(campaignId);
             const phoneStates = await agenteDAO.getPhoneStatusCatalog();
             const otherAdvisors = await agenteDAO.getOtherAdvisors();
 

@@ -12,6 +12,8 @@ const router = express.Router();
 const entregaDocumentosDir =
     process.env.ENTREGA_DOCUMENTOS_PATH ||
     path.join(process.cwd(), "entrega_documentos");
+const uploadsDir =
+    process.env.UPLOADS_PATH || path.join(process.cwd(), "uploads");
 const CREDIT_STATUS_OPTIONS = new Set([
     "Negado",
     "Aprobado",
@@ -454,13 +456,17 @@ function sanitizeDocumentSegment(value) {
         .trim();
 }
 
-function resolveConsultorDocumentFile(identification = "") {
+function resolveConsultorDocumentFile(identification = "", sourceChannel = "") {
     const safeIdentification = sanitizeDocumentSegment(identification);
-    if (!safeIdentification || !fs.existsSync(entregaDocumentosDir)) {
+    const normalizedSource = normalizeValue(sourceChannel).toLowerCase();
+    const baseDir = normalizedSource === "mail" ? uploadsDir : entregaDocumentosDir;
+    const baseUrl = normalizedSource === "mail" ? "/uploads" : "/entrega_documentos";
+
+    if (!safeIdentification || !fs.existsSync(baseDir)) {
         return null;
     }
 
-    const files = fs.readdirSync(entregaDocumentosDir);
+    const files = fs.readdirSync(baseDir);
     const fileName =
         files.find((file) => {
             const normalized = String(file || "").toLowerCase();
@@ -476,7 +482,7 @@ function resolveConsultorDocumentFile(identification = "") {
 
     return {
         fileName,
-        url: `/entrega_documentos/${fileName}`,
+        url: `${baseUrl}/${fileName}`,
     };
 }
 
@@ -538,10 +544,22 @@ router.get("/document-tracking", async (req, res) => {
                 gf.RESPUESTA_15,
                 co.CAMPO5 AS CLIENTE_CAMPO5,
                 co.CAMPO6 AS CLIENTE_CAMPO6,
-                co.CamposAdicionalesJson
+                co.CamposAdicionalesJson,
+                el.assigned_to,
+                CONCAT_WS(' ', au.Name1, au.Name2, au.Surname1, au.Surname2) AS assigned_to_name
             FROM gestionfinal_outbound gf
             LEFT JOIN clientes_outbound co
               ON co.ContactId = gf.ContactId
+            LEFT JOIN external_leads el
+              ON TRIM(COALESCE(el.identification, '')) = TRIM(COALESCE(gf.IDENTIFICACION, ''))
+             AND LOWER(TRIM(COALESCE(el.source_channel, ''))) = (
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(gf.ImportId, ''))) LIKE '%REDES%' THEN 'rrss'
+                    WHEN UPPER(TRIM(COALESCE(gf.ImportId, ''))) LIKE '%MAIL%' THEN 'mail'
+                    ELSE ''
+                END
+             )
+            LEFT JOIN user au ON au.IdUser = el.assigned_to
             WHERE ${where.join(" AND ")}
             ORDER BY gf.TmStmp DESC, gf.Id DESC
             `,
@@ -564,10 +582,6 @@ router.get("/document-tracking", async (req, res) => {
             } catch {
                 payload = {};
             }
-            const documentFile = resolveConsultorDocumentFile(
-                row.IDENTIFICACION,
-            );
-
             const normalizedStatus = normalizeDocumentStatus(row.CAMPO4);
             const importId = normalizeValue(row.ImportId).toUpperCase();
             const sourceChannel = importId.includes("REDES")
@@ -575,6 +589,10 @@ router.get("/document-tracking", async (req, res) => {
                 : importId.includes("MAIL")
                   ? "mail"
                   : "";
+            const documentFile = resolveConsultorDocumentFile(
+                row.IDENTIFICACION,
+                sourceChannel,
+            );
 
             latestByIdentification.set(identification, {
                 id: Number(row.Id || 0),
@@ -603,6 +621,10 @@ router.get("/document-tracking", async (req, res) => {
                 respuesta_15: normalizeValue(row.RESPUESTA_15),
                 pdf_file_name: documentFile?.fileName || "",
                 pdf_url: documentFile?.url || "",
+                assigned_to: normalizeValue(row.assigned_to),
+                assigned_to_name: normalizeValue(row.assigned_to_name),
+                document_updated_by: normalizeValue(payload.documentosActualizadoPor),
+                document_updated_at: normalizeValue(payload.documentosActualizadoAt),
                 updated_at: row.TmStmp || null,
             });
         });
@@ -694,10 +716,22 @@ router.get("/credit-status-tracking", async (req, res) => {
                 gf.TmStmp,
                 co.CAMPO5 AS CLIENTE_CAMPO5,
                 co.CAMPO6 AS CLIENTE_CAMPO6,
-                co.CamposAdicionalesJson
+                co.CamposAdicionalesJson,
+                el.assigned_to,
+                CONCAT_WS(' ', au.Name1, au.Name2, au.Surname1, au.Surname2) AS assigned_to_name
             FROM gestionfinal_outbound gf
             LEFT JOIN clientes_outbound co
               ON co.ContactId = gf.ContactId
+            LEFT JOIN external_leads el
+              ON TRIM(COALESCE(el.identification, '')) = TRIM(COALESCE(gf.IDENTIFICACION, ''))
+             AND LOWER(TRIM(COALESCE(el.source_channel, ''))) = (
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(gf.ImportId, ''))) LIKE '%REDES%' THEN 'rrss'
+                    WHEN UPPER(TRIM(COALESCE(gf.ImportId, ''))) LIKE '%MAIL%' THEN 'mail'
+                    ELSE ''
+                END
+             )
+            LEFT JOIN user au ON au.IdUser = el.assigned_to
             WHERE ${where.join(" AND ")}
             ORDER BY gf.TmStmp DESC, gf.Id DESC
             `,
@@ -747,6 +781,10 @@ router.get("/credit-status-tracking", async (req, res) => {
                 agency: normalizeValue(row.CAMPO3),
                 document_status: "Completos",
                 credit_status: normalizedCreditStatus,
+                assigned_to: normalizeValue(row.assigned_to),
+                assigned_to_name: normalizeValue(row.assigned_to_name),
+                credit_updated_by: normalizeValue(payload.creditoActualizadoPor),
+                credit_updated_at: normalizeValue(payload.creditoActualizadoAt),
                 updated_at: row.TmStmp || null,
             });
         });
@@ -865,7 +903,10 @@ router.patch("/credit-status", async (req, res) => {
         }
 
         const payload = parseJsonObject(row.CamposAdicionalesJson);
+        const actor = getActor(req);
         payload.estadoCredito = creditStatus;
+        payload.creditoActualizadoPor = actor;
+        payload.creditoActualizadoAt = new Date().toISOString();
 
         await pool.query(
             `
@@ -896,6 +937,7 @@ router.patch("/credit-status", async (req, res) => {
                 contact_id: resolvedContactId,
                 identification: normalizeValue(row.IDENTIFICACION),
                 credit_status: creditStatus,
+                updated_by: actor,
             },
         });
     } catch (err) {
@@ -988,7 +1030,10 @@ router.patch("/document-comment", async (req, res) => {
         }
 
         const payload = parseJsonObject(row.CamposAdicionalesJson);
+        const actor = getActor(req);
         payload.documentosComentario = documentComment;
+        payload.documentosActualizadoPor = actor;
+        payload.documentosActualizadoAt = new Date().toISOString();
         if (shouldUpdateStatus) {
             payload.estadoDocumentos = documentStatus;
         }
@@ -1031,6 +1076,7 @@ router.patch("/document-comment", async (req, res) => {
                 identification: normalizeValue(row.IDENTIFICACION),
                 comment: documentComment,
                 document_status: nextDocumentStatus,
+                updated_by: actor,
             },
         });
     } catch (err) {
@@ -1479,6 +1525,9 @@ router.post("/reassign-manual", async (req, res) => {
 
         const targetUserId = normalizeValue(req.body?.targetUserId);
         const sourceChannel = normalizeValue(req.body?.sourceChannel).toLowerCase();
+        const leadIds = Array.isArray(req.body?.leadIds)
+            ? [...new Set(req.body.leadIds.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))].slice(0, 500)
+            : [];
         const quantity = Math.min(
             Math.max(Number(req.body?.quantity || 0), 1),
             500,
@@ -1511,22 +1560,27 @@ router.post("/reassign-manual", async (req, res) => {
         where.push("assigned_to <> ?");
         params.push(targetUserId);
 
+        if (leadIds.length > 0) {
+            where.push(`id IN (${leadIds.map(() => "?").join(", ")})`);
+            params.push(...leadIds);
+        }
+
         const [rows] = await pool.query(
             `
             SELECT id
             FROM external_leads
             WHERE ${where.join(" AND ")}
             ORDER BY assigned_at ASC, id ASC
-            LIMIT ?
+            ${leadIds.length > 0 ? "" : "LIMIT ?"}
             `,
-            [...params, quantity],
+            leadIds.length > 0 ? params : [...params, quantity],
         );
 
         const ids = rows.map((row) => Number(row.id)).filter(Boolean);
         if (ids.length === 0) {
             return res.json({
                 message: "No se encontraron registros para reasignar",
-                data: { reassigned: 0 },
+                data: { reassigned: 0, requested: leadIds.length },
             });
         }
 
@@ -1545,7 +1599,7 @@ router.post("/reassign-manual", async (req, res) => {
 
         return res.json({
             message: `Se reasignaron ${ids.length} leads correctamente`,
-            data: { reassigned: ids.length },
+            data: { reassigned: ids.length, requested: leadIds.length },
         });
     } catch (err) {
         console.error("Error POST /consultor/reassign-manual:", err);
