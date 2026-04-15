@@ -2760,6 +2760,43 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                     readOnly
                                                 />
                                             </label>
+                                            <label>
+                                                Tipo relacion laboral
+                                                <input
+                                                    value={
+                                                        form.tipo_relacion_laboral ||
+                                                        ""
+                                                    }
+                                                    readOnly
+                                                />
+                                            </label>
+                                            <label>
+                                                Tipo vivienda
+                                                <input
+                                                    value={
+                                                        form.tipo_vivienda || ""
+                                                    }
+                                                    readOnly
+                                                />
+                                            </label>
+                                            <label>
+                                                Mantiene hijos
+                                                <input
+                                                    value={
+                                                        form.mantiene_hijos || ""
+                                                    }
+                                                    readOnly
+                                                />
+                                            </label>
+                                            <label>
+                                                Otros ingresos
+                                                <input
+                                                    value={
+                                                        form.otros_ingresos || ""
+                                                    }
+                                                    readOnly
+                                                />
+                                            </label>
                                         </>
                                     ) : null}
                                 </div>
