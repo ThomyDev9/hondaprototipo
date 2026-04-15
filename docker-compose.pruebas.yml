@@ -15,7 +15,7 @@ services:
     ports:
       - "4005:4004"
     volumes:
-      - ./backendCRM/uploads_pruebas:/app/uploads
+      - ./backendCRM/uploads:/app/uploads
       - ./backend-storage-pruebas/inbound-images:/app/storage/inbound-images
       - ./backend-storage-pruebas/inbound-archivos:/app/storage/inbound-archivos
       - ./backend-storage-pruebas/entrega_documentos:/app/entrega_documentos
