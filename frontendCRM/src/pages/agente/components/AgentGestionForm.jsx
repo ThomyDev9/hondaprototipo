@@ -381,6 +381,62 @@ function InboundInteractionDetailsSection({
                         onChange(index, "submotivo", matchedSubmotivo);
                         onChange(index, "observaciones", observaciones);
                     };
+                    const applyInboundQuickAction = ({
+                        categorizacion,
+                        motivo,
+                        submotivo,
+                        observaciones,
+                    }) => {
+                        const matchedCategorizacion = findOptionValueIgnoreCase(
+                            categorizacionOptions,
+                            categorizacion,
+                        );
+                        const matchedMotivo = findOptionValueIgnoreCase(
+                            buildUniqueOptions(
+                                (levels || [])
+                                    .filter(
+                                        (item) =>
+                                            normalizeFlowLabel(
+                                                item?.description,
+                                            ) ===
+                                            normalizeFlowLabel(
+                                                matchedCategorizacion,
+                                            ),
+                                    )
+                                    .map((item) => item.level1),
+                            ),
+                            motivo,
+                        );
+                        const matchedSubmotivo = findOptionValueIgnoreCase(
+                            buildUniqueOptions(
+                                (levels || [])
+                                    .filter(
+                                        (item) =>
+                                            normalizeFlowLabel(
+                                                item?.description,
+                                            ) ===
+                                                normalizeFlowLabel(
+                                                    matchedCategorizacion,
+                                                ) &&
+                                            normalizeFlowLabel(item?.level1) ===
+                                                normalizeFlowLabel(
+                                                    matchedMotivo,
+                                                ),
+                                    )
+                                    .map((item) => item.level2),
+                            ),
+                            submotivo,
+                        );
+
+                        onChange(
+                            index,
+                            "categorizacion",
+                            matchedCategorizacion,
+                        );
+                        onChange(index, "motivo", matchedMotivo);
+                        onChange(index, "submotivo", matchedSubmotivo);
+                        onChange(index, "observaciones", observaciones);
+                    };
 
                     return (
                         <div
@@ -496,6 +552,67 @@ function InboundInteractionDetailsSection({
                                     }
                                 />
                             </div>
+                            {!isRedesMode && (
+                                <>
+                                    <div className="agent-inbound-quick-actions">
+                                        <span className="agent-inbound-quick-actions__label">
+                                            Acciones rápidas
+                                        </span>
+                                        <Button
+                                            variant="secondary"
+                                            type="button"
+                                            onClick={() =>
+                                                applyInboundQuickAction({
+                                                    categorizacion:
+                                                        "CALIDAD DE LLAMADA",
+                                                    motivo: "COMUNICACIÓN",
+                                                    submotivo:
+                                                        "LLAMADA DE PRUEBA",
+                                                    observaciones:
+                                                        "LLAMADA DE PRUEBA",
+                                                })
+                                            }
+                                        >
+                                            Llam. Prueba
+                                        </Button>
+                                        <Button
+                                            variant="secondary"
+                                            type="button"
+                                            onClick={() =>
+                                                applyInboundQuickAction({
+                                                    categorizacion:
+                                                        "CALIDAD DE LLAMADA",
+                                                    motivo: "COMUNICACIÓN",
+                                                    submotivo:
+                                                        "LLAMADA CORTADA",
+                                                    observaciones:
+                                                        "LLAMADA DE CORTADA",
+                                                })
+                                            }
+                                        >
+                                            Llam. Cortado
+                                        </Button>
+                                    </div>
+                                    <div className="agent-inbound-detail-actions">
+                                        {index === 0 && (
+                                            <Button
+                                                variant="secondary"
+                                                type="button"
+                                                onClick={onAdd}
+                                            >
+                                                Agregar accion
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="secondary"
+                                            type="button"
+                                            onClick={() => onRemove(index)}
+                                        >
+                                            Quitar
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
                             {isRedesMode && (
                                 <div className="agent-inbound-detail-actions agent-inbound-detail-actions--redes">
                                     <Button
@@ -508,7 +625,7 @@ function InboundInteractionDetailsSection({
                                                 motivo: "COMUNICACION",
                                                 submotivo: "MENSAJE SIN DATOS",
                                                 observaciones:
-                                                    "Conversación sin datos.",
+                                                    "CONVERSACIÓN SIN DATOS.",
                                             })
                                         }
                                     >
@@ -525,31 +642,42 @@ function InboundInteractionDetailsSection({
                                                 submotivo:
                                                     "MENSAJE SIN INTERACCION",
                                                 observaciones:
-                                                    "Conversación abandonada.",
+                                                    "CONVERSACIÓN ABANDONADA.",
                                             })
                                         }
                                     >
                                         Sin interacción
                                     </Button>
-                                </div>
-                            )}
-                            {!isRedesMode && (
-                                <div className="agent-inbound-detail-actions">
-                                    {index === 0 && (
-                                        <Button
-                                            variant="secondary"
-                                            type="button"
-                                            onClick={onAdd}
-                                        >
-                                            Agregar accion
-                                        </Button>
-                                    )}
                                     <Button
                                         variant="secondary"
                                         type="button"
-                                        onClick={() => onRemove(index)}
+                                        onClick={() =>
+                                            applyRedesPreset({
+                                                categorizacion:
+                                                    "CALIDAD DE MENSAJES",
+                                                motivo: "COMUNICACIÓN",
+                                                submotivo: "MENSAJE DE PRUEBA",
+                                                observaciones:
+                                                    "MENSAJE DE PRUEBA",
+                                            })
+                                        }
                                     >
-                                        Quitar
+                                        SMS Prueba
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        type="button"
+                                        onClick={() =>
+                                            applyRedesPreset({
+                                                categorizacion: "CONSULTAS",
+                                                motivo: "INFORMACIÓN COMERCIAL",
+                                                submotivo: "CRÉDITOS",
+                                                observaciones:
+                                                    "SE INDICA INFORMACIÓN DE CRÉDITOS",
+                                            })
+                                        }
+                                    >
+                                        INF CREDITO
                                     </Button>
                                 </div>
                             )}

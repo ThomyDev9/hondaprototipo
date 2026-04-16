@@ -582,6 +582,22 @@
     justify-content: flex-start;
 }
 
+.agent-inbound-quick-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.14rem;
+    flex-wrap: wrap;
+}
+
+.agent-inbound-quick-actions__label {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #34557e;
+}
+
 .agent-inbound-image-row .agent-inbound-detail-actions {
     grid-column: auto;
     justify-content: flex-start;
