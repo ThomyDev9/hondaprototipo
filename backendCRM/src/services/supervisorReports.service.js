@@ -2,9 +2,7 @@ import XLSX from "xlsx";
 import pool from "./db.js";
 
 const outboundSchema =
-    process.env.MYSQL_DB ||
-    process.env.MYSQL_DB_ENCUESTA ||
-    "cck_dev_pruebas";
+    process.env.MYSQL_DB || process.env.MYSQL_DB_ENCUESTA || "cck_dev_pruebas";
 
 const BASE_COLUMNS = [
     "CampaignId",
@@ -89,6 +87,7 @@ const SPECIAL_REPORT_DEFINITIONS = {
         `,
     },
 };
+const COBRANZA_CACPE_ZAMORA_KEY = "cobranza cacpe zamora";
 
 function normalizeCellValue(value) {
     if (value === null || value === undefined) {
@@ -214,6 +213,77 @@ function buildSheetColumns(rows = []) {
     });
 }
 
+function normalizeEcuadorCellphone(rawValue) {
+    const digits = String(rawValue || "").replace(/\D/g, "");
+
+    if (digits.length === 9) {
+        return `593${digits}`;
+    }
+
+    if (digits.length === 10) {
+        return `593${digits.slice(1)}`;
+    }
+
+    return "";
+}
+
+async function getCobranzaCacpeZamoraAdditionalRows(
+    { campaignId, startDateTime, endDateTime, importIdLike },
+    executor = pool,
+) {
+    const [rows] = await executor.query(
+        `
+        SELECT
+            CampaignId,
+            NOMBRE_CLIENTE,
+            ContactAddress,
+            CAMPO2,
+            CAMPO3,
+            CAMPO4,
+            CAMPO5,
+            TmStmp
+        FROM ${outboundSchema}.gestionfinal_outbound
+        WHERE TRIM(CampaignId) = TRIM(?)
+          AND ResultLevel1 LIKE '%NU1%'
+          AND (ContactAddress LIKE '09%' OR ContactAddress LIKE '9%')
+          AND TmStmp >= ?
+          AND TmStmp < ?
+          AND ImportId LIKE ?
+        ORDER BY TmStmp DESC, ContactId DESC
+        `,
+        [campaignId, startDateTime, endDateTime, importIdLike],
+    );
+
+    const whatsappRows = rows.map((row) => ({
+        CODIGO_CAMPANIA: normalizeCellValue(row.CampaignId),
+        CAMPANIA: "COBRANZAS-WHATSAPP",
+        NOMBRE_CLIENTE: normalizeCellValue(row.NOMBRE_CLIENTE),
+        CELULAR: normalizeEcuadorCellphone(row.ContactAddress),
+        MONTO: normalizeCellValue(row.CAMPO4),
+        "FECHA VENCIMIENTO": normalizeCellValue(row.CAMPO2),
+        DIAS: normalizeCellValue(row.CAMPO3),
+        "VALOR A PAGAR": normalizeCellValue(row.CAMPO5),
+        "FECHA ENVIO": formatExcelDate(
+            row.TmStmp
+                ? new Date(
+                      new Date(String(row.TmStmp).replace(" ", "T")).getTime() +
+                          24 * 60 * 60 * 1000,
+                  )
+                : "",
+        ),
+        ESTADO: "ENVIADO",
+    }));
+
+    const valorDiaRows = rows.map((row) => ({
+        CELULAR: normalizeEcuadorCellphone(row.ContactAddress),
+        NOMBRE_CLIENTE: normalizeCellValue(row.NOMBRE_CLIENTE),
+        DIAS: normalizeCellValue(row.CAMPO3),
+        "VALOR AL DÍA": normalizeCellValue(row.CAMPO5),
+    }));
+
+    return { whatsappRows, valorDiaRows };
+}
+
 export async function listOutboundReportCampaigns(executor = pool) {
     const [rows] = await executor.query(
         `
@@ -224,7 +294,9 @@ export async function listOutboundReportCampaigns(executor = pool) {
         `,
     );
 
-    return rows.map((row) => String(row.CampaignId || "").trim()).filter(Boolean);
+    return rows
+        .map((row) => String(row.CampaignId || "").trim())
+        .filter(Boolean);
 }
 
 export async function getOutboundReportRows(
@@ -321,6 +393,18 @@ export async function buildOutboundReportWorkbook({
         executor,
     );
     const rows = reportData.rows || [];
+    const normalizedCampaignId = String(campaignId || "").trim();
+    const normalizedCampaignKey = normalizedCampaignId.toLowerCase();
+    const startDateTime = `${String(startDate || "").trim()} 00:00:00`;
+    const endExclusive = new Date(`${String(endDate || "").trim()}T00:00:00`);
+    endExclusive.setDate(endExclusive.getDate() + 1);
+    const endDateTime = `${endExclusive.getFullYear()}-${String(
+        endExclusive.getMonth() + 1,
+    ).padStart(2, "0")}-${String(endExclusive.getDate()).padStart(
+        2,
+        "0",
+    )} 00:00:00`;
+    const importIdLike = `%${String(endDate || "").trim()}%`;
 
     if (rows.length === 0) {
         return {
@@ -340,6 +424,35 @@ export async function buildOutboundReportWorkbook({
         worksheet,
         sanitizeSheetName(campaignId),
     );
+
+    if (normalizedCampaignKey === COBRANZA_CACPE_ZAMORA_KEY) {
+        const { whatsappRows, valorDiaRows } =
+            await getCobranzaCacpeZamoraAdditionalRows(
+                {
+                    campaignId: normalizedCampaignId,
+                    startDateTime,
+                    endDateTime,
+                    importIdLike,
+                },
+                executor,
+            );
+
+        const whatsappWorksheet = XLSX.utils.json_to_sheet(whatsappRows);
+        whatsappWorksheet["!cols"] = buildSheetColumns(whatsappRows);
+        XLSX.utils.book_append_sheet(
+            workbook,
+            whatsappWorksheet,
+            sanitizeSheetName("Cobranza Whatsapp"),
+        );
+
+        const valorDiaWorksheet = XLSX.utils.json_to_sheet(valorDiaRows);
+        valorDiaWorksheet["!cols"] = buildSheetColumns(valorDiaRows);
+        XLSX.utils.book_append_sheet(
+            workbook,
+            valorDiaWorksheet,
+            sanitizeSheetName("Cobranza Valor al Dia"),
+        );
+    }
 
     const fileCampaign = sanitizeFileSegment(campaignId) || "campana";
     const fileEndDate = sanitizeFileSegment(endDate) || "sin_fecha";

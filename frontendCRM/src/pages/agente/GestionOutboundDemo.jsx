@@ -233,10 +233,9 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
 
             if (!ok) {
                 if (status === 404) {
-                    setInitialValues((prev) => ({
-                        ...prev,
+                    setInitialValues({
                         identificacion: busquedaId,
-                    }));
+                    });
                     setIsUpdate(false);
                     setSuccessMessage("");
                     return;
@@ -256,16 +255,11 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                     "",
                 celular: data.celular || data.Celular || "",
                 tipoCampana: data.tipoCampana || data.TipoCampania || "",
-                motivoInteraccion:
-                    data.motivoInteraccion || data.MotivoLlamada || "",
-                submotivoInteraccion:
-                    data.submotivoInteraccion || data.SubmotivoLlamada || "",
-                observaciones:
-                    data.observaciones || data.Observaciones || "",
+                motivoInteraccion: "",
+                submotivoInteraccion: "",
+                observaciones: "",
             });
-            setMotivoSeleccionado(
-                data.motivoInteraccion || data.MotivoLlamada || "",
-            );
+            setMotivoSeleccionado("");
             setIsUpdate(true);
             setSuccessMessage("");
         } catch (err) {
@@ -391,8 +385,10 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                     ...currentValues,
                     motivoInteraccion: matchedLevel1,
                     submotivoInteraccion:
-                        findOptionIgnoreCase(level2Options, "contesta tercero") ||
-                        "contesta tercero",
+                        findOptionIgnoreCase(
+                            level2Options,
+                            "contesta tercero",
+                        ) || "contesta tercero",
                     observaciones: "Contesta tercero",
                 };
             },
@@ -420,9 +416,12 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
             Object.entries(scriptContent || {})
                 .filter(
                     ([key, value]) =>
-                        ["greeting", "informative", "farewell", "objections"].includes(
-                            key,
-                        ) && Boolean(String(value || "").trim()),
+                        [
+                            "greeting",
+                            "informative",
+                            "farewell",
+                            "objections",
+                        ].includes(key) && Boolean(String(value || "").trim()),
                 )
                 .map(([key, value]) => ({
                     key,
@@ -436,7 +435,9 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
         <div className="gestion-outbound-demo">
             <h2 className="gestion-outbound-demo__title">{nombreFormulario}</h2>
             {loading && <div>Cargando tipos de campana...</div>}
-            {error && <div className="gestion-outbound-demo__error">{error}</div>}
+            {error && (
+                <div className="gestion-outbound-demo__error">{error}</div>
+            )}
             {successMessage && (
                 <div className="gestion-outbound-demo__success">
                     {successMessage}
@@ -504,7 +505,7 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                         setError(
                             err?.message ||
                                 "No se pudo actualizar la gestion outbound",
-                            );
+                        );
                     }
                 }}
                 onCancelar={handleCancelarGestion}
@@ -512,5 +513,3 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
         </div>
     );
 }
-
-

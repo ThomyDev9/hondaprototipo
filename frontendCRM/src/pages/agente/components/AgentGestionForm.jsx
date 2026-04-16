@@ -681,8 +681,8 @@ function AgentGestionForm({
     const dynamicSectionVariant = isRedesManualFlow
         ? "redes"
         : isInboundManualFlow
-            ? "inbound"
-            : "standard";
+          ? "inbound"
+          : "standard";
     const manualInboundDisplayTitle = String(
         campaignLabel || dynamicFormConfig?.title || "Gestion Inbound",
     ).trim();
@@ -931,10 +931,17 @@ function AgentGestionForm({
         }
     }, [activeTab, showSurvey]);
 
+    const resolvedScriptMenuItemId = String(
+        dynamicFormAnswers?.__inbound_nombre_cliente ||
+            dynamicFormAnswers?.__redes_nombre_cliente ||
+            menuItemId ||
+            "",
+    ).trim();
+
     const { scriptEntries, activeScriptKey, setActiveScriptKey } =
         useAgentCampaignScript({
             campaignId,
-            menuItemId,
+            menuItemId: resolvedScriptMenuItemId,
             categoryId,
             registro,
             user,
