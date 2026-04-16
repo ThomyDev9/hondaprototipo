@@ -2868,6 +2868,22 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                             />
                                         </label>
                                         <label>
+                                            Ingreso neto recibir
+                                            <input
+                                                value={
+                                                    form.ingreso_neto_recibir ||
+                                                    ""
+                                                }
+                                                onChange={(e) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        ingreso_neto_recibir:
+                                                            e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                        </label>
+                                        <label>
                                             Producto
                                             <select
                                                 value={form.producto || ""}
