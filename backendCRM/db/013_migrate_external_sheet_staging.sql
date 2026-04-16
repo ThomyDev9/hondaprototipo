@@ -17,15 +17,7 @@ INSERT INTO external_leads (
     actividad_economica,
     monto_solicitado,
     monto_aplica,
-    external_status,
-    external_substatus,
-    observacion_externo,
     proceso_a_realizar,
-    fecha_contacto_raw,
-    fecha_contacto_dt,
-    estatus,
-    agencia,
-    asesor_operativo,
     workflow_status,
     workflow_substatus,
     is_ready_for_promotion,
@@ -61,25 +53,7 @@ SELECT
     NULLIF(TRIM(src.actividad_economica), ''),
     NULLIF(TRIM(src.monto_solicitado), ''),
     NULLIF(TRIM(src.monto_aplica), ''),
-    NULLIF(TRIM(src.estado), ''),
-    NULLIF(TRIM(src.sub_estado), ''),
-    NULLIF(TRIM(src.observacion), ''),
     NULLIF(TRIM(src.proceso_a_realizar), ''),
-    NULLIF(TRIM(src.fecha_contacto), ''),
-    CASE
-        WHEN NULLIF(TRIM(src.fecha_contacto), '') REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
-        THEN STR_TO_DATE(NULLIF(TRIM(src.fecha_contacto), ''), '%Y-%m-%d %H:%i:%s')
-        WHEN NULLIF(TRIM(src.fecha_contacto), '') REGEXP '^[0-9]{2}/[0-9]{2}/[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
-        THEN STR_TO_DATE(NULLIF(TRIM(src.fecha_contacto), ''), '%d/%m/%Y %H:%i:%s')
-        WHEN NULLIF(TRIM(src.fecha_contacto), '') REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-        THEN STR_TO_DATE(NULLIF(TRIM(src.fecha_contacto), ''), '%Y-%m-%d')
-        WHEN NULLIF(TRIM(src.fecha_contacto), '') REGEXP '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
-        THEN STR_TO_DATE(NULLIF(TRIM(src.fecha_contacto), ''), '%d/%m/%Y')
-        ELSE NULL
-    END AS fecha_contacto_dt,
-    NULLIF(TRIM(src.estatus), ''),
-    NULLIF(TRIM(src.agencia), ''),
-    NULLIF(TRIM(src.asesor_operativo), ''),
     CASE
         WHEN TRIM(COALESCE(src.estado, '')) <> ''
              AND TRIM(COALESCE(src.sub_estado, '')) <> ''
@@ -189,15 +163,7 @@ ON DUPLICATE KEY UPDATE
     actividad_economica = VALUES(actividad_economica),
     monto_solicitado = VALUES(monto_solicitado),
     monto_aplica = VALUES(monto_aplica),
-    external_status = VALUES(external_status),
-    external_substatus = VALUES(external_substatus),
-    observacion_externo = VALUES(observacion_externo),
     proceso_a_realizar = VALUES(proceso_a_realizar),
-    fecha_contacto_raw = VALUES(fecha_contacto_raw),
-    fecha_contacto_dt = VALUES(fecha_contacto_dt),
-    estatus = VALUES(estatus),
-    agencia = VALUES(agencia),
-    asesor_operativo = VALUES(asesor_operativo),
     workflow_status = VALUES(workflow_status),
     workflow_substatus = VALUES(workflow_substatus),
     is_ready_for_promotion = VALUES(is_ready_for_promotion),
@@ -229,14 +195,8 @@ INSERT INTO external_leads (
     mantiene_hijos,
     otros_ingresos,
     producto,
-    external_status,
-    external_substatus,
-    observacion_externo,
+    observacion_cooperativa,
     proceso_a_realizar,
-    asesor_externo,
-    usuario_maquita,
-    seguimiento_kimobill,
-    usuario_asesor_call_center,
     workflow_status,
     workflow_substatus,
     is_ready_for_promotion,
@@ -277,19 +237,9 @@ SELECT
     NULLIF(TRIM(src.mantiene_hijos), ''),
     NULLIF(TRIM(src.otros_ingresos), ''),
     NULLIF(TRIM(src.producto), ''),
-    NULLIF(TRIM(src.estado), ''),
-    NULLIF(TRIM(src.sub_estado), ''),
     NULLIF(TRIM(src.observacion_agente_maquita), ''),
     NULLIF(TRIM(src.proceso_a_realizar), ''),
-    NULLIF(TRIM(src.asesor), ''),
-    NULLIF(TRIM(src.usuario_maquita), ''),
-    NULLIF(TRIM(src.seguimiento_kimobill), ''),
-    NULLIF(TRIM(src.usuario_asesor_call_center), ''),
     CASE
-        WHEN TRIM(COALESCE(src.estado, '')) <> ''
-             AND TRIM(COALESCE(src.sub_estado, '')) <> ''
-             AND TRIM(COALESCE(src.seguimiento_kimobill, '')) <> ''
-        THEN 'ya_gestionado'
         WHEN TRIM(COALESCE(src.producto, '')) <> ''
              AND TRIM(COALESCE(src.observacion_agente_maquita, '')) <> ''
              AND TRIM(COALESCE(src.proceso_a_realizar, '')) <> ''
@@ -298,10 +248,6 @@ SELECT
     END AS workflow_status,
     NULLIF(TRIM(src.sub_estado), '') AS workflow_substatus,
     CASE
-        WHEN TRIM(COALESCE(src.estado, '')) <> ''
-             AND TRIM(COALESCE(src.sub_estado, '')) <> ''
-             AND TRIM(COALESCE(src.seguimiento_kimobill, '')) <> ''
-        THEN 0
         WHEN TRIM(COALESCE(src.producto, '')) <> ''
              AND TRIM(COALESCE(src.observacion_agente_maquita, '')) <> ''
              AND TRIM(COALESCE(src.proceso_a_realizar, '')) <> ''
@@ -309,10 +255,6 @@ SELECT
         ELSE 0
     END AS is_ready_for_promotion,
     CASE
-        WHEN TRIM(COALESCE(src.estado, '')) <> ''
-             AND TRIM(COALESCE(src.sub_estado, '')) <> ''
-             AND TRIM(COALESCE(src.seguimiento_kimobill, '')) <> ''
-        THEN 'ya_gestionado'
         WHEN TRIM(COALESCE(src.producto, '')) <> ''
              AND TRIM(COALESCE(src.observacion_agente_maquita, '')) <> ''
              AND TRIM(COALESCE(src.proceso_a_realizar, '')) <> ''
@@ -341,11 +283,9 @@ SELECT
             'Producto', src.producto,
             'Observacion AGENTE MAQUITA', src.observacion_agente_maquita,
             'PROCESO A REALIZAR', src.proceso_a_realizar,
-            'Usuario Maquita', src.usuario_maquita,
             'Estado', src.estado,
             'Sub estado', src.sub_estado,
-            'Seguimiento Kimobill', src.seguimiento_kimobill,
-            'Usuario Asesor Call Center', src.usuario_asesor_call_center
+            'Usuario Maquita', src.usuario_maquita
         )
     ) AS payload_json
 FROM (
@@ -397,14 +337,8 @@ ON DUPLICATE KEY UPDATE
     mantiene_hijos = VALUES(mantiene_hijos),
     otros_ingresos = VALUES(otros_ingresos),
     producto = VALUES(producto),
-    external_status = VALUES(external_status),
-    external_substatus = VALUES(external_substatus),
-    observacion_externo = VALUES(observacion_externo),
+    observacion_cooperativa = VALUES(observacion_cooperativa),
     proceso_a_realizar = VALUES(proceso_a_realizar),
-    asesor_externo = VALUES(asesor_externo),
-    usuario_maquita = VALUES(usuario_maquita),
-    seguimiento_kimobill = VALUES(seguimiento_kimobill),
-    usuario_asesor_call_center = VALUES(usuario_asesor_call_center),
     workflow_status = VALUES(workflow_status),
     workflow_substatus = VALUES(workflow_substatus),
     is_ready_for_promotion = VALUES(is_ready_for_promotion),

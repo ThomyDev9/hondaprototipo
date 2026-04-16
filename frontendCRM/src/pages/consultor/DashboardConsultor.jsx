@@ -116,14 +116,10 @@ function emptyForm() {
         mantiene_hijos: "",
         otros_ingresos: "",
         producto: "",
-        observacion_externo: "",
         observacion_cooperativa: "",
         proceso_a_realizar: "",
         estatus: "",
         agencia: "",
-        asesor_externo: "",
-        usuario_maquita: "",
-        seguimiento_kimobill: "",
         workflow_substatus: "",
     };
 }
@@ -209,8 +205,8 @@ function getMissingFields(lead) {
 
     if (channel === "rrss") {
         if (!normalize(lead?.producto)) missing.push("Producto");
-        if (!normalize(lead?.observacion_externo)) {
-            missing.push("Observacion agente maquita");
+        if (!normalize(lead?.observacion_cooperativa)) {
+            missing.push("Comentario consultor");
         }
         if (!normalize(lead?.proceso_a_realizar)) {
             missing.push("Proceso a realizar");
@@ -236,11 +232,11 @@ function getDocumentAgencyFields(item) {
         return [
             {
                 label: "Producto",
-                value: item?.respuesta_13 || "",
+                value: item?.respuesta_14 || "",
             },
             {
                 label: "Observacion agente maquita",
-                value: item?.respuesta_14 || "",
+                value: item?.respuesta_13 || "",
             },
             {
                 label: "Proceso a realizar",
@@ -926,12 +922,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                 mantiene_hijos: form.mantiene_hijos,
                 otros_ingresos: form.otros_ingresos,
                 producto: form.producto,
-                observacion_externo: form.observacion_externo,
                 observacion_cooperativa: form.observacion_cooperativa,
                 proceso_a_realizar: form.proceso_a_realizar,
-                asesor_externo: form.asesor_externo,
-                usuario_maquita: form.usuario_maquita,
-                seguimiento_kimobill: form.seguimiento_kimobill,
                 workflow_substatus: form.workflow_substatus,
             };
 
@@ -2934,16 +2926,16 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                         className={`consultor-form-grid consultor-form-grid--wide consultor-form-grid--${selectedChannel || "general"}`}
                                     >
                                         <label className="consultor-field-full">
-                                            Observacion agente maquita
+                                            Comentario consultor
                                             <textarea
                                                 value={
-                                                    form.observacion_externo ||
+                                                    form.observacion_cooperativa ||
                                                     ""
                                                 }
                                                 onChange={(e) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        observacion_externo:
+                                                        observacion_cooperativa:
                                                             e.target.value,
                                                     }))
                                                 }

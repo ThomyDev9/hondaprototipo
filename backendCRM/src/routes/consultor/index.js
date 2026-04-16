@@ -12,8 +12,6 @@ const router = express.Router();
 const entregaDocumentosDir =
     process.env.ENTREGA_DOCUMENTOS_PATH ||
     path.join(process.cwd(), "entrega_documentos");
-const uploadsDir =
-    process.env.UPLOADS_PATH || path.join(process.cwd(), "uploads");
 const CREDIT_STATUS_OPTIONS = new Set([
     "Negado",
     "Aprobado",
@@ -68,29 +66,18 @@ function getCurrentAssignee(req) {
 
 function buildWorkflowSnapshot(lead = {}) {
     const sourceChannel = normalizeValue(lead.source_channel).toLowerCase();
-    const externalStatus = normalizeValue(lead.external_status);
-    const externalSubstatus = normalizeValue(lead.external_substatus);
-    const observacionExterno = normalizeValue(lead.observacion_externo);
-    const seguimientoKimobill = normalizeValue(lead.seguimiento_kimobill);
     const observacionCooperativa = normalizeValue(lead.observacion_cooperativa);
     const procesoARealizar = normalizeValue(lead.proceso_a_realizar);
     const producto = normalizeValue(lead.producto);
 
-    const alreadyManaged =
-        sourceChannel === "mail"
-            ? Boolean(externalStatus && externalSubstatus && observacionExterno)
-            : sourceChannel === "rrss"
-              ? Boolean(
-                    externalStatus && externalSubstatus && seguimientoKimobill,
-                )
-              : false;
+    const alreadyManaged = false;
 
     const readyForPromotion =
         !alreadyManaged &&
         (sourceChannel === "mail"
             ? Boolean(procesoARealizar && observacionCooperativa)
             : sourceChannel === "rrss"
-              ? Boolean(producto && observacionExterno && procesoARealizar)
+              ? Boolean(producto && observacionCooperativa && procesoARealizar)
               : false);
 
     const promotedAt = lead.promoted_at;
@@ -456,11 +443,10 @@ function sanitizeDocumentSegment(value) {
         .trim();
 }
 
-function resolveConsultorDocumentFile(identification = "", sourceChannel = "") {
+function resolveConsultorDocumentFile(identification = "") {
     const safeIdentification = sanitizeDocumentSegment(identification);
-    const normalizedSource = normalizeValue(sourceChannel).toLowerCase();
-    const baseDir = normalizedSource === "mail" ? uploadsDir : entregaDocumentosDir;
-    const baseUrl = normalizedSource === "mail" ? "/uploads" : "/entrega_documentos";
+    const baseDir = entregaDocumentosDir;
+    const baseUrl = "/entrega_documentos";
 
     if (!safeIdentification || !fs.existsSync(baseDir)) {
         return null;
@@ -589,10 +575,7 @@ router.get("/document-tracking", async (req, res) => {
                 : importId.includes("MAIL")
                   ? "mail"
                   : "";
-            const documentFile = resolveConsultorDocumentFile(
-                row.IDENTIFICACION,
-                sourceChannel,
-            );
+            const documentFile = resolveConsultorDocumentFile(row.IDENTIFICACION);
 
             latestByIdentification.set(identification, {
                 id: Number(row.Id || 0),
@@ -1108,8 +1091,6 @@ router.get("/leads", async (req, res) => {
                 el.celular,
                 el.city,
                 el.province,
-                el.external_status,
-                el.external_substatus,
                 el.workflow_status,
                 el.promotion_status,
                 el.is_ready_for_promotion,
@@ -1117,9 +1098,7 @@ router.get("/leads", async (req, res) => {
                 CONCAT_WS(' ', au.Name1, au.Name2, au.Surname1, au.Surname2) AS assigned_to_name,
                 el.proceso_a_realizar,
                 el.observacion_cooperativa,
-                el.observacion_externo,
                 el.producto,
-                el.seguimiento_kimobill,
                 el.assigned_at,
                 el.fecha_origen_dt,
                 el.updated_at,
@@ -1666,6 +1645,13 @@ router.patch("/leads/:id", async (req, res) => {
             req.body && typeof req.body === "object" && !Array.isArray(req.body)
                 ? req.body
                 : {};
+        const sourceChannel = normalizeValue(currentLead.source_channel).toLowerCase();
+        const nextObservacionCooperativa =
+            sourceChannel === "rrss"
+                ? input.observacion_cooperativa ??
+                  currentLead.observacion_cooperativa
+                : input.observacion_cooperativa ??
+                  currentLead.observacion_cooperativa;
 
         const nextLead = {
             ...currentLead,
@@ -1691,19 +1677,9 @@ router.patch("/leads/:id", async (req, res) => {
             mantiene_hijos: input.mantiene_hijos ?? currentLead.mantiene_hijos,
             otros_ingresos: input.otros_ingresos ?? currentLead.otros_ingresos,
             producto: input.producto ?? currentLead.producto,
-            observacion_externo:
-                input.observacion_externo ?? currentLead.observacion_externo,
-            observacion_cooperativa:
-                input.observacion_cooperativa ??
-                currentLead.observacion_cooperativa,
+            observacion_cooperativa: nextObservacionCooperativa,
             proceso_a_realizar:
                 input.proceso_a_realizar ?? currentLead.proceso_a_realizar,
-            estatus: input.estatus ?? currentLead.estatus,
-            agencia: input.agencia ?? currentLead.agencia,
-            asesor_externo: input.asesor_externo ?? currentLead.asesor_externo,
-            usuario_maquita: input.usuario_maquita ?? currentLead.usuario_maquita,
-            seguimiento_kimobill:
-                input.seguimiento_kimobill ?? currentLead.seguimiento_kimobill,
             workflow_substatus:
                 input.workflow_substatus ?? currentLead.workflow_substatus,
         };
@@ -1744,14 +1720,8 @@ router.patch("/leads/:id", async (req, res) => {
                 mantiene_hijos = ?,
                 otros_ingresos = ?,
                 producto = ?,
-                observacion_externo = ?,
                 observacion_cooperativa = ?,
                 proceso_a_realizar = ?,
-                estatus = ?,
-                agencia = ?,
-                asesor_externo = ?,
-                usuario_maquita = ?,
-                seguimiento_kimobill = ?,
                 workflow_status = ?,
                 workflow_substatus = ?,
                 is_ready_for_promotion = ?,
@@ -1779,14 +1749,8 @@ router.patch("/leads/:id", async (req, res) => {
                 nextLead.mantiene_hijos,
                 nextLead.otros_ingresos,
                 nextLead.producto,
-                nextLead.observacion_externo,
                 nextLead.observacion_cooperativa,
                 nextLead.proceso_a_realizar,
-                nextLead.estatus,
-                nextLead.agencia,
-                nextLead.asesor_externo,
-                nextLead.usuario_maquita,
-                nextLead.seguimiento_kimobill,
                 finalWorkflow.workflow_status,
                 nextLead.workflow_substatus,
                 finalWorkflow.is_ready_for_promotion,

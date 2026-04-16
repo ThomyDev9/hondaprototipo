@@ -17,9 +17,6 @@ INSERT INTO external_leads (
     identification,
     full_name,
     celular,
-    external_status,
-    external_substatus,
-    observacion_externo,
     proceso_a_realizar,
     observacion_cooperativa,
     workflow_status,
@@ -38,9 +35,6 @@ INSERT INTO external_leads (
     '0990000001',
     'Mail Gestion Demo',
     '0990000001',
-    'Contactado',
-    'Seguimiento',
-    'Cliente con interes',
     'Consumo',
     'Validado por cooperativa',
     'listo_para_promocion',
@@ -59,9 +53,6 @@ INSERT INTO external_leads (
     '0990000002',
     'Mail Regestion Demo',
     '0990000002',
-    'Volver a llamar',
-    'No contesta',
-    'Reintentar contacto',
     '',
     '',
     'pendiente_completar',
@@ -80,11 +71,8 @@ INSERT INTO external_leads (
     '0990000003',
     'RRSS Gestion Demo',
     '0990000003',
-    'Contactado',
-    'Interesado',
-    'Cliente calificado',
     'Microcredito',
-    '',
+    'Cliente calificado',
     'listo_para_promocion',
     'Interesado',
     'listo',
@@ -101,11 +89,8 @@ INSERT INTO external_leads (
     '0990000004',
     'RRSS Regestion Demo',
     '0990000004',
-    'No contesta',
-    'Recontacto',
+    '',
     'Intentar en otro horario',
-    '',
-    '',
     'pendiente_completar',
     'Recontacto',
     'pendiente',
@@ -114,9 +99,9 @@ INSERT INTO external_leads (
 );
 
 -- Verificacion rapida por modo esperado:
-SELECT source_channel, workflow_status, external_status, COUNT(*) AS total
+SELECT source_channel, workflow_status, COUNT(*) AS total
 FROM external_leads
 WHERE source_provider = 'maquita'
   AND source_import_batch = @batch
-GROUP BY source_channel, workflow_status, external_status
-ORDER BY source_channel, workflow_status, external_status;
+GROUP BY source_channel, workflow_status
+ORDER BY source_channel, workflow_status;

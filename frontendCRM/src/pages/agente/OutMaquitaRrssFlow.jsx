@@ -21,7 +21,6 @@ const FLOW_STATUS_KEYS = ["Estado", "Estado ", "U"];
 const CAMPAIGN_ID = "Out Maquita Cushunchic";
 const RRSS_OBSERVACION_KEYS = ["Observacion AGENTE MAQUITA", "R"];
 const RRSS_PROCESO_KEYS = ["PROCESO A REALIZAR ", "PROCESO A REALIZAR", "S"];
-const RRSS_USUARIO_KEYS = ["Usuario Maquita ", "Usuario Maquita", "T"];
 const RRSS_TIPO_RELACION_KEYS = [
     "tipo_relacion_laboral",
     "Tipo de relación laboral",
@@ -90,13 +89,6 @@ const RRSS_EXTRA_FIELDS = [
     {
         name: "procesoARealizarRrss",
         label: "PROCESO A REALIZAR",
-        type: "text",
-        required: false,
-        readOnly: true,
-    },
-    {
-        name: "usuarioMaquita",
-        label: "Usuario Maquita",
         type: "text",
         required: false,
         readOnly: true,
@@ -181,15 +173,11 @@ function buildRrssBaseValues(registro) {
         ]),
         observacionAgenteMaquita: getFirstNonEmptyValue(
             registro,
-            ["observacion_externo", ...RRSS_OBSERVACION_KEYS],
+            ["observacion_cooperativa", ...RRSS_OBSERVACION_KEYS],
         ),
         procesoARealizarRrss: getFirstNonEmptyValue(registro, [
             "proceso_a_realizar",
             ...RRSS_PROCESO_KEYS,
-        ]),
-        usuarioMaquita: getFirstNonEmptyValue(registro, [
-            "usuario_maquita",
-            ...RRSS_USUARIO_KEYS,
         ]),
         entregaDocumentos: getFirstNonEmptyValue(registro, [
             "Entrega de documentos",
@@ -558,7 +546,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                         const rowEstado =
                                             getFirstNonEmptyValue(
                                                 row,
-                                                ["external_status", ...FLOW_STATUS_KEYS],
+                                                ["workflow_status", ...FLOW_STATUS_KEYS],
                                             ) || "";
 
                                         return (
@@ -666,7 +654,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                             getFirstNonEmptyValue(
                                                 row,
                                                 [
-                                                    "observacion_externo",
+                                                    "observacion_cooperativa",
                                                     ...RRSS_OBSERVACION_KEYS,
                                                 ],
                                             ) || "";

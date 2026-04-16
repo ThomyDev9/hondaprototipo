@@ -132,14 +132,8 @@ export function registerOutboundRoutes(
 
                 if (mode === "gestion") {
                     where.push("el.workflow_status IN ('listo_para_promocion', 'promovido')");
-                } else if (flow === "mail") {
-                    where.push(
-                        "LOWER(TRIM(COALESCE(el.external_status, ''))) IN ('volver a llamar', 'grabadora.', 'cuelga llamada.', 'seguimiento.')",
-                    );
                 } else {
-                    where.push(
-                        "LOWER(TRIM(COALESCE(el.external_status, ''))) IN ('no contesta', 'volver a llamar', 'seguimiento')",
-                    );
+                    where.push("el.workflow_status = 'pendiente_completar'");
                 }
 
                 if (search) {
@@ -157,19 +151,12 @@ export function registerOutboundRoutes(
                         el.identification,
                         el.full_name,
                         el.celular,
-                        el.external_status,
-                        el.external_substatus,
-                        el.observacion_externo,
                         el.workflow_status,
                         el.workflow_substatus,
                         el.monto_solicitado,
                         el.proceso_a_realizar,
                         el.monto_aplica,
                         el.observacion_cooperativa,
-                        el.fecha_contacto_raw,
-                        el.estatus,
-                        el.agencia,
-                        el.asesor_operativo,
                         el.autoriza_buro,
                         el.city,
                         el.destino_credito,
@@ -180,10 +167,6 @@ export function registerOutboundRoutes(
                         el.mantiene_hijos,
                         el.otros_ingresos,
                         el.producto,
-                        el.asesor_externo,
-                        el.usuario_maquita,
-                        el.seguimiento_kimobill,
-                        el.payload_json,
                         el.updated_at
                     FROM external_leads el
                     WHERE ${where.join(" AND ")}
@@ -383,6 +366,12 @@ export function registerOutboundRoutes(
                         motivoInteraccion: String(row?.ResultLevel1 || "").trim(),
                         submotivoInteraccion: String(row?.ResultLevel2 || "").trim(),
                         observaciones: String(row?.Observaciones || "").trim(),
+                        creditStatus: String(
+                            row?.CAMPO6 ||
+                                row?.ClienteCampo6 ||
+                                additionalPayload?.estadoCredito ||
+                                "",
+                        ).trim(),
                         documentComment: String(
                             row?.CAMPO5 ||
                                 row?.ClienteCampo5 ||

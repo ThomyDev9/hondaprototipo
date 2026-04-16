@@ -26,15 +26,7 @@ BEGIN
             actividad_economica,
             monto_solicitado,
             monto_aplica,
-            external_status,
-            external_substatus,
-            observacion_externo,
             proceso_a_realizar,
-            fecha_contacto_raw,
-            fecha_contacto_dt,
-            estatus,
-            agencia,
-            asesor_operativo,
             workflow_status,
             workflow_substatus,
             is_ready_for_promotion,
@@ -58,15 +50,8 @@ BEGIN
             NULLIF(TRIM(NEW.actividad_economica), ''),
             NULLIF(TRIM(NEW.monto_solicitado), ''),
             NULLIF(TRIM(NEW.monto_aplica), ''),
-            NULLIF(TRIM(NEW.estado), ''),
-            NULLIF(TRIM(NEW.sub_estado), ''),
-            NULLIF(TRIM(NEW.observacion), ''),
             NULLIF(TRIM(NEW.proceso_a_realizar), ''),
-            NULLIF(TRIM(NEW.fecha_contacto), ''),
             NULL,
-            NULLIF(TRIM(NEW.estatus), ''),
-            NULLIF(TRIM(NEW.agencia), ''),
-            NULLIF(TRIM(NEW.asesor_operativo), ''),
             CASE
                 WHEN TRIM(COALESCE(NEW.estado, '')) <> ''
                      AND TRIM(COALESCE(NEW.sub_estado, '')) <> ''
@@ -109,14 +94,7 @@ BEGIN
             actividad_economica = VALUES(actividad_economica),
             monto_solicitado = VALUES(monto_solicitado),
             monto_aplica = VALUES(monto_aplica),
-            external_status = VALUES(external_status),
-            external_substatus = VALUES(external_substatus),
-            observacion_externo = VALUES(observacion_externo),
             proceso_a_realizar = VALUES(proceso_a_realizar),
-            fecha_contacto_raw = VALUES(fecha_contacto_raw),
-            estatus = VALUES(estatus),
-            agencia = VALUES(agencia),
-            asesor_operativo = VALUES(asesor_operativo),
             workflow_status = VALUES(workflow_status),
             workflow_substatus = VALUES(workflow_substatus),
             is_ready_for_promotion = VALUES(is_ready_for_promotion),
@@ -135,8 +113,8 @@ BEGIN
             source_channel, source_provider, source_external_id, source_import_batch, source_sheet_name, source_row_number,
             fecha_origen_raw, fecha_origen_dt, identification, full_name, celular, city, estado_civil, actividad_economica,
             monto_solicitado, autoriza_buro, destino_credito, ingreso_neto_recibir, tipo_relacion_laboral, tipo_vivienda,
-            mantiene_hijos, otros_ingresos, producto, external_status, external_substatus, observacion_externo,
-            proceso_a_realizar, asesor_externo, usuario_maquita, seguimiento_kimobill, usuario_asesor_call_center,
+            mantiene_hijos, otros_ingresos, producto, observacion_cooperativa,
+            proceso_a_realizar,
             workflow_status, workflow_substatus, is_ready_for_promotion, promotion_status, payload_json
         ) VALUES (
             'rrss', 'maquita', CONCAT('rrss:', NEW.id), NEW.import_batch, NEW.source_sheet_name, NEW.row_number,
@@ -145,14 +123,9 @@ BEGIN
             NULLIF(TRIM(NEW.actividad_economica_tiempo), ''), NULLIF(TRIM(NEW.monto_solicitado), ''),
             NULLIF(TRIM(NEW.autoriza_buro), ''), NULLIF(TRIM(NEW.destino_credito), ''), NULLIF(TRIM(NEW.ingreso_neto_recibir), ''),
             NULLIF(TRIM(NEW.tipo_relacion_laboral), ''), NULLIF(TRIM(NEW.tipo_vivienda), ''), NULLIF(TRIM(NEW.mantiene_hijos), ''),
-            NULLIF(TRIM(NEW.otros_ingresos), ''), NULLIF(TRIM(NEW.producto), ''), NULLIF(TRIM(NEW.estado), ''), NULLIF(TRIM(NEW.sub_estado), ''),
-            NULLIF(TRIM(NEW.observacion_agente_maquita), ''), NULLIF(TRIM(NEW.proceso_a_realizar), ''), NULLIF(TRIM(NEW.asesor), ''),
-            NULLIF(TRIM(NEW.usuario_maquita), ''), NULLIF(TRIM(NEW.seguimiento_kimobill), ''), NULLIF(TRIM(NEW.usuario_asesor_call_center), ''),
+            NULLIF(TRIM(NEW.otros_ingresos), ''), NULLIF(TRIM(NEW.producto), ''), NULLIF(TRIM(NEW.observacion_agente_maquita), ''),
+            NULLIF(TRIM(NEW.proceso_a_realizar), ''),
             CASE
-                WHEN TRIM(COALESCE(NEW.estado, '')) <> ''
-                     AND TRIM(COALESCE(NEW.sub_estado, '')) <> ''
-                     AND TRIM(COALESCE(NEW.seguimiento_kimobill, '')) <> ''
-                THEN 'ya_gestionado'
                 WHEN TRIM(COALESCE(NEW.producto, '')) <> ''
                      AND TRIM(COALESCE(NEW.observacion_agente_maquita, '')) <> ''
                      AND TRIM(COALESCE(NEW.proceso_a_realizar, '')) <> ''
@@ -167,10 +140,6 @@ BEGIN
                 THEN 1 ELSE 0
             END,
             CASE
-                WHEN TRIM(COALESCE(NEW.estado, '')) <> ''
-                     AND TRIM(COALESCE(NEW.sub_estado, '')) <> ''
-                     AND TRIM(COALESCE(NEW.seguimiento_kimobill, '')) <> ''
-                THEN 'ya_gestionado'
                 WHEN TRIM(COALESCE(NEW.producto, '')) <> ''
                      AND TRIM(COALESCE(NEW.observacion_agente_maquita, '')) <> ''
                      AND TRIM(COALESCE(NEW.proceso_a_realizar, '')) <> ''
@@ -199,14 +168,8 @@ BEGIN
             mantiene_hijos = VALUES(mantiene_hijos),
             otros_ingresos = VALUES(otros_ingresos),
             producto = VALUES(producto),
-            external_status = VALUES(external_status),
-            external_substatus = VALUES(external_substatus),
-            observacion_externo = VALUES(observacion_externo),
+            observacion_cooperativa = VALUES(observacion_cooperativa),
             proceso_a_realizar = VALUES(proceso_a_realizar),
-            asesor_externo = VALUES(asesor_externo),
-            usuario_maquita = VALUES(usuario_maquita),
-            seguimiento_kimobill = VALUES(seguimiento_kimobill),
-            usuario_asesor_call_center = VALUES(usuario_asesor_call_center),
             workflow_status = VALUES(workflow_status),
             workflow_substatus = VALUES(workflow_substatus),
             is_ready_for_promotion = VALUES(is_ready_for_promotion),
