@@ -68,6 +68,7 @@ function App() {
     const hydrateZoiperCodeByMachine = async (token) => {
         try {
             const response = await fetchAgentMachineContext(token);
+            const status = Number(response?.status || 0);
             const mappedZoiperCode = String(
                 response?.json?.data?.mappedZoiperCode || "",
             ).trim();
@@ -86,8 +87,18 @@ function App() {
                     mappedZoiperCode,
                 };
             }
+
+            if (!response?.ok) {
+                return {
+                    ok: false,
+                    error: `No se pudo validar Zoiper automático (HTTP ${status || "sin respuesta"}).`,
+                };
+            }
         } catch {
-            // no-op
+            return {
+                ok: false,
+                error: "No se pudo validar Zoiper automático por un error de conexión.",
+            };
         }
 
         return {
