@@ -22,6 +22,8 @@ import {
 } from "./pages/agente/dashboardAgente.helpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
+const ZOIPER_REQUIRED_ERROR =
+    "Esta máquina no tiene Zoiper configurado para inbound. Comunícate con sistemas para registrar IP + código Zoiper.";
 
 function App() {
     const standaloneMode =
@@ -52,6 +54,37 @@ function App() {
     const [agentPage, setAgentPage] = useState("inicio");
     const [consultorPage, setConsultorPage] = useState("consultor-leads");
     const [selectedAgentStatus, setSelectedAgentStatus] = useState("");
+    const clearInboundSessionStorage = () => {
+        sessionStorage.removeItem("inbound_agent_number");
+        sessionStorage.removeItem("inbound_auto_last_target");
+        sessionStorage.removeItem("inbound_manual_draft_state");
+        localStorage.removeItem("inbound_agent_number_shared");
+        localStorage.removeItem("inbound_auto_last_target_shared");
+    };
+
+    const hydrateZoiperCodeByMachine = async (token) => {
+        const response = await fetch(`${API_BASE}/agente/machine-context`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = await response.json().catch(() => ({}));
+        const mappedZoiperCode = String(
+            body?.data?.mappedZoiperCode || "",
+        ).trim();
+
+        if (!response.ok || !mappedZoiperCode) {
+            return {
+                ok: false,
+                error: ZOIPER_REQUIRED_ERROR,
+            };
+        }
+
+        sessionStorage.setItem("inbound_agent_number", mappedZoiperCode);
+        localStorage.setItem("inbound_agent_number_shared", mappedZoiperCode);
+        return {
+            ok: true,
+            mappedZoiperCode,
+        };
+    };
 
     useEffect(() => {
         const validateToken = async () => {
@@ -71,6 +104,21 @@ function App() {
 
                 if (!meJson.user.username) {
                     console.warn("Username no disponible en sesion actual");
+                }
+
+                const roles = Array.isArray(meJson?.user?.roles)
+                    ? meJson.user.roles
+                    : [];
+                if (roles.includes("ASESOR")) {
+                    const zoiperCheck = await hydrateZoiperCodeByMachine(token);
+                    if (!zoiperCheck.ok) {
+                        clearInboundSessionStorage();
+                        localStorage.removeItem("access_token");
+                        localStorage.removeItem("import_user");
+                        setUserInfo(null);
+                        setError(zoiperCheck.error || ZOIPER_REQUIRED_ERROR);
+                        return;
+                    }
                 }
 
                 setSelectedAgentCampaign({
@@ -121,11 +169,7 @@ function App() {
             const accessToken = json.token;
             localStorage.setItem("access_token", accessToken);
             localStorage.setItem("import_user", username);
-            sessionStorage.removeItem("inbound_agent_number");
-            sessionStorage.removeItem("inbound_auto_last_target");
-            sessionStorage.removeItem("inbound_manual_draft_state");
-            localStorage.removeItem("inbound_agent_number_shared");
-            localStorage.removeItem("inbound_auto_last_target_shared");
+            clearInboundSessionStorage();
             resetTabSessionId();
 
             const meResp = await fetch(`${API_BASE}/auth/me`, {
@@ -141,6 +185,19 @@ function App() {
 
             if (!meJson.user.username) {
                 console.warn("Username no disponible en el token");
+            }
+
+            const roles = Array.isArray(meJson?.user?.roles)
+                ? meJson.user.roles
+                : [];
+            if (roles.includes("ASESOR")) {
+                const zoiperCheck = await hydrateZoiperCodeByMachine(accessToken);
+                if (!zoiperCheck.ok) {
+                    localStorage.removeItem("access_token");
+                    localStorage.removeItem("import_user");
+                    clearInboundSessionStorage();
+                    throw new Error(zoiperCheck.error || ZOIPER_REQUIRED_ERROR);
+                }
             }
 
             setSelectedAgentCampaign({
@@ -184,11 +241,7 @@ function App() {
 
         localStorage.removeItem("access_token");
         localStorage.removeItem("import_user");
-        localStorage.removeItem("inbound_agent_number_shared");
-        localStorage.removeItem("inbound_auto_last_target_shared");
-        sessionStorage.removeItem("inbound_agent_number");
-        sessionStorage.removeItem("inbound_auto_last_target");
-        sessionStorage.removeItem("inbound_manual_draft_state");
+        clearInboundSessionStorage();
         setSelectedAgentCampaign({
             campaignId: "",
             campaignLabel: "",
