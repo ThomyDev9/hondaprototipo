@@ -137,13 +137,26 @@ export const fetchAgentMachineContext = (tokenOverride = "") =>
         const directPort = String(
             import.meta.env.VITE_MACHINE_CONTEXT_DIRECT_PORT || "4005",
         ).trim();
+        const currentHost =
+            typeof window !== "undefined"
+                ? String(window.location?.hostname || "").trim()
+                : "";
+        const isLocalHost =
+            currentHost === "localhost" || currentHost === "127.0.0.1";
+        const isPrivateIpv4 =
+            /^10\./.test(currentHost) ||
+            /^192\.168\./.test(currentHost) ||
+            /^172\.(1[6-9]|2\d|3[0-1])\./.test(currentHost);
+        const shouldTryDirectFallback =
+            Boolean(directBaseFromEnv) || isLocalHost || isPrivateIpv4;
+
         const directBase =
             directBaseFromEnv ||
-            (typeof window !== "undefined" && window.location?.hostname
-                ? `${window.location.protocol}//${window.location.hostname}:${directPort}`
+            (currentHost
+                ? `${window.location.protocol}//${currentHost}:${directPort}`
                 : "");
 
-        if (!directBase) {
+        if (!directBase || !shouldTryDirectFallback) {
             return proxiedResponse;
         }
 

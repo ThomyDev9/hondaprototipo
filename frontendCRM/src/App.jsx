@@ -66,11 +66,15 @@ function App() {
     };
 
     const hydrateZoiperCodeByMachine = async (token) => {
+        let detectedMachineIp = "";
         try {
             const response = await fetchAgentMachineContext(token);
             const status = Number(response?.status || 0);
             const mappedZoiperCode = String(
                 response?.json?.data?.mappedZoiperCode || "",
+            ).trim();
+            detectedMachineIp = String(
+                response?.json?.data?.machineIp || "",
             ).trim();
 
             if (response?.ok && mappedZoiperCode) {
@@ -103,7 +107,9 @@ function App() {
 
         return {
             ok: false,
-            error: ZOIPER_REQUIRED_ERROR,
+            error: detectedMachineIp
+                ? `${ZOIPER_REQUIRED_ERROR} IP detectada: ${detectedMachineIp}`
+                : ZOIPER_REQUIRED_ERROR,
         };
     };
 
