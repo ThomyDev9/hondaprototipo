@@ -65,6 +65,8 @@ const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 const INBOUND_AUTO_TARGET_SESSION_KEY = "inbound_auto_last_target";
 const INBOUND_AUTO_TARGET_SHARED_KEY = "inbound_auto_last_target_shared";
 const INBOUND_DRAFT_STATE_SESSION_KEY = "inbound_manual_draft_state";
+const INBOUND_AGENT_LOCK_SESSION_KEY = "inbound_agent_number_locked";
+const INBOUND_AGENT_LOCK_SHARED_KEY = "inbound_agent_number_locked_shared";
 const INBOUND_DEFAULT_TARGET_LABELS = [
     "gestion inbound",
     "kullki wasi",
@@ -90,6 +92,8 @@ function Sidebar({
     const API_BASE = import.meta.env.VITE_API_BASE;
     const [collapsed, setCollapsed] = useState(false);
     const [inboundAgentNumber, setInboundAgentNumber] = useState("");
+    const [isInboundAgentNumberLocked, setIsInboundAgentNumberLocked] =
+        useState(false);
     const [hasActiveInboundCall, setHasActiveInboundCall] = useState(false);
     const [activeInboundCallId, setActiveInboundCallId] = useState("");
     const [pendingInboundCallId, setPendingInboundCallId] = useState("");
@@ -123,8 +127,15 @@ function Sidebar({
             inboundAgentFromQuery ||
             String(sessionStorage.getItem("inbound_agent_number") || "").trim() ||
             String(localStorage.getItem("inbound_agent_number_shared") || "").trim();
+        const storedLocked =
+            String(
+                sessionStorage.getItem(INBOUND_AGENT_LOCK_SESSION_KEY) ||
+                    localStorage.getItem(INBOUND_AGENT_LOCK_SHARED_KEY) ||
+                    "",
+            ).trim() === "1";
 
         setInboundAgentNumber(storedValue);
+        setIsInboundAgentNumberLocked(storedLocked);
         if (storedValue) {
             sessionStorage.setItem("inbound_agent_number", storedValue);
             localStorage.setItem("inbound_agent_number_shared", storedValue);
@@ -329,13 +340,22 @@ function Sidebar({
 
                     if (machineContext?.ok && machineMappedCode) {
                         setInboundAgentNumber(machineMappedCode);
+                        setIsInboundAgentNumberLocked(true);
                         sessionStorage.setItem(
                             "inbound_agent_number",
                             machineMappedCode,
                         );
+                        sessionStorage.setItem(
+                            INBOUND_AGENT_LOCK_SESSION_KEY,
+                            "1",
+                        );
                         localStorage.setItem(
                             "inbound_agent_number_shared",
                             machineMappedCode,
+                        );
+                        localStorage.setItem(
+                            INBOUND_AGENT_LOCK_SHARED_KEY,
+                            "1",
                         );
                     }
                 }
@@ -812,7 +832,10 @@ function Sidebar({
                             id="sidebar-inbound-agent-number"
                             type="text"
                             value={inboundAgentNumber}
+                            readOnly={isInboundAgentNumberLocked}
+                            disabled={isInboundAgentNumberLocked}
                             onChange={(event) => {
+                                if (isInboundAgentNumberLocked) return;
                                 const nextValue = String(
                                     event.target.value || "",
                                 ).trim();
@@ -827,11 +850,17 @@ function Sidebar({
                                 );
                             }}
                             placeholder="Ej: 9001"
-                            style={styles.inboundAgentInput}
+                            style={{
+                                ...styles.inboundAgentInput,
+                                ...(isInboundAgentNumberLocked
+                                    ? styles.inboundAgentInputLocked
+                                    : {}),
+                            }}
                         />
                         <span style={styles.inboundAgentHint}>
-                            Se usa para abrir inbound con la llamada activa ya
-                            identificada.
+                            {isInboundAgentNumberLocked
+                                ? "Código detectado automáticamente por IP. Está bloqueado para evitar cambios."
+                                : "Se usa para abrir inbound con la llamada activa ya identificada."}
                         </span>
                     </div>
                     <AccordionMenu
@@ -1149,6 +1178,12 @@ const styles = {
         color: "#0F172A",
         fontSize: "0.8rem",
         boxSizing: "border-box",
+    },
+    inboundAgentInputLocked: {
+        backgroundColor: "#f8fafc",
+        color: "#334155",
+        border: "1px solid rgba(148, 163, 184, 0.45)",
+        cursor: "not-allowed",
     },
     inboundAgentHint: {
         fontSize: "0.72rem",

@@ -25,6 +25,14 @@ import {
 } from "./pages/agente/dashboardAgente.helpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
+const INBOUND_AGENT_LOCK_SESSION_KEY = "inbound_agent_number_locked";
+const INBOUND_AGENT_LOCK_SHARED_KEY = "inbound_agent_number_locked_shared";
+const ZOIPER_BYPASS_USERS = new Set(
+    String(import.meta.env.VITE_INBOUND_ZOIPER_BYPASS_USERS || "")
+        .split(",")
+        .map((item) => String(item || "").trim().toLowerCase())
+        .filter(Boolean),
+);
 const ZOIPER_REQUIRED_ERROR =
     "Esta máquina no tiene Zoiper configurado para inbound. Comunícate con sistemas para registrar IP + código Zoiper.";
 
@@ -40,6 +48,16 @@ const isInternalHostForAdvisor = () => {
     if (/^192\.168\./.test(host)) return true;
     if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true;
     return false;
+};
+
+const allowsZoiperBypassForUser = (user) => {
+    if (!user) return false;
+    const username = String(user?.username || "").trim().toLowerCase();
+    const email = String(user?.email || "").trim().toLowerCase();
+    return Boolean(
+        (username && ZOIPER_BYPASS_USERS.has(username)) ||
+            (email && ZOIPER_BYPASS_USERS.has(email)),
+    );
 };
 
 function App() {
@@ -73,9 +91,11 @@ function App() {
     const [selectedAgentStatus, setSelectedAgentStatus] = useState("");
     const clearInboundSessionStorage = () => {
         sessionStorage.removeItem("inbound_agent_number");
+        sessionStorage.removeItem(INBOUND_AGENT_LOCK_SESSION_KEY);
         sessionStorage.removeItem("inbound_auto_last_target");
         sessionStorage.removeItem("inbound_manual_draft_state");
         localStorage.removeItem("inbound_agent_number_shared");
+        localStorage.removeItem(INBOUND_AGENT_LOCK_SHARED_KEY);
         localStorage.removeItem("inbound_auto_last_target_shared");
     };
 
@@ -96,10 +116,12 @@ function App() {
                     "inbound_agent_number",
                     mappedZoiperCode,
                 );
+                sessionStorage.setItem(INBOUND_AGENT_LOCK_SESSION_KEY, "1");
                 localStorage.setItem(
                     "inbound_agent_number_shared",
                     mappedZoiperCode,
                 );
+                localStorage.setItem(INBOUND_AGENT_LOCK_SHARED_KEY, "1");
                 return {
                     ok: true,
                     mappedZoiperCode,
@@ -159,14 +181,21 @@ function App() {
                         setError(INTERNAL_ONLY_ADVISOR_ERROR);
                         return;
                     }
-                    const zoiperCheck = await hydrateZoiperCodeByMachine(token);
-                    if (!zoiperCheck.ok) {
-                        clearInboundSessionStorage();
-                        localStorage.removeItem("access_token");
-                        localStorage.removeItem("import_user");
-                        setUserInfo(null);
-                        setError(zoiperCheck.error || ZOIPER_REQUIRED_ERROR);
-                        return;
+                    if (!allowsZoiperBypassForUser(meJson.user)) {
+                        const zoiperCheck = await hydrateZoiperCodeByMachine(
+                            token,
+                        );
+                        if (!zoiperCheck.ok) {
+                            clearInboundSessionStorage();
+                            localStorage.removeItem("access_token");
+                            localStorage.removeItem("import_user");
+                            setUserInfo(null);
+                            setError(zoiperCheck.error || ZOIPER_REQUIRED_ERROR);
+                            return;
+                        }
+                    } else {
+                        sessionStorage.removeItem(INBOUND_AGENT_LOCK_SESSION_KEY);
+                        localStorage.removeItem(INBOUND_AGENT_LOCK_SHARED_KEY);
                     }
                 }
 
@@ -246,12 +275,20 @@ function App() {
                     clearInboundSessionStorage();
                     throw new Error(INTERNAL_ONLY_ADVISOR_ERROR);
                 }
-                const zoiperCheck = await hydrateZoiperCodeByMachine(accessToken);
-                if (!zoiperCheck.ok) {
-                    localStorage.removeItem("access_token");
-                    localStorage.removeItem("import_user");
-                    clearInboundSessionStorage();
-                    throw new Error(zoiperCheck.error || ZOIPER_REQUIRED_ERROR);
+                if (!allowsZoiperBypassForUser(meJson.user)) {
+                    const zoiperCheck =
+                        await hydrateZoiperCodeByMachine(accessToken);
+                    if (!zoiperCheck.ok) {
+                        localStorage.removeItem("access_token");
+                        localStorage.removeItem("import_user");
+                        clearInboundSessionStorage();
+                        throw new Error(
+                            zoiperCheck.error || ZOIPER_REQUIRED_ERROR,
+                        );
+                    }
+                } else {
+                    sessionStorage.removeItem(INBOUND_AGENT_LOCK_SESSION_KEY);
+                    localStorage.removeItem(INBOUND_AGENT_LOCK_SHARED_KEY);
                 }
             }
 
