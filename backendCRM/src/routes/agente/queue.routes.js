@@ -252,7 +252,7 @@ export function registerQueueRoutes(
                     existingSession.AgentNumber || "",
                 ).trim();
 
-                if (!existingAgentNumber && agentNumber) {
+                if (agentNumber && existingAgentNumber !== agentNumber) {
                     const now = new Date();
                     await agenteDAO.upsertAgentSessionContext({
                         sessionId,
