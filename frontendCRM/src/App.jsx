@@ -15,7 +15,10 @@ import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
 import ConfiguracionAdmin from "./pages/admin/ConfiguracionAdmin";
 import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
 import ScriptsAdmin from "./pages/admin/ScriptsAdmin";
-import { endAgentSession } from "./services/dashboard.service";
+import {
+    endAgentSession,
+    fetchAgentMachineContext,
+} from "./services/dashboard.service";
 import {
     getCurrentTabSessionId,
     resetTabSessionId,
@@ -62,27 +65,34 @@ function App() {
         localStorage.removeItem("inbound_auto_last_target_shared");
     };
 
-    const hydrateZoiperCodeByMachine = async (token) => {
-        const response = await fetch(`${API_BASE}/agente/machine-context`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-        const body = await response.json().catch(() => ({}));
-        const mappedZoiperCode = String(
-            body?.data?.mappedZoiperCode || "",
-        ).trim();
+    const hydrateZoiperCodeByMachine = async () => {
+        try {
+            const response = await fetchAgentMachineContext();
+            const mappedZoiperCode = String(
+                response?.json?.data?.mappedZoiperCode || "",
+            ).trim();
 
-        if (!response.ok || !mappedZoiperCode) {
-            return {
-                ok: false,
-                error: ZOIPER_REQUIRED_ERROR,
-            };
+            if (response?.ok && mappedZoiperCode) {
+                sessionStorage.setItem(
+                    "inbound_agent_number",
+                    mappedZoiperCode,
+                );
+                localStorage.setItem(
+                    "inbound_agent_number_shared",
+                    mappedZoiperCode,
+                );
+                return {
+                    ok: true,
+                    mappedZoiperCode,
+                };
+            }
+        } catch {
+            // no-op
         }
 
-        sessionStorage.setItem("inbound_agent_number", mappedZoiperCode);
-        localStorage.setItem("inbound_agent_number_shared", mappedZoiperCode);
         return {
-            ok: true,
-            mappedZoiperCode,
+            ok: false,
+            error: ZOIPER_REQUIRED_ERROR,
         };
     };
 
@@ -110,7 +120,7 @@ function App() {
                     ? meJson.user.roles
                     : [];
                 if (roles.includes("ASESOR")) {
-                    const zoiperCheck = await hydrateZoiperCodeByMachine(token);
+                    const zoiperCheck = await hydrateZoiperCodeByMachine();
                     if (!zoiperCheck.ok) {
                         clearInboundSessionStorage();
                         localStorage.removeItem("access_token");
@@ -191,7 +201,7 @@ function App() {
                 ? meJson.user.roles
                 : [];
             if (roles.includes("ASESOR")) {
-                const zoiperCheck = await hydrateZoiperCodeByMachine(accessToken);
+                const zoiperCheck = await hydrateZoiperCodeByMachine();
                 if (!zoiperCheck.ok) {
                     localStorage.removeItem("access_token");
                     localStorage.removeItem("import_user");
