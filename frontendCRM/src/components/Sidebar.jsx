@@ -125,8 +125,12 @@ function Sidebar({
         ).trim();
         const storedValue =
             inboundAgentFromQuery ||
-            String(sessionStorage.getItem("inbound_agent_number") || "").trim() ||
-            String(localStorage.getItem("inbound_agent_number_shared") || "").trim();
+            String(
+                sessionStorage.getItem("inbound_agent_number") || "",
+            ).trim() ||
+            String(
+                localStorage.getItem("inbound_agent_number_shared") || "",
+            ).trim();
         const storedLocked =
             String(
                 sessionStorage.getItem(INBOUND_AGENT_LOCK_SESSION_KEY) ||
@@ -279,7 +283,8 @@ function Sidebar({
                 sessionHydrated &&
                 String(agentStatus || "").trim() &&
                 !options.some(
-                    (item) => String(item?.value || "") === String(agentStatus || ""),
+                    (item) =>
+                        String(item?.value || "") === String(agentStatus || ""),
                 )
             ) {
                 onChangeAgentStatus?.(String(options[0]?.value || "").trim());
@@ -321,9 +326,37 @@ function Sidebar({
                     sessionData?.AgentNumber || "",
                 ).trim();
                 const nextEstado = String(sessionData?.Estado || "").trim();
+                const machineContext = await fetchAgentMachineContext();
+                const machineMappedCode = String(
+                    machineContext?.json?.data?.mappedZoiperCode || "",
+                ).trim();
+                const hasMachineMappedCode = Boolean(
+                    machineContext?.ok && machineMappedCode,
+                );
 
-                if (nextAgentNumber) {
+                if (hasMachineMappedCode) {
+                    // Si hay mapeo IP+Zoiper, el código queda forzado y bloqueado.
+                    setInboundAgentNumber(machineMappedCode);
+                    setIsInboundAgentNumberLocked(true);
+                    sessionStorage.setItem(
+                        "inbound_agent_number",
+                        machineMappedCode,
+                    );
+                    sessionStorage.setItem(
+                        INBOUND_AGENT_LOCK_SESSION_KEY,
+                        "1",
+                    );
+                    localStorage.setItem(
+                        "inbound_agent_number_shared",
+                        machineMappedCode,
+                    );
+                    localStorage.setItem(
+                        INBOUND_AGENT_LOCK_SHARED_KEY,
+                        "1",
+                    );
+                } else if (nextAgentNumber) {
                     setInboundAgentNumber(nextAgentNumber);
+                    setIsInboundAgentNumberLocked(false);
                     sessionStorage.setItem(
                         "inbound_agent_number",
                         nextAgentNumber,
@@ -332,32 +365,12 @@ function Sidebar({
                         "inbound_agent_number_shared",
                         nextAgentNumber,
                     );
+                    sessionStorage.removeItem(INBOUND_AGENT_LOCK_SESSION_KEY);
+                    localStorage.removeItem(INBOUND_AGENT_LOCK_SHARED_KEY);
                 } else {
-                    const machineContext = await fetchAgentMachineContext();
-                    const machineMappedCode = String(
-                        machineContext?.json?.data?.mappedZoiperCode || "",
-                    ).trim();
-
-                    if (machineContext?.ok && machineMappedCode) {
-                        setInboundAgentNumber(machineMappedCode);
-                        setIsInboundAgentNumberLocked(true);
-                        sessionStorage.setItem(
-                            "inbound_agent_number",
-                            machineMappedCode,
-                        );
-                        sessionStorage.setItem(
-                            INBOUND_AGENT_LOCK_SESSION_KEY,
-                            "1",
-                        );
-                        localStorage.setItem(
-                            "inbound_agent_number_shared",
-                            machineMappedCode,
-                        );
-                        localStorage.setItem(
-                            INBOUND_AGENT_LOCK_SHARED_KEY,
-                            "1",
-                        );
-                    }
+                    setIsInboundAgentNumberLocked(false);
+                    sessionStorage.removeItem(INBOUND_AGENT_LOCK_SESSION_KEY);
+                    localStorage.removeItem(INBOUND_AGENT_LOCK_SHARED_KEY);
                 }
 
                 if (nextEstado) {
@@ -501,7 +514,8 @@ function Sidebar({
         if (effectiveRole.toUpperCase() !== "ASESOR") return;
         if (agentPage !== "inicio") return;
         if (!hasActiveInboundCall || !activeInboundCallId) return;
-        if (lastAutoOpenedInboundCallRef.current === activeInboundCallId) return;
+        if (lastAutoOpenedInboundCallRef.current === activeInboundCallId)
+            return;
         const savedTarget = resolveSavedInboundTarget();
 
         const campaignId = String(savedTarget?.campaignId || "").trim();
@@ -710,7 +724,9 @@ function Sidebar({
         }
 
         if (
-            ["CONSULTOR", "CONSULTOR_ADMIN"].includes(effectiveRole.toUpperCase()) &&
+            ["CONSULTOR", "CONSULTOR_ADMIN"].includes(
+                effectiveRole.toUpperCase(),
+            ) &&
             onChangeConsultorPage
         ) {
             onChangeConsultorPage(item.key);
@@ -860,18 +876,13 @@ function Sidebar({
                         <span style={styles.inboundAgentHint}>
                             {isInboundAgentNumberLocked
                                 ? "Código detectado automáticamente por IP. Está bloqueado para evitar cambios."
-                                : "Se usa para abrir inbound con la llamada activa ya identificada."}
+                                : ""}
                         </span>
                     </div>
                     <AccordionMenu
                         hiddenNormalizedLabels={
                             hasActiveInboundCall
-                                ? [
-                                      "kullki wasi",
-                                      "atm",
-                                      "oscus",
-                                      "atm oscus",
-                                  ]
+                                ? ["kullki wasi", "atm", "oscus", "atm oscus"]
                                 : []
                         }
                         onLeafSelect={async ({
@@ -892,11 +903,12 @@ function Sidebar({
                                     leafLabel,
                                     campaignId,
                                 );
-                            const isHistoricoInbound =
-                                isInboundHistoricoAction({
+                            const isHistoricoInbound = isInboundHistoricoAction(
+                                {
                                     campaignId,
                                     menuItemId,
-                                });
+                                },
+                            );
                             const requiresInboundAgentCode =
                                 Boolean(manualFlow) &&
                                 String(categoryId || "").trim() ===
@@ -925,7 +937,9 @@ function Sidebar({
                                     ) || "",
                                 ).trim();
 
-                                if (enteredCode !== SECURE_INBOUND_MANUAL_CODE) {
+                                if (
+                                    enteredCode !== SECURE_INBOUND_MANUAL_CODE
+                                ) {
                                     alert(
                                         "Código de seguridad inválido para la gestión inbound manual.",
                                     );
@@ -965,11 +979,13 @@ function Sidebar({
                                             menuItemId: menuItemId || "",
                                             categoryId: categoryId || "",
                                             manualFlow: Boolean(manualFlow),
-                                            leafLabel: leafLabel || campaignId || "",
+                                            leafLabel:
+                                                leafLabel || campaignId || "",
                                             secureInboundManual:
                                                 Boolean(secureInboundManual),
-                                            followupInboundManual:
-                                                Boolean(followupInboundManual),
+                                            followupInboundManual: Boolean(
+                                                followupInboundManual,
+                                            ),
                                         }),
                                     );
                                     localStorage.setItem(
@@ -980,11 +996,13 @@ function Sidebar({
                                             menuItemId: menuItemId || "",
                                             categoryId: categoryId || "",
                                             manualFlow: Boolean(manualFlow),
-                                            leafLabel: leafLabel || campaignId || "",
+                                            leafLabel:
+                                                leafLabel || campaignId || "",
                                             secureInboundManual:
                                                 Boolean(secureInboundManual),
-                                            followupInboundManual:
-                                                Boolean(followupInboundManual),
+                                            followupInboundManual: Boolean(
+                                                followupInboundManual,
+                                            ),
                                         }),
                                     );
                                 }
@@ -1031,8 +1049,8 @@ function Sidebar({
                         </span>
                         <span style={styles.inboundPendingText}>
                             Tienes una nueva llamada inbound mientras tu gestión
-                            actual aún no se guarda. Ábrela en otra pestaña
-                            para no perder tus datos.
+                            actual aún no se guarda. Ábrela en otra pestaña para
+                            no perder tus datos.
                         </span>
                         <div style={styles.inboundPendingActions}>
                             <button
