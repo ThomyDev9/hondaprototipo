@@ -79,6 +79,7 @@ function renderEditableInput(
     const normalizedLabel = String(field?.label || "").trim().toLowerCase();
     const behavior = getFieldBehavior(field);
     const isRequired = Boolean(field?.required);
+    const isDisabled = Boolean(field?.disabled);
     const isRedesIdentificationField =
         variant === "redes" &&
         (normalizedKey === "identificacion" ||
@@ -121,6 +122,7 @@ function renderEditableInput(
                 className="agent-input agent-survey-input"
                 value={value}
                 required={isRequired}
+                disabled={isDisabled}
                 onChange={(event) => onFieldChange(event.target.value)}
             >
                 <option value="">Selecciona...</option>
@@ -164,6 +166,7 @@ function renderEditableInput(
                                 name={field.key}
                                 value={optionValue}
                                 required={isRequired}
+                                disabled={isDisabled}
                                 checked={String(value) === String(optionValue)}
                                 onChange={(event) =>
                                     onFieldChange(event.target.value)
@@ -183,11 +186,12 @@ function renderEditableInput(
                 <textarea
                     className="agent-input agent-survey-input"
                     maxLength={resolvedMaxLength}
-                    value={value}
-                    required={isRequired}
-                    onChange={(event) =>
-                        onFieldChange(
-                            transformFieldValue(
+                value={value}
+                required={isRequired}
+                disabled={isDisabled}
+                onChange={(event) =>
+                    onFieldChange(
+                        transformFieldValue(
                                 field,
                                 event.target.value,
                                 "textarea",
@@ -221,6 +225,7 @@ function renderEditableInput(
                 maxLength={resolvedMaxLength}
                 value={value}
                 required={isRequired}
+                disabled={isDisabled}
                 onChange={(event) =>
                     onFieldChange(
                         transformFieldValue(field, event.target.value, inputType),
@@ -397,7 +402,8 @@ export default function AgentGestionDynamicSection({
                                 field={field}
                                 value={
                                     editable
-                                        ? values?.[field.key] || ""
+                                        ? values?.[field.key] ||
+                                          String(field?.value || "")
                                         : getFieldValue(field.key)
                                 }
                                 editable={editable}
@@ -421,7 +427,8 @@ export default function AgentGestionDynamicSection({
                                         field={field}
                                         value={
                                             editable
-                                                ? values?.[field.key] || ""
+                                                ? values?.[field.key] ||
+                                                  String(field?.value || "")
                                                 : getFieldValue(field.key)
                                         }
                                         editable={editable}

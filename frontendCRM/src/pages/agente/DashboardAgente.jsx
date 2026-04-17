@@ -92,8 +92,8 @@ export default function DashboardAgente({
         selectedMenuItemId,
         selectedCategoryId,
         selectedManualFlow,
-        selectedSecureInboundManual:
-            selectedSecureInboundManual || selectedFollowupInboundManual,
+        selectedSecureInboundManual,
+        selectedFollowupInboundManual,
         requestedAgentStatus,
         onAgentStatusSync,
         agentPage,

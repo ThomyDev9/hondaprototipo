@@ -113,6 +113,17 @@ function normalizeFlowLabel(value) {
         .toLowerCase();
 }
 
+function requiresInboundClienteRelation(...values) {
+    return values
+        .map((value) => normalizeFlowLabel(value))
+        .filter(Boolean)
+        .some(
+            (label) =>
+                label.includes("honda") ||
+                (label.includes("visionfund") && label.includes("banco")),
+        );
+}
+
 function findOptionValueIgnoreCase(options = [], target = "") {
     const normalizedTarget = normalizeFlowLabel(target);
     const matchedOption = (options || []).find((option) => {
@@ -991,17 +1002,32 @@ function AgentGestionForm({
                 label: String(item?.label || item?.campaignId || "").trim(),
             }))
             .filter((item) => item.value && item.label);
+        const inboundClientSelectedValue = String(
+            dynamicFormAnswers?.__inbound_nombre_cliente || "",
+        ).trim();
         const inboundClientLabel = String(
             dynamicFormAnswers?.__inbound_nombre_cliente_label || "",
         ).trim();
-        const inboundClientField =
-            !allowInboundClientManualSelection && inboundClientLabel
+        const inboundClientResolvedLabel =
+            inboundClientLabel ||
+            String(
+                inboundClientOptions.find(
+                    (item) =>
+                        String(item?.value || "").trim() ===
+                        inboundClientSelectedValue,
+                )?.label || "",
+            ).trim();
+        const shouldForceClienteRelation = requiresInboundClienteRelation(
+            inboundClientResolvedLabel,
+        );
+        const inboundClientField = !allowInboundClientManualSelection
             ? {
                   key: "__inbound_nombre_cliente_label",
                   label: "Nombre Cliente",
                   type: "text",
                   readOnly: true,
-                  required: true,
+                  required: false,
+                  value: inboundClientResolvedLabel,
               }
             : {
                   key: "__inbound_nombre_cliente",
@@ -1010,11 +1036,18 @@ function AgentGestionForm({
                   required: true,
                   options: inboundClientOptions,
               };
+        const inboundRelacionField = shouldForceClienteRelation
+            ? {
+                  ...INBOUND_FIXED_FIELDS_SECONDARY_ROW[0],
+                  options: ["Cliente"],
+                  disabled: true,
+              }
+            : INBOUND_FIXED_FIELDS_SECONDARY_ROW[0];
         const compactRows = [
             INBOUND_FIXED_FIELDS_PRIMARY_ROW,
             [
                 inboundClientField,
-                ...INBOUND_FIXED_FIELDS_SECONDARY_ROW,
+                inboundRelacionField,
             ],
             [pickField("IDENTIFICACION"), pickField("NOMBRE_CLIENTE")].filter(
                 Boolean,

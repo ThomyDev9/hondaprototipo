@@ -23,6 +23,7 @@ export default function useDashboardAgenteState({
     selectedCategoryId,
     selectedManualFlow,
     selectedSecureInboundManual,
+    selectedFollowupInboundManual,
     requestedAgentStatus,
     onAgentStatusSync,
     agentPage,
@@ -39,6 +40,15 @@ export default function useDashboardAgenteState({
             .replace(/[\u0300-\u036f]/g, "")
             .trim()
             .toLowerCase();
+    const requiresInboundClienteRelation = (...values) =>
+        values
+            .map((value) => normalizeFlowLabel(value))
+            .filter(Boolean)
+            .some(
+                (label) =>
+                    label.includes("honda") ||
+                    (label.includes("visionfund") && label.includes("banco")),
+            );
     const allowsInboundOpenWithoutCall = (...values) => {
         const normalizedValues = values.map(normalizeFlowLabel);
 
@@ -131,6 +141,7 @@ export default function useDashboardAgenteState({
         selectedCategoryId,
         selectedManualFlow,
         selectedSecureInboundManual,
+        selectedFollowupInboundManual,
         agentPage,
         bloqueado,
         handle403,
@@ -139,19 +150,9 @@ export default function useDashboardAgenteState({
         onAgentStatusSync,
     });
 
-    const isInboundFollowupFlow = (() => {
-        const labelsToCheck = [
-            selectedCampaignLabel,
-            selectedCampaignId,
-            campaignIdSeleccionada,
-            menuItemIdSeleccionado,
-        ]
-            .map((item) => normalizeFlowLabel(item))
-            .filter(Boolean);
-        return labelsToCheck.some((label) => label.includes("seguimiento"));
-    })();
-    const allowsManualInboundClientSelection =
-        Boolean(selectedSecureInboundManual) || isInboundFollowupFlow;
+    const allowsManualInboundClientSelection = Boolean(
+        selectedFollowupInboundManual,
+    );
 
     const findDynamicFieldKeyByLabels = useCallback(
         (labels = []) => {
@@ -639,6 +640,11 @@ export default function useDashboardAgenteState({
                 const selectedOption = (inboundChildOptions || []).find(
                     (item) => String(item.value) === String(value),
                 );
+                const shouldForceClienteRelation =
+                    requiresInboundClienteRelation(
+                        selectedOption?.label,
+                        selectedOption?.campaignId,
+                    );
 
                 setDynamicFormAnswers((prev) => ({
                     ...prev,
@@ -646,6 +652,9 @@ export default function useDashboardAgenteState({
                     __inbound_nombre_cliente_label: String(
                         selectedOption?.label || "",
                     ).trim(),
+                    ...(shouldForceClienteRelation
+                        ? { __inbound_relacion: "Cliente" }
+                        : {}),
                 }));
                 setInboundInteractionDetails([
                     {
@@ -669,6 +678,9 @@ export default function useDashboardAgenteState({
                         __inbound_nombre_cliente_label: String(
                             selectedOption?.label || "",
                         ).trim(),
+                        ...(shouldForceClienteRelation
+                            ? { __inbound_relacion: "Cliente" }
+                            : {}),
                     }));
                     return;
                 }
@@ -681,6 +693,13 @@ export default function useDashboardAgenteState({
                 const resolvedLabel = String(
                     queueMatchedChild?.label || selectedOption?.label || "",
                 ).trim();
+                const shouldForceClienteRelationResolved =
+                    requiresInboundClienteRelation(
+                        queueMatchedChild?.label,
+                        queueMatchedChild?.campaignId,
+                        selectedOption?.label,
+                        selectedOption?.campaignId,
+                    );
 
                 if (
                     queueMatchedChild?.menuItemId &&
@@ -695,6 +714,9 @@ export default function useDashboardAgenteState({
                     ...prev,
                     __inbound_nombre_cliente: resolvedValue,
                     __inbound_nombre_cliente_label: resolvedLabel,
+                    ...(shouldForceClienteRelationResolved
+                        ? { __inbound_relacion: "Cliente" }
+                        : {}),
                 }));
                 return;
             }
@@ -735,6 +757,11 @@ export default function useDashboardAgenteState({
                     String(item.menuItemId || item.value || "").trim() ===
                     selectedChildMenuItemId,
             );
+            const shouldForceClienteRelationByChild =
+                requiresInboundClienteRelation(
+                    selectedChild?.label,
+                    selectedChild?.campaignId,
+                );
 
             const { ok, status, json } = await fetchInboundClientByIdentification({
                 identification,
@@ -779,9 +806,11 @@ export default function useDashboardAgenteState({
                     prev.__inbound_tipo_canal ||
                     "",
                 __inbound_relacion:
-                    String(client.relacion || "").trim() ||
-                    prev.__inbound_relacion ||
-                    "",
+                    shouldForceClienteRelationByChild
+                        ? "Cliente"
+                        : String(client.relacion || "").trim() ||
+                          prev.__inbound_relacion ||
+                          "",
             }));
 
             const currentCall = await hydrateInboundCurrentCall();
@@ -803,6 +832,12 @@ export default function useDashboardAgenteState({
                     __inbound_nombre_cliente: queueMatchedChild.menuItemId,
                     __inbound_nombre_cliente_label:
                         queueMatchedChild.label || "",
+                    ...(requiresInboundClienteRelation(
+                        queueMatchedChild?.label,
+                        queueMatchedChild?.campaignId,
+                    )
+                        ? { __inbound_relacion: "Cliente" }
+                        : {}),
                 }));
             }
         },
@@ -916,6 +951,12 @@ export default function useDashboardAgenteState({
                 __inbound_nombre_cliente: queueMatchedChild.menuItemId,
                 __inbound_nombre_cliente_label:
                     queueMatchedChild.label || "",
+                ...(requiresInboundClienteRelation(
+                    queueMatchedChild?.label,
+                    queueMatchedChild?.campaignId,
+                )
+                    ? { __inbound_relacion: "Cliente" }
+                    : {}),
             }));
         };
 
@@ -934,6 +975,56 @@ export default function useDashboardAgenteState({
         manualFlowActivo,
         allowsManualInboundClientSelection,
         resolveInboundChildByQueue,
+        setDynamicFormAnswers,
+    ]);
+
+    useEffect(() => {
+        const shouldHydrateInboundClientLabel =
+            manualFlowActivo &&
+            String(categoryIdSeleccionada || "").trim() ===
+                INBOUND_MENU_CATEGORY_ID &&
+            !allowsManualInboundClientSelection &&
+            Array.isArray(inboundChildOptions) &&
+            inboundChildOptions.length > 0;
+
+        if (!shouldHydrateInboundClientLabel) {
+            return;
+        }
+
+        const selectedMenuItemId = String(
+            dynamicFormAnswers?.__inbound_nombre_cliente || "",
+        ).trim();
+        const currentLabel = String(
+            dynamicFormAnswers?.__inbound_nombre_cliente_label || "",
+        ).trim();
+
+        if (!selectedMenuItemId || currentLabel) {
+            return;
+        }
+
+        const selectedOption = (inboundChildOptions || []).find(
+            (item) =>
+                String(item?.menuItemId || item?.value || "").trim() ===
+                selectedMenuItemId,
+        );
+
+        if (!selectedOption?.label) {
+            return;
+        }
+
+        setDynamicFormAnswers((prev) => ({
+            ...prev,
+            __inbound_nombre_cliente_label: String(
+                selectedOption.label || "",
+            ).trim(),
+        }));
+    }, [
+        allowsManualInboundClientSelection,
+        categoryIdSeleccionada,
+        dynamicFormAnswers?.__inbound_nombre_cliente,
+        dynamicFormAnswers?.__inbound_nombre_cliente_label,
+        inboundChildOptions,
+        manualFlowActivo,
         setDynamicFormAnswers,
     ]);
 

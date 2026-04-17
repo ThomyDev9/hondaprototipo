@@ -54,13 +54,6 @@ function isGestionRedesFlow({ menuItemId = "", campaignId = "" }) {
     );
 }
 
-function isInboundFollowupFlowByLabels(...values) {
-    return values
-        .map((item) => normalizeFlowLabel(item))
-        .filter(Boolean)
-        .some((label) => label.includes("seguimiento"));
-}
-
 function normalizeInboundQueueValue(value) {
     return String(value || "")
         .trim()
@@ -94,6 +87,7 @@ export default function useRegistroQueue({
     selectedCategoryId,
     selectedManualFlow,
     selectedSecureInboundManual,
+    selectedFollowupInboundManual,
     agentPage,
     bloqueado,
     handle403,
@@ -121,11 +115,6 @@ export default function useRegistroQueue({
     const [inboundChildOptions, setInboundChildOptions] = useState([]);
     const [estadoAgente, setEstadoAgente] = useState("");
     const [observacion, setObservacion] = useState("");
-    const isFollowupInboundManual = isInboundFollowupFlowByLabels(
-        selectedCampaignLabel,
-        selectedCampaignId,
-        selectedMenuItemId,
-    );
 
     const lastActivityRef = useRef(Date.now());
     const initialCampaignTickRef = useRef(selectedCampaignTick || 0);
@@ -706,7 +695,7 @@ export default function useRegistroQueue({
                     return;
                 }
 
-                if (selectedSecureInboundManual || isFollowupInboundManual) {
+                if (selectedSecureInboundManual || selectedFollowupInboundManual) {
                     setDynamicFormAnswers((prev) => ({
                         ...prev,
                         __inbound_nombre_cliente: "",
@@ -797,7 +786,7 @@ export default function useRegistroQueue({
         selectedCategoryId,
         selectedManualFlow,
         selectedSecureInboundManual,
-        isFollowupInboundManual,
+        selectedFollowupInboundManual,
         loadTemplatesAndCatalogs,
         loadInboundChildOptions,
         resetDynamicState,
