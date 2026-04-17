@@ -139,6 +139,20 @@ export default function useDashboardAgenteState({
         onAgentStatusSync,
     });
 
+    const isInboundFollowupFlow = (() => {
+        const labelsToCheck = [
+            selectedCampaignLabel,
+            selectedCampaignId,
+            campaignIdSeleccionada,
+            menuItemIdSeleccionado,
+        ]
+            .map((item) => normalizeFlowLabel(item))
+            .filter(Boolean);
+        return labelsToCheck.some((label) => label.includes("seguimiento"));
+    })();
+    const allowsManualInboundClientSelection =
+        Boolean(selectedSecureInboundManual) || isInboundFollowupFlow;
+
     const findDynamicFieldKeyByLabels = useCallback(
         (labels = []) => {
             const normalizedLabels = labels.map(normalizeFlowLabel);
@@ -647,7 +661,7 @@ export default function useDashboardAgenteState({
                     childMenuItemId: selectedOption?.menuItemId || "",
                     childCampaignId: selectedOption?.campaignId || "",
                 });
-                if (selectedSecureInboundManual) {
+                if (allowsManualInboundClientSelection) {
                     setDynamicFormAnswers((prev) => ({
                         ...prev,
                         __inbound_nombre_cliente:
@@ -801,7 +815,7 @@ export default function useDashboardAgenteState({
             inboundChildOptions,
             manualFlowActivo,
             menuItemIdSeleccionado,
-            selectedSecureInboundManual,
+            allowsManualInboundClientSelection,
             resolveInboundChildByQueue,
             setDynamicFormAnswers,
             setError,
@@ -842,7 +856,8 @@ export default function useDashboardAgenteState({
             String(categoryIdSeleccionada || "").trim() ===
                 INBOUND_MENU_CATEGORY_ID &&
             Array.isArray(inboundChildOptions) &&
-            inboundChildOptions.length > 0;
+            inboundChildOptions.length > 0 &&
+            !allowsManualInboundClientSelection;
 
         if (!shouldAutoselectInboundChild) {
             return;
@@ -917,6 +932,7 @@ export default function useDashboardAgenteState({
         hydrateInboundCurrentCall,
         inboundChildOptions,
         manualFlowActivo,
+        allowsManualInboundClientSelection,
         resolveInboundChildByQueue,
         setDynamicFormAnswers,
     ]);
@@ -931,7 +947,7 @@ export default function useDashboardAgenteState({
             manualFlowActivo &&
             String(categoryIdSeleccionada || "").trim() ===
                 INBOUND_MENU_CATEGORY_ID &&
-            !selectedSecureInboundManual &&
+            !allowsManualInboundClientSelection &&
             !allowsOpenWithoutCall &&
             agentPage !== "inicio";
 
@@ -968,7 +984,7 @@ export default function useDashboardAgenteState({
         onChangeAgentPage,
         selectedCampaignId,
         selectedCampaignLabel,
-        selectedSecureInboundManual,
+        allowsManualInboundClientSelection,
         setError,
     ]);
 
@@ -1167,6 +1183,7 @@ export default function useDashboardAgenteState({
         inboundInteractionDetails,
         inboundImageDrafts,
         isSavingGestion,
+        allowsManualInboundClientSelection,
         shouldShowQueueMessage,
         isHomeView,
         isGestionOutbound,

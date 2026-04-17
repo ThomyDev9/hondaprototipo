@@ -64,6 +64,7 @@ export default function DashboardAgente({
         inboundInteractionDetails,
         inboundImageDrafts,
         isSavingGestion,
+        allowsManualInboundClientSelection,
         shouldShowQueueMessage,
         isHomeView,
         isGestionOutbound,
@@ -317,6 +318,9 @@ export default function DashboardAgente({
                             onSurveyFieldChange={handleSurveyFieldChange}
                             onDynamicFormFieldChange={
                                 handleDynamicFormFieldChange
+                            }
+                            allowInboundClientManualSelection={
+                                allowsManualInboundClientSelection
                             }
                             onCancelarGestion={handleCancelarGestion}
                             user={user}

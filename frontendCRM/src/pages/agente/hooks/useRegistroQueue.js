@@ -54,6 +54,13 @@ function isGestionRedesFlow({ menuItemId = "", campaignId = "" }) {
     );
 }
 
+function isInboundFollowupFlowByLabels(...values) {
+    return values
+        .map((item) => normalizeFlowLabel(item))
+        .filter(Boolean)
+        .some((label) => label.includes("seguimiento"));
+}
+
 function normalizeInboundQueueValue(value) {
     return String(value || "")
         .trim()
@@ -114,6 +121,11 @@ export default function useRegistroQueue({
     const [inboundChildOptions, setInboundChildOptions] = useState([]);
     const [estadoAgente, setEstadoAgente] = useState("");
     const [observacion, setObservacion] = useState("");
+    const isFollowupInboundManual = isInboundFollowupFlowByLabels(
+        selectedCampaignLabel,
+        selectedCampaignId,
+        selectedMenuItemId,
+    );
 
     const lastActivityRef = useRef(Date.now());
     const initialCampaignTickRef = useRef(selectedCampaignTick || 0);
@@ -694,7 +706,7 @@ export default function useRegistroQueue({
                     return;
                 }
 
-                if (selectedSecureInboundManual) {
+                if (selectedSecureInboundManual || isFollowupInboundManual) {
                     setDynamicFormAnswers((prev) => ({
                         ...prev,
                         __inbound_nombre_cliente: "",
@@ -785,6 +797,7 @@ export default function useRegistroQueue({
         selectedCategoryId,
         selectedManualFlow,
         selectedSecureInboundManual,
+        isFollowupInboundManual,
         loadTemplatesAndCatalogs,
         loadInboundChildOptions,
         resetDynamicState,

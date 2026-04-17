@@ -791,6 +791,7 @@ function AgentGestionForm({
     onAddInboundImageDraft,
     onRemoveInboundImageDraft,
     onInboundImageDraftChange,
+    allowInboundClientManualSelection = false,
     onCancelarGestion,
     user,
     isSaving = false,
@@ -993,7 +994,8 @@ function AgentGestionForm({
         const inboundClientLabel = String(
             dynamicFormAnswers?.__inbound_nombre_cliente_label || "",
         ).trim();
-        const inboundClientField = inboundClientLabel
+        const inboundClientField =
+            !allowInboundClientManualSelection && inboundClientLabel
             ? {
                   key: "__inbound_nombre_cliente_label",
                   label: "Nombre Cliente",
@@ -1028,6 +1030,7 @@ function AgentGestionForm({
 
         return compactRows;
     }, [
+        allowInboundClientManualSelection,
         categoryId,
         inboundChildOptions,
         dynamicFormAnswers?.__inbound_nombre_cliente_label,
@@ -1311,6 +1314,7 @@ AgentGestionForm.propTypes = {
     onAddInboundImageDraft: PropTypes.func,
     onRemoveInboundImageDraft: PropTypes.func,
     onInboundImageDraftChange: PropTypes.func,
+    allowInboundClientManualSelection: PropTypes.bool,
     onCancelarGestion: PropTypes.func.isRequired,
     user: PropTypes.shape({
         full_name: PropTypes.string,
