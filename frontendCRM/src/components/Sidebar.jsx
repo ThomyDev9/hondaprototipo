@@ -342,18 +342,12 @@ function Sidebar({
                         "inbound_agent_number",
                         machineMappedCode,
                     );
-                    sessionStorage.setItem(
-                        INBOUND_AGENT_LOCK_SESSION_KEY,
-                        "1",
-                    );
+                    sessionStorage.setItem(INBOUND_AGENT_LOCK_SESSION_KEY, "1");
                     localStorage.setItem(
                         "inbound_agent_number_shared",
                         machineMappedCode,
                     );
-                    localStorage.setItem(
-                        INBOUND_AGENT_LOCK_SHARED_KEY,
-                        "1",
-                    );
+                    localStorage.setItem(INBOUND_AGENT_LOCK_SHARED_KEY, "1");
                 } else if (nextAgentNumber) {
                     setInboundAgentNumber(nextAgentNumber);
                     setIsInboundAgentNumberLocked(false);
@@ -773,7 +767,15 @@ function Sidebar({
 
             {!collapsed && (
                 <div style={styles.userPanel}>
-                    <span style={styles.roleBadge}>{effectiveRole}</span>
+                    <div style={styles.userHeaderRow}>
+                        <span style={styles.roleBadge}>{effectiveRole}</span>
+                        {effectiveRole.toUpperCase() === "ASESOR" && (
+                            <span style={styles.inboundCodeBadge}>
+                                Cod. inbound:{" "}
+                                {String(inboundAgentNumber || "").trim() || "-"}
+                            </span>
+                        )}
+                    </div>
                     <span style={styles.userName}>{displayName}</span>
 
                     {effectiveRole.toUpperCase() === "ASESOR" && (
@@ -837,6 +839,7 @@ function Sidebar({
 
             {effectiveRole.toUpperCase() === "ASESOR" && !collapsed && (
                 <div style={{ width: "100%", marginTop: "0.75rem" }}>
+                    {!isInboundAgentNumberLocked && (
                     <div style={styles.inboundAgentCard}>
                         <label
                             htmlFor="sidebar-inbound-agent-number"
@@ -874,11 +877,10 @@ function Sidebar({
                             }}
                         />
                         <span style={styles.inboundAgentHint}>
-                            {isInboundAgentNumberLocked
-                                ? "Código detectado automáticamente por IP. Está bloqueado para evitar cambios."
-                                : ""}
+                            Se usa para abrir inbound con la llamada activa.
                         </span>
                     </div>
+                    )}
                     <AccordionMenu
                         hiddenNormalizedLabels={
                             hasActiveInboundCall
@@ -1139,10 +1141,17 @@ const styles = {
         width: "100%",
         display: "flex",
         flexDirection: "column",
-        gap: "0.5rem",
+        gap: "0.45rem",
         marginBottom: "0.5rem",
         paddingBottom: "0.5rem",
         borderBottom: "1px solid rgba(226, 232, 240, 0.2)",
+    },
+    userHeaderRow: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.35rem",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
     },
     roleBadge: {
         backgroundColor: "#0F172A",
@@ -1152,6 +1161,19 @@ const styles = {
         fontWeight: 700,
         padding: "0.2rem 0.6rem",
         alignSelf: "flex-start",
+    },
+    inboundCodeBadge: {
+        backgroundColor: "rgba(15, 23, 42, 0.55)",
+        border: "1px solid rgba(191, 219, 254, 0.55)",
+        borderRadius: "999px",
+        fontSize: "0.7rem",
+        fontWeight: 700,
+        padding: "0.2rem 0.5rem",
+        color: "#e2e8f0",
+        maxWidth: "100%",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
     },
     userName: {
         fontSize: "0.9rem",
