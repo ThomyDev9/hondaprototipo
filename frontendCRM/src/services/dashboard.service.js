@@ -112,11 +112,66 @@ export const fetchAgentSessionContext = (sessionId) =>
     );
 
 export const fetchAgentMachineContext = (tokenOverride = "") =>
-    request("agente/machine-context", {
-        headers: tokenOverride
-            ? { Authorization: `Bearer ${String(tokenOverride || "").trim()}` }
-            : {},
-    });
+    (async () => {
+        const authorizationToken = String(tokenOverride || "").trim();
+        const authHeader = authorizationToken
+            ? { Authorization: `Bearer ${authorizationToken}` }
+            : {};
+
+        const proxiedResponse = await request("agente/machine-context", {
+            headers: authHeader,
+        });
+
+        const proxiedCode = String(
+            proxiedResponse?.json?.data?.mappedZoiperCode || "",
+        ).trim();
+        if (proxiedResponse?.ok && proxiedCode) {
+            return proxiedResponse;
+        }
+
+        // Fallback directo al backend para capturar IP real de la maquina cuando
+        // el proxy devuelve una IP intermedia (docker/nginx).
+        const directBaseFromEnv = String(
+            import.meta.env.VITE_MACHINE_CONTEXT_DIRECT_BASE || "",
+        ).trim();
+        const directPort = String(
+            import.meta.env.VITE_MACHINE_CONTEXT_DIRECT_PORT || "4005",
+        ).trim();
+        const directBase =
+            directBaseFromEnv ||
+            (typeof window !== "undefined" && window.location?.hostname
+                ? `${window.location.protocol}//${window.location.hostname}:${directPort}`
+                : "");
+
+        if (!directBase) {
+            return proxiedResponse;
+        }
+
+        try {
+            const directResp = await fetch(
+                `${directBase}/agente/machine-context`,
+                {
+                    method: "GET",
+                    headers: buildHeaders(authHeader),
+                },
+            );
+            let directJson = null;
+            try {
+                directJson = await directResp.json();
+            } catch (_err) {
+                directJson = null;
+            }
+
+            return {
+                status: directResp.status,
+                ok: directResp.ok,
+                json: directJson,
+                response: directResp,
+            };
+        } catch (_err) {
+            return proxiedResponse;
+        }
+    })();
 
 export const startAgentSession = ({ sessionId, agentNumber = "" }) =>
     request("agente/session-start", {
