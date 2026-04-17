@@ -19,6 +19,7 @@ import {
 import "./OutMaquitaMailFlow.css";
 
 const CAMPAIGN_ID = "Out Maquita Cushunchic";
+const DEFAULT_TIPO_CAMPANA = "VENTAS";
 
 const MAIL_EXTRA_FIELDS = [
     {
@@ -70,6 +71,9 @@ const MAIL_EXTRA_FIELDS = [
         label: "Agencia asistir",
         type: "select",
         required: false,
+        visibleWhen: (values) =>
+            String(values?.entregaDocumentos || "").trim() ===
+            "Entrega fisica",
         options: OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS.map((item) => ({
             value: item,
             label: item,
@@ -90,7 +94,10 @@ function buildMailInitialValues(registro) {
                 "C",
             ]) ||
             "",
-        tipoCampana: registro?.tipoCampana || registro?.TipoCampania || "",
+        tipoCampana:
+            registro?.tipoCampana ||
+            registro?.TipoCampania ||
+            DEFAULT_TIPO_CAMPANA,
         celular:
             registro?.celular ||
             registro?.Celular ||
@@ -148,6 +155,24 @@ function buildMailInitialValues(registro) {
             "CAMPO3",
         ]),
     };
+}
+
+function buildTipoCampanaOptions(tiposCampania = []) {
+    const values = tiposCampania
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+    const hasDefault = values.some(
+        (item) => item.toLowerCase() === DEFAULT_TIPO_CAMPANA.toLowerCase(),
+    );
+
+    const normalized = hasDefault
+        ? values
+        : [DEFAULT_TIPO_CAMPANA, ...values];
+
+    return normalized.map((item) => ({
+        value: item,
+        label: item,
+    }));
 }
 
 export default function OutMaquitaMailFlow({ onBack }) {
@@ -317,10 +342,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
                     return {
                         ...field,
                         type: "select",
-                        options: tiposCampania.map((item) => ({
-                            value: item,
-                            label: item,
-                        })),
+                        options: buildTipoCampanaOptions(tiposCampania),
                     };
                 }
 
@@ -396,6 +418,18 @@ export default function OutMaquitaMailFlow({ onBack }) {
 
     const saveOutboundGestion = React.useCallback(
         async (formData) => {
+            const normalizedEntrega = String(
+                formData?.entregaDocumentos || "",
+            ).trim();
+            const payload = {
+                ...formData,
+                agenciaAsistir:
+                    normalizedEntrega === "Entrega fisica"
+                        ? formData?.agenciaAsistir || ""
+                        : "",
+                tipoCampana:
+                    formData?.tipoCampana || DEFAULT_TIPO_CAMPANA,
+            };
             const fieldsMeta = dynamicTemplate.map((field) => ({
                 name: field.name,
                 label: field.label,
@@ -403,7 +437,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
             const { ok, json } = await guardarGestionOutbound({
                 campaignId: CAMPAIGN_ID,
                 formData: {
-                    ...formData,
+                    ...payload,
                     outboundFlow: "mail",
                 },
                 fieldsMeta,

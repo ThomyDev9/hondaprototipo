@@ -30,6 +30,7 @@ export default function useDashboardAgenteState({
     selectedImportId,
 }) {
     const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+    const INBOUND_DRAFT_STATE_SESSION_KEY = "inbound_manual_draft_state";
     const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
     const REDES_SHARED_LABEL = "gestion redes";
     const normalizeFlowLabel = (value) =>
@@ -456,31 +457,90 @@ export default function useDashboardAgenteState({
             currentCall.recordingfile || "",
         ).trim();
 
-        setDynamicFormAnswers((prev) => ({
-            ...prev,
-            ...(resolvedTicketId
-                ? {
-                      CAMPO5: resolvedTicketId,
-                      ticketId: resolvedTicketId,
-                      idLlamada: resolvedTicketId,
-                  }
-                : {}),
-            ...(!String(prev?.CAMPO3 || "").trim() && resolvedPhone
-                ? { CAMPO3: resolvedPhone }
-                : {}),
-            __inbound_current_call_id: resolvedTicketId,
-            __inbound_current_call_phone: resolvedPhone,
-            __inbound_current_call_queue: String(
-                currentCall.queue || "",
-            ).trim(),
-            __inbound_current_call_recordingfile: resolvedRecordingfile,
-            __inbound_agent_number:
-                String(prev?.__inbound_agent_number || "").trim() ||
-                agentNumber,
-        }));
+        setDynamicFormAnswers((prev) => {
+            const previousCallId = String(
+                prev?.__inbound_current_call_id || "",
+            ).trim();
+            const isNewInboundCall =
+                Boolean(previousCallId) &&
+                Boolean(resolvedTicketId) &&
+                previousCallId !== resolvedTicketId;
+            const isInboundManualFlow =
+                manualFlowActivo &&
+                String(categoryIdSeleccionada || "").trim() ===
+                    INBOUND_MENU_CATEGORY_ID;
+
+            if (isInboundManualFlow && isNewInboundCall) {
+                try {
+                    const draftState = JSON.parse(
+                        sessionStorage.getItem("inbound_manual_draft_state") ||
+                            "{}",
+                    );
+                    const hasDraft = Boolean(draftState?.hasDraft);
+
+                    // Si existe una gestión en borrador, no se pisan los datos
+                    // de la llamada actual en esta pestaña.
+                    if (hasDraft) {
+                        return prev;
+                    }
+                } catch {
+                    // no-op
+                }
+            }
+
+            const nextAnswers = {
+                ...prev,
+                ...(resolvedTicketId
+                    ? {
+                          CAMPO5: resolvedTicketId,
+                          ticketId: resolvedTicketId,
+                          idLlamada: resolvedTicketId,
+                      }
+                    : {}),
+                __inbound_current_call_id: resolvedTicketId,
+                __inbound_current_call_phone: resolvedPhone,
+                __inbound_current_call_queue: String(
+                    currentCall.queue || "",
+                ).trim(),
+                __inbound_current_call_recordingfile: resolvedRecordingfile,
+                __inbound_agent_number:
+                    String(prev?.__inbound_agent_number || "").trim() ||
+                    agentNumber,
+            };
+
+            if (
+                resolvedPhone &&
+                (isNewInboundCall || !String(prev?.CAMPO3 || "").trim())
+            ) {
+                nextAnswers.CAMPO3 = resolvedPhone;
+            }
+
+            if (isNewInboundCall) {
+                Object.assign(nextAnswers, {
+                    IDENTIFICACION: "",
+                    NOMBRE_CLIENTE: "",
+                    CAMPO1: "",
+                    CAMPO2: "",
+                    CAMPO4: "",
+                    __inbound_tipo_identificacion: "",
+                    __inbound_tipo_cliente: "",
+                    __inbound_tipo_canal: "",
+                    __inbound_relacion: "",
+                    __inbound_nombre_cliente: "",
+                    __inbound_nombre_cliente_label: "",
+                });
+            }
+
+            return nextAnswers;
+        });
 
         return currentCall;
-    }, [resolveInboundAgentNumber, setDynamicFormAnswers]);
+    }, [
+        categoryIdSeleccionada,
+        manualFlowActivo,
+        resolveInboundAgentNumber,
+        setDynamicFormAnswers,
+    ]);
 
     const normalizeInboundQueueValue = useCallback((value) => {
         return String(value || "")
@@ -569,6 +629,9 @@ export default function useDashboardAgenteState({
                 setDynamicFormAnswers((prev) => ({
                     ...prev,
                     [fieldKey]: value,
+                    __inbound_nombre_cliente_label: String(
+                        selectedOption?.label || "",
+                    ).trim(),
                 }));
                 setInboundInteractionDetails([
                     {
@@ -601,12 +664,9 @@ export default function useDashboardAgenteState({
                 );
                 const resolvedValue =
                     queueMatchedChild?.menuItemId || String(value || "");
-                const resolvedLabel =
-                    queueMatchedChild?.label ||
-                    selectedOption?.label ||
-                    String(
-                        dynamicFormAnswers?.__inbound_nombre_cliente_label || "",
-                    ).trim();
+                const resolvedLabel = String(
+                    queueMatchedChild?.label || selectedOption?.label || "",
+                ).trim();
 
                 if (
                     queueMatchedChild?.menuItemId &&
@@ -814,9 +874,15 @@ export default function useDashboardAgenteState({
                 dynamicFormAnswers?.__inbound_current_call_queue || "",
             ).trim();
 
+            const currentSelectedLabel = String(
+                dynamicFormAnswers?.__inbound_nombre_cliente_label || "",
+            ).trim();
+            const expectedLabel = String(queueMatchedChild.label || "").trim();
+
             if (
                 currentSelectedChild === queueMatchedChild.menuItemId &&
-                currentResolvedQueue === String(resolvedQueue || "").trim()
+                currentResolvedQueue === String(resolvedQueue || "").trim() &&
+                currentSelectedLabel === expectedLabel
             ) {
                 return;
             }
@@ -830,13 +896,13 @@ export default function useDashboardAgenteState({
                 return;
             }
 
-        setDynamicFormAnswers((prev) => ({
-            ...prev,
-            __inbound_nombre_cliente: queueMatchedChild.menuItemId,
-            __inbound_nombre_cliente_label:
-                queueMatchedChild.label || "",
-        }));
-    };
+            setDynamicFormAnswers((prev) => ({
+                ...prev,
+                __inbound_nombre_cliente: queueMatchedChild.menuItemId,
+                __inbound_nombre_cliente_label:
+                    queueMatchedChild.label || "",
+            }));
+        };
 
         autoselectByActiveCallQueue();
 
@@ -904,6 +970,82 @@ export default function useDashboardAgenteState({
         selectedCampaignLabel,
         selectedSecureInboundManual,
         setError,
+    ]);
+
+    useEffect(() => {
+        const isInboundManualFlow =
+            manualFlowActivo &&
+            String(categoryIdSeleccionada || "").trim() ===
+                INBOUND_MENU_CATEGORY_ID;
+
+        if (!isInboundManualFlow) {
+            sessionStorage.removeItem(INBOUND_DRAFT_STATE_SESSION_KEY);
+            return;
+        }
+
+        const hasValue = (value) => String(value ?? "").trim() !== "";
+        const ignoredDynamicKeys = new Set([
+            "__inbound_current_call_id",
+            "__inbound_current_call_phone",
+            "__inbound_current_call_queue",
+            "__inbound_current_call_recordingfile",
+            "__inbound_agent_number",
+            "__inbound_nombre_cliente",
+            "__inbound_nombre_cliente_label",
+            "CAMPO3",
+            "CAMPO5",
+            "ticketId",
+            "idLlamada",
+        ]);
+
+        const hasDynamicDraft = Object.entries(dynamicFormAnswers || {}).some(
+            ([key, value]) => !ignoredDynamicKeys.has(key) && hasValue(value),
+        );
+        const hasGestionDraft =
+            hasValue(observacion) ||
+            hasValue(level1Seleccionado) ||
+            hasValue(level2Seleccionado) ||
+            hasValue(telefonoSeleccionado) ||
+            hasValue(estadoTelefonoSeleccionado);
+        const hasInboundDetailsDraft = (inboundInteractionDetails || []).some(
+            (item) =>
+                hasValue(item?.categorizacion) ||
+                hasValue(item?.motivo) ||
+                hasValue(item?.submotivo) ||
+                hasValue(item?.observaciones),
+        );
+        const hasInboundFilesDraft = (inboundImageDrafts || []).some((item) =>
+            Boolean(item?.file),
+        );
+
+        const hasDraft =
+            hasDynamicDraft ||
+            hasGestionDraft ||
+            hasInboundDetailsDraft ||
+            hasInboundFilesDraft;
+        const callId = String(
+            dynamicFormAnswers?.__inbound_current_call_id || "",
+        ).trim();
+
+        sessionStorage.setItem(
+            INBOUND_DRAFT_STATE_SESSION_KEY,
+            JSON.stringify({
+                hasDraft,
+                callId,
+                updatedAt: Date.now(),
+            }),
+        );
+    }, [
+        categoryIdSeleccionada,
+        dynamicFormAnswers,
+        inboundImageDrafts,
+        inboundInteractionDetails,
+        level1Seleccionado,
+        level2Seleccionado,
+        manualFlowActivo,
+        observacion,
+        telefonoSeleccionado,
+        estadoTelefonoSeleccionado,
     ]);
 
     const handleGuardarGestion = useAgentGestionSubmit({

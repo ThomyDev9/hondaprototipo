@@ -19,6 +19,7 @@ import "./OutMaquitaRrssFlow.css";
 
 const FLOW_STATUS_KEYS = ["Estado", "Estado ", "U"];
 const CAMPAIGN_ID = "Out Maquita Cushunchic";
+const DEFAULT_TIPO_CAMPANA = "VENTAS";
 const RRSS_OBSERVACION_KEYS = ["Observacion AGENTE MAQUITA", "R"];
 const RRSS_PROCESO_KEYS = ["PROCESO A REALIZAR ", "PROCESO A REALIZAR", "S"];
 const RRSS_TIPO_RELACION_KEYS = [
@@ -108,6 +109,9 @@ const RRSS_EXTRA_FIELDS = [
         label: "Agencia asistir",
         type: "select",
         required: false,
+        visibleWhen: (values) =>
+            String(values?.entregaDocumentos || "").trim() ===
+            "Entrega fisica",
         options: OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS.map((item) => ({
             value: item,
             label: item,
@@ -129,7 +133,10 @@ function buildRrssBaseValues(registro) {
                 "D",
             ]) ||
             "",
-        tipoCampana: registro?.tipoCampana || registro?.TipoCampania || "",
+        tipoCampana:
+            registro?.tipoCampana ||
+            registro?.TipoCampania ||
+            DEFAULT_TIPO_CAMPANA,
         celular:
             registro?.celular ||
             getFirstNonEmptyValue(registro, ["Celular", "G"]) ||
@@ -199,6 +206,24 @@ function buildRrssBaseValues(registro) {
         mantieneHijos: "",
         otrosIngresos: "",
     };
+}
+
+function buildTipoCampanaOptions(tiposCampania = []) {
+    const values = tiposCampania
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+    const hasDefault = values.some(
+        (item) => item.toLowerCase() === DEFAULT_TIPO_CAMPANA.toLowerCase(),
+    );
+
+    const normalized = hasDefault
+        ? values
+        : [DEFAULT_TIPO_CAMPANA, ...values];
+
+    return normalized.map((item) => ({
+        value: item,
+        label: item,
+    }));
 }
 
 export default function OutMaquitaRrssFlow({ onBack }) {
@@ -296,10 +321,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                     return {
                         ...field,
                         type: "select",
-                        options: tiposCampania.map((item) => ({
-                            value: item,
-                            label: item,
-                        })),
+                        options: buildTipoCampanaOptions(tiposCampania),
                     };
                 }
 
@@ -388,6 +410,18 @@ export default function OutMaquitaRrssFlow({ onBack }) {
 
     const saveWithTemplate = React.useCallback(
         async (formData, template, errorMessage) => {
+            const normalizedEntrega = String(
+                formData?.entregaDocumentos || "",
+            ).trim();
+            const payload = {
+                ...formData,
+                agenciaAsistir:
+                    normalizedEntrega === "Entrega fisica"
+                        ? formData?.agenciaAsistir || ""
+                        : "",
+                tipoCampana:
+                    formData?.tipoCampana || DEFAULT_TIPO_CAMPANA,
+            };
             const fieldsMeta = template.map((field) => ({
                 name: field.name,
                 label: field.label,
@@ -395,7 +429,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
             const { ok, json } = await guardarGestionOutbound({
                 campaignId: CAMPAIGN_ID,
                 formData: {
-                    ...formData,
+                    ...payload,
                     outboundFlow: "rrss",
                 },
                 fieldsMeta,

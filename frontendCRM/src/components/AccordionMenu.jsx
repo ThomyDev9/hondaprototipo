@@ -18,6 +18,7 @@ const INBOUND_QUICK_ACCESS_LABELS = [
     "kullki wasi",
     "atm oscus",
 ];
+const INBOUND_MANUAL_HIDDEN_LABELS = ["gestion inbound"];
 const SECURE_INBOUND_MANUAL_LABEL = "Gestion Inbound Manual";
 const FOLLOWUP_INBOUND_MANUAL_LABEL = "Seguimiento Inbound";
 
@@ -774,8 +775,14 @@ function AccordionMenu({ onLeafSelect, hiddenNormalizedLabels = [] }) {
                                                 marginBottom: "0.55rem",
                                             }}
                                         >
-                                            {inboundQuickAccessNodes.map(
-                                                (entry) => {
+                                            {inboundQuickAccessNodes
+                                                .filter(
+                                                    (entry) =>
+                                                        !INBOUND_MANUAL_HIDDEN_LABELS.includes(
+                                                            entry.normalizedLabel,
+                                                        ),
+                                                )
+                                                .map((entry) => {
                                                     const quickCampaignId =
                                                         resolveCampaignId(
                                                             entry.label,
@@ -829,8 +836,7 @@ function AccordionMenu({ onLeafSelect, hiddenNormalizedLabels = [] }) {
                                                             {entry.label}
                                                         </button>
                                                     );
-                                                },
-                                            )}
+                                                })}
                                             {secureInboundManualEntry && (
                                                 <button
                                                     key="inbound-quick-followup-manual"

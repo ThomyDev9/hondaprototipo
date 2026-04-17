@@ -932,6 +932,8 @@ export function registerInboundRoutes(
                         formData?.categorizacion ||
                         "",
                 ).trim();
+                const normalizedTicketId = String(ticketId || "").trim();
+                const normalizedCampaignId = String(campaignId || "").trim();
 
                 if (isRedesFlow) {
                     const existingClientByCampaign =
@@ -1154,6 +1156,22 @@ export function registerInboundRoutes(
                             form3: form3SaveResult,
                         },
                     });
+                }
+
+                if (normalizedCampaignId && normalizedTicketId) {
+                    const existingInboundByTicket =
+                        await agenteDAO.getInboundGestionFinalByCampaignAndTicket(
+                            normalizedCampaignId,
+                            normalizedTicketId,
+                        );
+
+                    if (existingInboundByTicket) {
+                        return res.status(409).json({
+                            error: "Esta llamada inbound ya fue gestionada",
+                            detail:
+                                "Ya existe una gestión inbound para el mismo ticket de llamada. Espera una nueva llamada activa para registrar otra gestión.",
+                        });
+                    }
                 }
 
                 const existingClientByCampaign =

@@ -4,9 +4,10 @@ import {
     fetchOutboundClientByIdentification,
     guardarGestionOutbound,
 } from "../../services/dashboard.service";
-import { fetchTiposCampaniaOutbound } from "../../services/tiposCampania.service";
 import { formF2Template } from "../../templates/formF2Template";
 import "./OutHondaPage.css";
+
+const FIXED_TIPO_CAMPANA = "PRIMICIAS";
 
 function findOptionIgnoreCase(options = [], target) {
     const normalizedTarget = String(target || "").trim().toLowerCase();
@@ -27,8 +28,10 @@ export default function OutHondaPage() {
     const [submotivos, setSubmotivos] = useState([]);
     const [selectedMotivo, setSelectedMotivo] = useState("");
     const [levels, setLevels] = useState([]);
-    const [tiposCampania, setTiposCampania] = useState([]);
-    const [initialValues, setInitialValues] = useState({ Plataforma: "WEB" });
+    const [initialValues, setInitialValues] = useState({
+        Plataforma: "WEB",
+        tipoCampana: FIXED_TIPO_CAMPANA,
+    });
 
     useEffect(() => {
         async function fetchMotivosGlobales() {
@@ -55,19 +58,6 @@ export default function OutHondaPage() {
         }
 
         fetchMotivosGlobales();
-    }, []);
-
-    useEffect(() => {
-        async function fetchTipos() {
-            try {
-                const tipos = await fetchTiposCampaniaOutbound("Out Honda");
-                setTiposCampania(tipos.filter(Boolean));
-            } catch {
-                setTiposCampania([]);
-            }
-        }
-
-        fetchTipos();
     }, []);
 
     useEffect(() => {
@@ -169,10 +159,12 @@ export default function OutHondaPage() {
                     return {
                         ...field,
                         type: "select",
-                        options: tiposCampania.map((item) => ({
-                            value: item,
-                            label: item,
-                        })),
+                        options: [
+                            {
+                                value: FIXED_TIPO_CAMPANA,
+                                label: FIXED_TIPO_CAMPANA,
+                            },
+                        ],
                     };
                 }
 
@@ -257,7 +249,7 @@ export default function OutHondaPage() {
                     values.Gestion === "CITA" || values.Gestion === "VIDEOLLAMADA",
             },
         ],
-        [motivos, submotivos, tiposCampania],
+        [motivos, submotivos],
     );
 
     const quickActions = [
@@ -379,7 +371,10 @@ export default function OutHondaPage() {
 
                                 const { ok, json } = await guardarGestionOutbound({
                                     campaignId: "Out Honda",
-                                    formData,
+                                    formData: {
+                                        ...formData,
+                                        tipoCampana: FIXED_TIPO_CAMPANA,
+                                    },
                                     fieldsMeta,
                                 });
 
@@ -392,7 +387,10 @@ export default function OutHondaPage() {
 
                                 setSuccessMessage("Gestion guardada correctamente.");
                                 setSelectedMotivo("");
-                                setInitialValues({ Plataforma: "WEB" });
+                                setInitialValues({
+                                    Plataforma: "WEB",
+                                    tipoCampana: FIXED_TIPO_CAMPANA,
+                                });
                                 setResetKey((current) => current + 1);
                             } catch (e) {
                                 console.error("Error en onGuardar OutHondaPage:", e);

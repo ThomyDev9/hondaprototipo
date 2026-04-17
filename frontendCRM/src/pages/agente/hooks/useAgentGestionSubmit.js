@@ -39,6 +39,7 @@ let lastSuccessfulManualSubmit = {
     signature: "",
     savedAt: 0,
 };
+let lastSuccessfulInboundCallId = "";
 let pendingManualImageUpload = null;
 
 function normalizeFlowLabel(value) {
@@ -370,6 +371,13 @@ export default function useAgentGestionSubmit({
                     }
 
                     inboundFormData.identificacion = identificationToUse;
+                    const currentInboundCallId = String(
+                        inboundFormData?.__inbound_current_call_id ||
+                            inboundFormData?.ticketId ||
+                            inboundFormData?.idLlamada ||
+                            inboundFormData?.CAMPO5 ||
+                            "",
+                    ).trim();
 
                     if (!isRedesManualFlow) {
                         Object.keys(inboundFormData).forEach((key) => {
@@ -377,6 +385,17 @@ export default function useAgentGestionSubmit({
                                 delete inboundFormData[key];
                             }
                         });
+                    }
+
+                    if (
+                        !isRedesManualFlow &&
+                        currentInboundCallId &&
+                        currentInboundCallId === lastSuccessfulInboundCallId
+                    ) {
+                        setError(
+                            "Esta llamada inbound ya fue guardada. Espera una nueva llamada activa para registrar otra gestión.",
+                        );
+                        return;
                     }
 
                     const manualSubmitSignature = buildManualSubmitSignature({
@@ -589,6 +608,11 @@ export default function useAgentGestionSubmit({
                         signature: manualSubmitSignature,
                         savedAt: Date.now(),
                     };
+                    if (!isRedesManualFlow && currentInboundCallId) {
+                        lastSuccessfulInboundCallId = currentInboundCallId;
+                    } else if (!isRedesManualFlow && !currentInboundCallId) {
+                        lastSuccessfulInboundCallId = "";
+                    }
                     resetManualGestionDraft?.();
                     return;
                 } catch (err) {

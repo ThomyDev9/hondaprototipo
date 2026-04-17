@@ -122,6 +122,10 @@ function App() {
             localStorage.setItem("access_token", accessToken);
             localStorage.setItem("import_user", username);
             sessionStorage.removeItem("inbound_agent_number");
+            sessionStorage.removeItem("inbound_auto_last_target");
+            sessionStorage.removeItem("inbound_manual_draft_state");
+            localStorage.removeItem("inbound_agent_number_shared");
+            localStorage.removeItem("inbound_auto_last_target_shared");
             resetTabSessionId();
 
             const meResp = await fetch(`${API_BASE}/auth/me`, {
@@ -180,7 +184,11 @@ function App() {
 
         localStorage.removeItem("access_token");
         localStorage.removeItem("import_user");
+        localStorage.removeItem("inbound_agent_number_shared");
+        localStorage.removeItem("inbound_auto_last_target_shared");
         sessionStorage.removeItem("inbound_agent_number");
+        sessionStorage.removeItem("inbound_auto_last_target");
+        sessionStorage.removeItem("inbound_manual_draft_state");
         setSelectedAgentCampaign({
             campaignId: "",
             campaignLabel: "",

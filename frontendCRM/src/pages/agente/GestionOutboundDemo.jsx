@@ -31,19 +31,44 @@ function mapTemplateFieldToFormField(field) {
     };
 }
 
+function normalizeCampaignName(value = "") {
+    return String(value || "").trim().toLowerCase();
+}
+
+function getFixedTipoCampana(campaignName = "") {
+    const normalized = normalizeCampaignName(campaignName);
+    if (normalized.includes("out kullki wasi")) {
+        return "COBRANZAS";
+    }
+    if (normalized.includes("out honda")) {
+        return "PRIMICIAS";
+    }
+    return "";
+}
+
 export default function GestionOutboundDemo({ campaignName = "" }) {
     const [template, setTemplate] = useState(formF2Template);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
+    const [formResetKey, setFormResetKey] = useState(0);
     const [levels, setLevels] = useState([]);
     const [motivoSeleccionado, setMotivoSeleccionado] = useState("");
     const [initialValues, setInitialValues] = useState({});
     const [isUpdate, setIsUpdate] = useState(false);
     const [remoteScriptContent, setRemoteScriptContent] = useState(null);
     const nombreCampania = String(campaignName || "Out Kullki Wasi").trim();
+    const fixedTipoCampana = getFixedTipoCampana(nombreCampania);
     const nombreFormulario = `Gestion Outbound ${nombreCampania}`;
     const lastLookupIdRef = useRef("");
+
+    useEffect(() => {
+        if (!fixedTipoCampana) return;
+        setInitialValues((prev) => ({
+            ...prev,
+            tipoCampana: fixedTipoCampana,
+        }));
+    }, [fixedTipoCampana]);
 
     useEffect(() => {
         async function cargarDatos() {
@@ -85,7 +110,9 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                     if (field.name === "tipoCampana") {
                         return {
                             ...field,
-                            options: opciones(tipos),
+                            options: fixedTipoCampana
+                                ? opciones([fixedTipoCampana])
+                                : opciones(tipos),
                         };
                     }
                     if (field.name === "motivoInteraccion") {
@@ -124,7 +151,7 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
             }
         }
         cargarDatos();
-    }, [nombreCampania]);
+    }, [fixedTipoCampana, nombreCampania]);
 
     useEffect(() => {
         let cancelled = false;
@@ -235,6 +262,9 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                 if (status === 404) {
                     setInitialValues({
                         identificacion: busquedaId,
+                        ...(fixedTipoCampana
+                            ? { tipoCampana: fixedTipoCampana }
+                            : {}),
                     });
                     setIsUpdate(false);
                     setSuccessMessage("");
@@ -254,7 +284,11 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                     data.NOMBRE_CLIENTE ||
                     "",
                 celular: data.celular || data.Celular || "",
-                tipoCampana: data.tipoCampana || data.TipoCampania || "",
+                tipoCampana:
+                    fixedTipoCampana ||
+                    data.tipoCampana ||
+                    data.TipoCampania ||
+                    "",
                 motivoInteraccion: "",
                 submotivoInteraccion: "",
                 observaciones: "",
@@ -283,9 +317,14 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
             label: field.label,
         }));
 
+        const payload = {
+            ...formData,
+            ...(fixedTipoCampana ? { tipoCampana: fixedTipoCampana } : {}),
+        };
+
         const { ok, json } = await guardarGestionOutbound({
             campaignId: nombreCampania,
-            formData,
+            formData: payload,
             fieldsMeta,
         });
 
@@ -300,19 +339,25 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                 ? "Gestion outbound actualizada correctamente."
                 : "Gestion outbound guardada correctamente.",
         );
-        setInitialValues({});
+        setInitialValues(
+            fixedTipoCampana ? { tipoCampana: fixedTipoCampana } : {},
+        );
         setIsUpdate(false);
         setMotivoSeleccionado("");
         lastLookupIdRef.current = "";
+        setFormResetKey((current) => current + 1);
     };
 
     const handleCancelarGestion = () => {
         setError("");
         setSuccessMessage("");
-        setInitialValues({});
+        setInitialValues(
+            fixedTipoCampana ? { tipoCampana: fixedTipoCampana } : {},
+        );
         setIsUpdate(false);
         setMotivoSeleccionado("");
         lastLookupIdRef.current = "";
+        setFormResetKey((current) => current + 1);
     };
 
     const quickActions = [
@@ -469,6 +514,7 @@ export default function GestionOutboundDemo({ campaignName = "" }) {
                 </section>
             )}
             <FormularioDinamico
+                key={formResetKey}
                 variant="outbound"
                 template={template}
                 initialValues={initialValues}

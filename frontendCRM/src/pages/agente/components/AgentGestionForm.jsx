@@ -990,16 +990,28 @@ function AgentGestionForm({
                 label: String(item?.label || item?.campaignId || "").trim(),
             }))
             .filter((item) => item.value && item.label);
+        const inboundClientLabel = String(
+            dynamicFormAnswers?.__inbound_nombre_cliente_label || "",
+        ).trim();
+        const inboundClientField = inboundClientLabel
+            ? {
+                  key: "__inbound_nombre_cliente_label",
+                  label: "Nombre Cliente",
+                  type: "text",
+                  readOnly: true,
+                  required: true,
+              }
+            : {
+                  key: "__inbound_nombre_cliente",
+                  label: "Nombre Cliente",
+                  type: "select",
+                  required: true,
+                  options: inboundClientOptions,
+              };
         const compactRows = [
             INBOUND_FIXED_FIELDS_PRIMARY_ROW,
             [
-                {
-                    key: "__inbound_nombre_cliente",
-                    label: "Nombre Cliente",
-                    type: "select",
-                    required: true,
-                    options: inboundClientOptions,
-                },
+                inboundClientField,
                 ...INBOUND_FIXED_FIELDS_SECONDARY_ROW,
             ],
             [pickField("IDENTIFICACION"), pickField("NOMBRE_CLIENTE")].filter(
@@ -1018,6 +1030,7 @@ function AgentGestionForm({
     }, [
         categoryId,
         inboundChildOptions,
+        dynamicFormAnswers?.__inbound_nombre_cliente_label,
         isRedesManualFlow,
         dynamicFormRowsWithValues,
         inboundChildOptions,

@@ -129,6 +129,18 @@ export default function FormularioDinamico({
         .filter(Boolean)
         .join(" ");
 
+    const shouldRenderField = (field) => {
+        if (typeof field?.visibleWhen !== "function") {
+            return true;
+        }
+
+        try {
+            return Boolean(field.visibleWhen(form));
+        } catch {
+            return true;
+        }
+    };
+
     return (
         <form
             className={formClassName}
@@ -149,7 +161,7 @@ export default function FormularioDinamico({
                     ))}
                 </div>
             )}
-            {template.map((field) => (
+            {template.filter(shouldRenderField).map((field) => (
                 <div key={field.name} className="formulario-dinamico__field">
                     {(() => {
                         const behavior = getFieldBehavior(field);

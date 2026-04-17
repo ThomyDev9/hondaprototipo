@@ -60,6 +60,17 @@ function isInboundHistoricoAction({ campaignId = "", menuItemId = "" }) {
 }
 
 const SECURE_INBOUND_MANUAL_CODE = "KMB$221133";
+const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+const INBOUND_AUTO_TARGET_SESSION_KEY = "inbound_auto_last_target";
+const INBOUND_AUTO_TARGET_SHARED_KEY = "inbound_auto_last_target_shared";
+const INBOUND_DRAFT_STATE_SESSION_KEY = "inbound_manual_draft_state";
+const INBOUND_DEFAULT_TARGET_LABELS = [
+    "gestion inbound",
+    "kullki wasi",
+    "atm oscus",
+    "atm",
+    "oscus",
+];
 
 function Sidebar({
     user,
@@ -75,15 +86,20 @@ function Sidebar({
     agentStatus,
     onChangeAgentStatus,
 }) {
+    const API_BASE = import.meta.env.VITE_API_BASE;
     const [collapsed, setCollapsed] = useState(false);
     const [inboundAgentNumber, setInboundAgentNumber] = useState("");
     const [hasActiveInboundCall, setHasActiveInboundCall] = useState(false);
+    const [activeInboundCallId, setActiveInboundCallId] = useState("");
+    const [pendingInboundCallId, setPendingInboundCallId] = useState("");
     const [agentStatusOptions, setAgentStatusOptions] = useState([]);
     const [sessionStatus, setSessionStatus] = useState("");
     const [sessionHydrated, setSessionHydrated] = useState(false);
     const effectiveRole = role || "ADMINISTRADOR";
     const prevAgentPageRef = useRef(agentPage);
     const sessionIdRef = useRef("");
+    const lastAutoOpenedInboundCallRef = useRef("");
+    const previousInboundCallIdRef = useRef("");
 
     useEffect(() => {
         if (
@@ -98,9 +114,142 @@ function Sidebar({
 
     useEffect(() => {
         sessionIdRef.current = getOrCreateTabSessionId();
-        const storedValue = sessionStorage.getItem("inbound_agent_number");
-        setInboundAgentNumber(String(storedValue || "").trim());
+        const searchParams = new URLSearchParams(window.location.search);
+        const inboundAgentFromQuery = String(
+            searchParams.get("inboundAgentNumber") || "",
+        ).trim();
+        const storedValue =
+            inboundAgentFromQuery ||
+            String(sessionStorage.getItem("inbound_agent_number") || "").trim() ||
+            String(localStorage.getItem("inbound_agent_number_shared") || "").trim();
+
+        setInboundAgentNumber(storedValue);
+        if (storedValue) {
+            sessionStorage.setItem("inbound_agent_number", storedValue);
+            localStorage.setItem("inbound_agent_number_shared", storedValue);
+        }
+
+        if (inboundAgentFromQuery) {
+            searchParams.delete("inboundAgentNumber");
+            const nextSearch = searchParams.toString();
+            const nextUrl = `${window.location.pathname}${
+                nextSearch ? `?${nextSearch}` : ""
+            }${window.location.hash || ""}`;
+            window.history.replaceState({}, "", nextUrl);
+        }
     }, []);
+
+    useEffect(() => {
+        if (effectiveRole.toUpperCase() !== "ASESOR") return;
+
+        const hasSavedTarget =
+            Boolean(sessionStorage.getItem(INBOUND_AUTO_TARGET_SESSION_KEY)) ||
+            Boolean(localStorage.getItem(INBOUND_AUTO_TARGET_SHARED_KEY));
+
+        if (hasSavedTarget) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const normalizeLabel = (value) =>
+            String(value || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim()
+                .toLowerCase();
+
+        const getNodeLabel = (node) =>
+            String(
+                node?.campania ||
+                    node?.subcampania ||
+                    node?.nombre ||
+                    node?.label ||
+                    "",
+            ).trim();
+
+        const flattenNodes = (nodes = [], parentLabel = "") =>
+            (Array.isArray(nodes) ? nodes : []).flatMap((node) => {
+                const label = getNodeLabel(node);
+                const entry = {
+                    node,
+                    label,
+                    normalizedLabel: normalizeLabel(label),
+                    parentLabel,
+                };
+                const children = Array.isArray(node?.subcampanias)
+                    ? node.subcampanias
+                    : [];
+
+                return [entry, ...flattenNodes(children, label || parentLabel)];
+            });
+
+        const ensureDefaultInboundTarget = async () => {
+            try {
+                const token = localStorage.getItem("access_token") || "";
+                const res = await fetch(
+                    `${API_BASE}/api/menu/categories/${encodeURIComponent(
+                        INBOUND_MENU_CATEGORY_ID,
+                    )}/tree-detailed`,
+                    {
+                        headers: token
+                            ? { Authorization: `Bearer ${token}` }
+                            : undefined,
+                    },
+                );
+                const json = await res.json().catch(() => ({}));
+                if (cancelled || !res.ok) return;
+
+                const flat = flattenNodes(json?.data || []);
+                const picked =
+                    flat.find((entry) =>
+                        INBOUND_DEFAULT_TARGET_LABELS.includes(
+                            entry.normalizedLabel,
+                        ),
+                    ) || null;
+
+                if (!picked) return;
+
+                const campaignId = String(
+                    picked?.node?.campaignId ||
+                        picked?.node?.nombre ||
+                        picked?.node?.subcampania ||
+                        picked?.label ||
+                        "",
+                ).trim();
+                const menuItemId = String(picked?.node?.id || "").trim();
+                const payload = {
+                    campaignId,
+                    importId: "",
+                    menuItemId,
+                    categoryId: INBOUND_MENU_CATEGORY_ID,
+                    manualFlow: true,
+                    leafLabel: picked?.label || campaignId || "",
+                    secureInboundManual: false,
+                    followupInboundManual: false,
+                };
+
+                if (!campaignId) return;
+
+                sessionStorage.setItem(
+                    INBOUND_AUTO_TARGET_SESSION_KEY,
+                    JSON.stringify(payload),
+                );
+                localStorage.setItem(
+                    INBOUND_AUTO_TARGET_SHARED_KEY,
+                    JSON.stringify(payload),
+                );
+            } catch {
+                // no-op
+            }
+        };
+
+        ensureDefaultInboundTarget();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [API_BASE, effectiveRole]);
 
     useEffect(() => {
         if (effectiveRole.toUpperCase() !== "ASESOR") return;
@@ -165,6 +314,10 @@ function Sidebar({
                     setInboundAgentNumber(nextAgentNumber);
                     sessionStorage.setItem(
                         "inbound_agent_number",
+                        nextAgentNumber,
+                    );
+                    localStorage.setItem(
+                        "inbound_agent_number_shared",
                         nextAgentNumber,
                     );
                 }
@@ -235,40 +388,185 @@ function Sidebar({
         if (effectiveRole.toUpperCase() !== "ASESOR") return;
 
         let cancelled = false;
+        let running = false;
 
         const syncInboundCallState = async () => {
-            const currentInboundAgentNumber = String(
-                inboundAgentNumber || "",
-            ).trim();
-
-            if (!currentInboundAgentNumber) {
-                if (!cancelled) {
-                    setHasActiveInboundCall(false);
-                }
+            if (running || cancelled) {
                 return;
             }
-
+            running = true;
             try {
+                const currentInboundAgentNumber = String(
+                    inboundAgentNumber || "",
+                ).trim();
+
+                if (!currentInboundAgentNumber) {
+                    if (!cancelled) {
+                        setHasActiveInboundCall(false);
+                        setActiveInboundCallId("");
+                    }
+                    return;
+                }
+
                 const { ok, json } = await fetchInboundCurrentCall({
                     agentNumber: currentInboundAgentNumber,
                 });
 
                 if (!cancelled) {
                     setHasActiveInboundCall(Boolean(ok && json?.data));
+                    setActiveInboundCallId(
+                        ok && json?.data
+                            ? String(
+                                  json.data?.idCallEntry ||
+                                      json.data?.ticketId ||
+                                      "",
+                              ).trim()
+                            : "",
+                    );
                 }
             } catch {
                 if (!cancelled) {
                     setHasActiveInboundCall(false);
+                    setActiveInboundCallId("");
                 }
+            } finally {
+                running = false;
             }
         };
 
         syncInboundCallState();
+        const intervalId = setInterval(syncInboundCallState, 3500);
 
         return () => {
             cancelled = true;
+            clearInterval(intervalId);
         };
-    }, [effectiveRole, inboundAgentNumber, agentPage]);
+    }, [effectiveRole, inboundAgentNumber]);
+
+    const resolveSavedInboundTarget = () => {
+        const savedTargetRaw =
+            sessionStorage.getItem(INBOUND_AUTO_TARGET_SESSION_KEY) ||
+            localStorage.getItem(INBOUND_AUTO_TARGET_SHARED_KEY) ||
+            "";
+        if (!savedTargetRaw) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(savedTargetRaw);
+        } catch {
+            return null;
+        }
+    };
+
+    useEffect(() => {
+        if (effectiveRole.toUpperCase() !== "ASESOR") return;
+        if (agentPage !== "inicio") return;
+        if (!hasActiveInboundCall || !activeInboundCallId) return;
+        if (lastAutoOpenedInboundCallRef.current === activeInboundCallId) return;
+        const savedTarget = resolveSavedInboundTarget();
+
+        const campaignId = String(savedTarget?.campaignId || "").trim();
+        if (!campaignId || typeof onSelectCampaign !== "function") {
+            return;
+        }
+
+        lastAutoOpenedInboundCallRef.current = activeInboundCallId;
+        onChangeAgentPage?.("gestion");
+        onSelectCampaign(
+            campaignId,
+            String(savedTarget?.importId || "").trim(),
+            String(savedTarget?.menuItemId || "").trim(),
+            String(savedTarget?.categoryId || "").trim(),
+            Boolean(savedTarget?.manualFlow),
+            String(savedTarget?.leafLabel || campaignId).trim(),
+            Boolean(savedTarget?.secureInboundManual),
+            Boolean(savedTarget?.followupInboundManual),
+        );
+    }, [
+        activeInboundCallId,
+        agentPage,
+        effectiveRole,
+        hasActiveInboundCall,
+        onChangeAgentPage,
+        onSelectCampaign,
+    ]);
+
+    useEffect(() => {
+        if (effectiveRole.toUpperCase() !== "ASESOR") return;
+
+        const currentCallId = String(activeInboundCallId || "").trim();
+        if (!currentCallId) {
+            return;
+        }
+
+        const previousCallId = String(
+            previousInboundCallIdRef.current || "",
+        ).trim();
+        if (!previousCallId) {
+            previousInboundCallIdRef.current = currentCallId;
+            return;
+        }
+
+        if (previousCallId === currentCallId) {
+            return;
+        }
+        previousInboundCallIdRef.current = currentCallId;
+
+        if (agentPage !== "gestion") {
+            return;
+        }
+
+        let draftState = null;
+        try {
+            draftState = JSON.parse(
+                sessionStorage.getItem(INBOUND_DRAFT_STATE_SESSION_KEY) || "{}",
+            );
+        } catch {
+            draftState = null;
+        }
+
+        const hasDraft = Boolean(draftState?.hasDraft);
+        const draftCallId = String(draftState?.callId || "").trim();
+        const isDifferentCall = !draftCallId || draftCallId !== currentCallId;
+        const savedInboundTarget = resolveSavedInboundTarget();
+        const isInboundManualTarget =
+            Boolean(savedInboundTarget?.manualFlow) &&
+            String(savedInboundTarget?.categoryId || "").trim() ===
+                "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+        const hasInboundContext = Boolean(draftCallId) || isInboundManualTarget;
+
+        if ((hasDraft || hasInboundContext) && isDifferentCall) {
+            setPendingInboundCallId(currentCallId);
+        }
+    }, [activeInboundCallId, agentPage, effectiveRole]);
+
+    const handleOpenPendingInboundInNewTab = () => {
+        const savedTarget = resolveSavedInboundTarget();
+        const campaignId = String(savedTarget?.campaignId || "").trim();
+        if (!campaignId) {
+            alert(
+                "No se pudo identificar la gestión inbound para abrir la nueva llamada.",
+            );
+            return;
+        }
+
+        const url = new URL(window.location.href);
+        const resolvedAgentNumber = String(inboundAgentNumber || "").trim();
+        if (resolvedAgentNumber) {
+            url.searchParams.set("inboundAgentNumber", resolvedAgentNumber);
+        }
+
+        const openedWindow = window.open(url.toString(), "_blank");
+        if (!openedWindow) {
+            alert(
+                "Tu navegador bloqueó la nueva pestaña. Permite ventanas emergentes para continuar.",
+            );
+            return;
+        }
+
+        setPendingInboundCallId("");
+    };
 
     const menuAdmin = [
         { label: "Administrar bases", key: "administrar-bases" },
@@ -317,6 +615,36 @@ function Sidebar({
     const menu = getMenu();
 
     const getMenuIcon = (key) => MENU_ICONS[key] || "\u2022";
+
+    const hasInboundCurrentCallWithRetry = async (
+        agentNumber,
+        retries = 3,
+        waitMs = 350,
+    ) => {
+        const normalizedAgent = String(agentNumber || "").trim();
+        if (!normalizedAgent) {
+            return false;
+        }
+
+        for (let attempt = 0; attempt < retries; attempt += 1) {
+            try {
+                const { ok, json } = await fetchInboundCurrentCall({
+                    agentNumber: normalizedAgent,
+                });
+                if (ok && json?.data) {
+                    return true;
+                }
+            } catch {
+                // no-op
+            }
+
+            if (attempt < retries - 1) {
+                await new Promise((resolve) => setTimeout(resolve, waitMs));
+            }
+        }
+
+        return false;
+    };
 
     const handleClick = (item) => {
         if (
@@ -475,6 +803,10 @@ function Sidebar({
                                     "inbound_agent_number",
                                     nextValue,
                                 );
+                                localStorage.setItem(
+                                    "inbound_agent_number_shared",
+                                    nextValue,
+                                );
                             }}
                             placeholder="Ej: 9001"
                             style={styles.inboundAgentInput}
@@ -560,12 +892,12 @@ function Sidebar({
                                 !isUnlockedInboundManual &&
                                 !allowsOpenWithoutCall
                             ) {
-                                const { ok, json } =
-                                    await fetchInboundCurrentCall({
-                                        agentNumber: currentInboundAgentNumber,
-                                    });
+                                const hasActiveCall =
+                                    await hasInboundCurrentCallWithRetry(
+                                        currentInboundAgentNumber,
+                                    );
 
-                                if (!ok || !json?.data) {
+                                if (!hasActiveCall) {
                                     alert(
                                         "No tienes una llamada inbound activa asignada. Solo puedes abrir la gestión inbound cuando tengas una llamada en curso.",
                                     );
@@ -574,6 +906,41 @@ function Sidebar({
                             }
 
                             if (onSelectCampaign && campaignId) {
+                                if (
+                                    requiresInboundAgentCode &&
+                                    !isHistoricoInbound
+                                ) {
+                                    sessionStorage.setItem(
+                                        INBOUND_AUTO_TARGET_SESSION_KEY,
+                                        JSON.stringify({
+                                            campaignId,
+                                            importId: importId || "",
+                                            menuItemId: menuItemId || "",
+                                            categoryId: categoryId || "",
+                                            manualFlow: Boolean(manualFlow),
+                                            leafLabel: leafLabel || campaignId || "",
+                                            secureInboundManual:
+                                                Boolean(secureInboundManual),
+                                            followupInboundManual:
+                                                Boolean(followupInboundManual),
+                                        }),
+                                    );
+                                    localStorage.setItem(
+                                        INBOUND_AUTO_TARGET_SHARED_KEY,
+                                        JSON.stringify({
+                                            campaignId,
+                                            importId: importId || "",
+                                            menuItemId: menuItemId || "",
+                                            categoryId: categoryId || "",
+                                            manualFlow: Boolean(manualFlow),
+                                            leafLabel: leafLabel || campaignId || "",
+                                            secureInboundManual:
+                                                Boolean(secureInboundManual),
+                                            followupInboundManual:
+                                                Boolean(followupInboundManual),
+                                        }),
+                                    );
+                                }
                                 onChangeAgentPage?.("gestion");
                                 onSelectCampaign(
                                     campaignId,
@@ -608,6 +975,30 @@ function Sidebar({
                     )}
                 </button>
             </div>
+
+            {Boolean(pendingInboundCallId) && agentPage === "gestion" && (
+                <div style={styles.inboundPendingOverlay}>
+                    <div style={styles.inboundPendingModal}>
+                        <span style={styles.inboundPendingTitle}>
+                            Nueva llamada ingresada
+                        </span>
+                        <span style={styles.inboundPendingText}>
+                            Tienes una nueva llamada inbound mientras tu gestión
+                            actual aún no se guarda. Ábrela en otra pestaña
+                            para no perder tus datos.
+                        </span>
+                        <div style={styles.inboundPendingActions}>
+                            <button
+                                type="button"
+                                style={styles.inboundPendingButton}
+                                onClick={handleOpenPendingInboundInNewTab}
+                            >
+                                Abrir nueva llamada
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -745,6 +1136,57 @@ const styles = {
         fontSize: "0.72rem",
         lineHeight: 1.25,
         color: "#92400e",
+    },
+    inboundPendingOverlay: {
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(15, 23, 42, 0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1400,
+        padding: "1rem",
+    },
+    inboundPendingModal: {
+        width: "100%",
+        maxWidth: "460px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.55rem",
+        padding: "1rem",
+        borderRadius: "1rem",
+        background:
+            "linear-gradient(180deg, rgba(239,246,255,0.98) 0%, rgba(219,234,254,0.98) 100%)",
+        border: "1px solid rgba(59, 130, 246, 0.5)",
+        boxShadow: "0 24px 48px rgba(15, 23, 42, 0.28)",
+        boxSizing: "border-box",
+    },
+    inboundPendingTitle: {
+        fontSize: "0.96rem",
+        fontWeight: 700,
+        color: "#1d4ed8",
+        lineHeight: 1.2,
+    },
+    inboundPendingText: {
+        fontSize: "0.82rem",
+        lineHeight: 1.3,
+        color: "#1e3a8a",
+    },
+    inboundPendingActions: {
+        marginTop: "0.25rem",
+        display: "flex",
+        gap: "0.55rem",
+        justifyContent: "flex-end",
+    },
+    inboundPendingButton: {
+        border: "1px solid rgba(30, 64, 175, 0.45)",
+        backgroundColor: "#1d4ed8",
+        color: "#fff",
+        borderRadius: "8px",
+        padding: "0.4rem 0.55rem",
+        fontSize: "0.76rem",
+        fontWeight: 600,
+        cursor: "pointer",
     },
     logoutButton: {
         width: "100%",

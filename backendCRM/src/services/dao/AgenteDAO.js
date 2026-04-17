@@ -380,6 +380,14 @@ const GET_OPEN_AGENT_SESSION_STATE_LOG = `
     LIMIT 1
 `;
 
+const GET_MACHINE_ZOIPER_BY_IP = `
+    SELECT machine_ip, zoiper_code
+    FROM machine_zoiper_map
+    WHERE machine_ip = ?
+      AND is_active = 1
+    LIMIT 1
+`;
+
 const INSERT_AGENT_SESSION_STATE_LOG = `
     INSERT INTO session_estado_log (
         SessionId,
@@ -641,6 +649,15 @@ const GET_INBOUND_GESTION_FINAL_BY_CONTACT_ID = `
   SELECT *
   FROM gestionfinal_inbound
   WHERE contact_id = ?
+  LIMIT 1
+`;
+
+const GET_INBOUND_GESTION_FINAL_BY_CAMPAIGN_AND_TICKET = `
+  SELECT id, interaction_id, ticket_id, campaign_id, tmstmp
+  FROM gestionfinal_inbound
+  WHERE campaign_id = ?
+    AND ticket_id = ?
+  ORDER BY tmstmp DESC, id DESC
   LIMIT 1
 `;
 
@@ -1447,6 +1464,13 @@ export class AgenteDAO {
         return rows[0] || null;
     }
 
+    async getMachineZoiperByIp(machineIp, executor = this.pool) {
+        const [rows] = await executor.query(GET_MACHINE_ZOIPER_BY_IP, [
+            machineIp,
+        ]);
+        return rows[0] || null;
+    }
+
     async insertAgentSessionStateLog(
         { sessionId, agent, agentNumber = "", estado, estadoInicio },
         executor = this.pool,
@@ -1803,6 +1827,18 @@ export class AgenteDAO {
         const [rows] = await executor.query(
             GET_INBOUND_GESTION_FINAL_BY_CONTACT_ID,
             [contactId],
+        );
+        return rows[0] || null;
+    }
+
+    async getInboundGestionFinalByCampaignAndTicket(
+        campaignId,
+        ticketId,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            GET_INBOUND_GESTION_FINAL_BY_CAMPAIGN_AND_TICKET,
+            [campaignId, ticketId],
         );
         return rows[0] || null;
     }

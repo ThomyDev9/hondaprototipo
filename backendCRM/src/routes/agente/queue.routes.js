@@ -10,6 +10,42 @@ export function registerQueueRoutes(
         requireAuth,
     },
 ) {
+    const normalizeMachineIp = (rawIp = "") => {
+        const value = String(rawIp || "").trim();
+        if (!value) return "";
+        if (value.startsWith("::ffff:")) {
+            return value.slice(7).trim();
+        }
+        return value;
+    };
+
+    const resolveRequesterMachineIp = (req) => {
+        const forwardedRaw =
+            req.headers?.["x-forwarded-for"] ||
+            req.headers?.["x-client-ip"] ||
+            req.headers?.["x-real-ip"] ||
+            "";
+        const forwardedIp = String(forwardedRaw || "")
+            .split(",")[0]
+            .trim();
+        const socketIp =
+            req.socket?.remoteAddress ||
+            req.connection?.remoteAddress ||
+            req.ip ||
+            "";
+        return normalizeMachineIp(forwardedIp || socketIp);
+    };
+
+    const resolveAgentNumberFromMachineIp = async (req) => {
+        const machineIp = resolveRequesterMachineIp(req);
+        if (!machineIp) {
+            return "";
+        }
+
+        const row = await agenteDAO.getMachineZoiperByIp(machineIp);
+        return String(row?.zoiper_code || "").trim();
+    };
+
     const normalizeAgentStatusOptions = (rows = []) =>
         (Array.isArray(rows) ? rows : [])
             .map((row) => {
@@ -169,20 +205,74 @@ export function registerQueueRoutes(
         }
     });
 
+    router.get("/machine-context", ...agenteMiddlewares, async (req, res) => {
+        try {
+            const machineIp = resolveRequesterMachineIp(req);
+            const mapped = machineIp
+                ? await agenteDAO.getMachineZoiperByIp(machineIp)
+                : null;
+
+            return res.json({
+                data: {
+                    machineIp,
+                    mappedZoiperCode: String(mapped?.zoiper_code || "").trim(),
+                    mapped: Boolean(mapped?.zoiper_code),
+                },
+            });
+        } catch (err) {
+            console.error("Error en /agente/machine-context:", err);
+            return res.status(500).json({
+                error: "Error consultando contexto de maquina",
+            });
+        }
+    });
+
     router.post("/session-start", ...agenteMiddlewares, async (req, res) => {
         try {
             const sessionId = String(req.body?.sessionId || "").trim();
-            const agentNumber = String(req.body?.agentNumber || "").trim();
+            const requestedAgentNumber = String(
+                req.body?.agentNumber || "",
+            ).trim();
             const agenteActor = getAgentActor(req);
 
             if (!sessionId) {
                 return res.status(400).json({ error: "SessionId requerido" });
             }
 
+            const machineMappedAgentNumber =
+                await resolveAgentNumberFromMachineIp(req);
+            const agentNumber =
+                requestedAgentNumber || machineMappedAgentNumber || "";
+
             const existingSession =
                 await agenteDAO.getAgentSessionById(sessionId);
 
             if (existingSession && !existingSession.LogoutAt) {
+                const existingAgentNumber = String(
+                    existingSession.AgentNumber || "",
+                ).trim();
+
+                if (!existingAgentNumber && agentNumber) {
+                    const now = new Date();
+                    await agenteDAO.upsertAgentSessionContext({
+                        sessionId,
+                        agent: String(existingSession.Agent || agenteActor).trim(),
+                        agentNumber,
+                        estado: String(existingSession.Estado || "Login").trim(),
+                        estadoInicio:
+                            existingSession.EstadoInicio ||
+                            existingSession.LoginAt ||
+                            now,
+                        estadoFin: existingSession.EstadoFin || null,
+                        loginAt: existingSession.LoginAt || now,
+                        logoutAt: existingSession.LogoutAt || null,
+                        tmstmp: now,
+                    });
+                    const refreshedSession =
+                        await agenteDAO.getAgentSessionById(sessionId);
+                    return res.json({ data: refreshedSession || existingSession });
+                }
+
                 return res.json({ data: existingSession });
             }
 
