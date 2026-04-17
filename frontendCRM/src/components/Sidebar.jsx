@@ -6,6 +6,7 @@ import AccordionMenu, {
 } from "./AccordionMenu";
 import {
     fetchAgentStatusOptions,
+    fetchAgentMachineContext,
     fetchInboundCurrentCall,
     startAgentSession,
     upsertAgentSessionContext,
@@ -320,6 +321,23 @@ function Sidebar({
                         "inbound_agent_number_shared",
                         nextAgentNumber,
                     );
+                } else {
+                    const machineContext = await fetchAgentMachineContext();
+                    const machineMappedCode = String(
+                        machineContext?.json?.data?.mappedZoiperCode || "",
+                    ).trim();
+
+                    if (machineContext?.ok && machineMappedCode) {
+                        setInboundAgentNumber(machineMappedCode);
+                        sessionStorage.setItem(
+                            "inbound_agent_number",
+                            machineMappedCode,
+                        );
+                        localStorage.setItem(
+                            "inbound_agent_number_shared",
+                            machineMappedCode,
+                        );
+                    }
                 }
 
                 if (nextEstado) {
