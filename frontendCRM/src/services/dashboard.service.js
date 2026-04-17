@@ -111,8 +111,12 @@ export const fetchAgentSessionContext = (sessionId) =>
         )}`,
     );
 
-export const fetchAgentMachineContext = () =>
-    request("agente/machine-context");
+export const fetchAgentMachineContext = (tokenOverride = "") =>
+    request("agente/machine-context", {
+        headers: tokenOverride
+            ? { Authorization: `Bearer ${String(tokenOverride || "").trim()}` }
+            : {},
+    });
 
 export const startAgentSession = ({ sessionId, agentNumber = "" }) =>
     request("agente/session-start", {

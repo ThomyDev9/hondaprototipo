@@ -65,9 +65,9 @@ function App() {
         localStorage.removeItem("inbound_auto_last_target_shared");
     };
 
-    const hydrateZoiperCodeByMachine = async () => {
+    const hydrateZoiperCodeByMachine = async (token) => {
         try {
-            const response = await fetchAgentMachineContext();
+            const response = await fetchAgentMachineContext(token);
             const mappedZoiperCode = String(
                 response?.json?.data?.mappedZoiperCode || "",
             ).trim();
@@ -120,7 +120,7 @@ function App() {
                     ? meJson.user.roles
                     : [];
                 if (roles.includes("ASESOR")) {
-                    const zoiperCheck = await hydrateZoiperCodeByMachine();
+                    const zoiperCheck = await hydrateZoiperCodeByMachine(token);
                     if (!zoiperCheck.ok) {
                         clearInboundSessionStorage();
                         localStorage.removeItem("access_token");
@@ -201,7 +201,7 @@ function App() {
                 ? meJson.user.roles
                 : [];
             if (roles.includes("ASESOR")) {
-                const zoiperCheck = await hydrateZoiperCodeByMachine();
+                const zoiperCheck = await hydrateZoiperCodeByMachine(accessToken);
                 if (!zoiperCheck.ok) {
                     localStorage.removeItem("access_token");
                     localStorage.removeItem("import_user");
