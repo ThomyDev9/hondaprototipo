@@ -28,6 +28,20 @@ const API_BASE = import.meta.env.VITE_API_BASE;
 const ZOIPER_REQUIRED_ERROR =
     "Esta máquina no tiene Zoiper configurado para inbound. Comunícate con sistemas para registrar IP + código Zoiper.";
 
+const INTERNAL_ONLY_ADVISOR_ERROR =
+    "Acceso de asesores permitido solo desde red interna (IP privada/VPN).";
+
+const isInternalHostForAdvisor = () => {
+    if (typeof window === "undefined") return true;
+    const host = String(window.location?.hostname || "").trim();
+    if (!host) return false;
+    if (host === "localhost" || host === "127.0.0.1") return true;
+    if (/^10\./.test(host)) return true;
+    if (/^192\.168\./.test(host)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(host)) return true;
+    return false;
+};
+
 function App() {
     const standaloneMode =
         typeof window !== "undefined"
@@ -137,6 +151,14 @@ function App() {
                     ? meJson.user.roles
                     : [];
                 if (roles.includes("ASESOR")) {
+                    if (!isInternalHostForAdvisor()) {
+                        clearInboundSessionStorage();
+                        localStorage.removeItem("access_token");
+                        localStorage.removeItem("import_user");
+                        setUserInfo(null);
+                        setError(INTERNAL_ONLY_ADVISOR_ERROR);
+                        return;
+                    }
                     const zoiperCheck = await hydrateZoiperCodeByMachine(token);
                     if (!zoiperCheck.ok) {
                         clearInboundSessionStorage();
@@ -218,6 +240,12 @@ function App() {
                 ? meJson.user.roles
                 : [];
             if (roles.includes("ASESOR")) {
+                if (!isInternalHostForAdvisor()) {
+                    localStorage.removeItem("access_token");
+                    localStorage.removeItem("import_user");
+                    clearInboundSessionStorage();
+                    throw new Error(INTERNAL_ONLY_ADVISOR_ERROR);
+                }
                 const zoiperCheck = await hydrateZoiperCodeByMachine(accessToken);
                 if (!zoiperCheck.ok) {
                     localStorage.removeItem("access_token");

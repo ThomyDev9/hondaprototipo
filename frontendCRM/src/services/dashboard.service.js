@@ -147,8 +147,12 @@ export const fetchAgentMachineContext = (tokenOverride = "") =>
             /^10\./.test(currentHost) ||
             /^192\.168\./.test(currentHost) ||
             /^172\.(1[6-9]|2\d|3[0-1])\./.test(currentHost);
+        const allowPublicDirectFallback =
+            String(
+                import.meta.env.VITE_MACHINE_CONTEXT_DIRECT_ALLOW_PUBLIC || "",
+            ).trim() === "1";
         const shouldTryDirectFallback =
-            Boolean(directBaseFromEnv) || isLocalHost || isPrivateIpv4;
+            isLocalHost || isPrivateIpv4 || allowPublicDirectFallback;
 
         const directBase =
             directBaseFromEnv ||
