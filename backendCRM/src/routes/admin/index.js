@@ -33,6 +33,17 @@ const middlewaresAdminStrict = [
     requireRole(["ADMINISTRADOR"]),
 ];
 
+function getFlexibleCategoryCodeRange(categoryName = "") {
+    const normalized = String(categoryName || "").trim().toLowerCase();
+    if (normalized.includes("inbound")) {
+        return { minCode: 1000, maxCode: 1999 };
+    }
+    if (normalized.includes("redes")) {
+        return { minCode: 2000, maxCode: 2099 };
+    }
+    return null;
+}
+
 router.get("/users", ...middlewaresAdmin, async (_req, res) => {
     try {
         const users = await userService.obtenerUsuarios();
@@ -48,10 +59,37 @@ router.get("/users", ...middlewaresAdmin, async (_req, res) => {
 router.get(
     "/management-levels/suggestions",
     ...middlewaresAdminStrict,
-    async (_req, res) => {
+    async (req, res) => {
         try {
             const data = await adminManagementDAO.getManagementLevelSuggestions();
-            return res.json({ data });
+            const categoryId = String(
+                req.query?.categoryId || DEFAULT_MENU_CATEGORY_ID,
+            ).trim();
+            const categoryName =
+                await adminManagementDAO.getCategoryNameById(categoryId);
+            const flexibleRange = getFlexibleCategoryCodeRange(categoryName);
+
+            let descriptions = [];
+            let nextCode = null;
+            if (flexibleRange) {
+                descriptions =
+                    await adminManagementDAO.getFlexibleDescriptionSuggestions(
+                        flexibleRange.minCode,
+                        flexibleRange.maxCode,
+                    );
+                nextCode = await adminManagementDAO.getNextCodeInRange(
+                    flexibleRange.minCode,
+                    flexibleRange.maxCode,
+                );
+            }
+
+            return res.json({
+                data: {
+                    ...data,
+                    descriptions,
+                    nextCode,
+                },
+            });
         } catch (err) {
             console.error(
                 "Error GET /admin/management-levels/suggestions:",

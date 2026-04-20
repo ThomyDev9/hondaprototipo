@@ -3,6 +3,14 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const MYSQL_TIMEZONE =
+    String(process.env.MYSQL_TIMEZONE || "-05:00").trim() || "-05:00";
+const ISABEL_TIMEZONE =
+    String(process.env.ISABEL_TIMEZONE || MYSQL_TIMEZONE).trim() ||
+    MYSQL_TIMEZONE;
+const CL_TIMEZONE =
+    String(process.env.CL_TIMEZONE || MYSQL_TIMEZONE).trim() || MYSQL_TIMEZONE;
+
 // Pool para la base de datos principal (CRM)
 const pool = mysql.createPool({
     host: process.env.MYSQL_HOST, // MySQL host
@@ -15,6 +23,7 @@ const pool = mysql.createPool({
     queueLimit: 0,
     charset: "utf8",
     dateStrings: true,
+    timezone: MYSQL_TIMEZONE,
 });
 
 // Pool para la base de datos de la PBX Isabel
@@ -29,6 +38,7 @@ const isabelPool = mysql.createPool({
     queueLimit: 0,
     charset: "utf8",
     dateStrings: true,
+    timezone: ISABEL_TIMEZONE,
 });
 
 const callCenterPool = mysql.createPool({
@@ -42,6 +52,40 @@ const callCenterPool = mysql.createPool({
     queueLimit: 0,
     charset: "utf8",
     dateStrings: true,
+    timezone: CL_TIMEZONE,
+});
+
+pool.on("connection", (connection) => {
+    connection.query("SET time_zone = ?", [MYSQL_TIMEZONE], (err) => {
+        if (err) {
+            console.error(
+                "No se pudo fijar time_zone en MySQL (db.multi.pool):",
+                err,
+            );
+        }
+    });
+});
+
+isabelPool.on("connection", (connection) => {
+    connection.query("SET time_zone = ?", [ISABEL_TIMEZONE], (err) => {
+        if (err) {
+            console.error(
+                "No se pudo fijar time_zone en MySQL (db.multi.isabelPool):",
+                err,
+            );
+        }
+    });
+});
+
+callCenterPool.on("connection", (connection) => {
+    connection.query("SET time_zone = ?", [CL_TIMEZONE], (err) => {
+        if (err) {
+            console.error(
+                "No se pudo fijar time_zone en MySQL (db.multi.callCenterPool):",
+                err,
+            );
+        }
+    });
 });
 
 export { pool, isabelPool, callCenterPool };

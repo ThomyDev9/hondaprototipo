@@ -19,6 +19,56 @@ export class AdminManagementDAO {
         return String(rows?.[0]?.category_name || "").trim();
     }
 
+    async getExistingCodeByDescriptionInRange(
+        description,
+        minCode,
+        maxCode,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            `
+            SELECT MIN(Code) AS code
+            FROM campaignresultmanagement
+            WHERE COALESCE(State, '1') = '1'
+              AND COALESCE(Description, '') = ?
+              AND Code BETWEEN ? AND ?
+            LIMIT 1
+            `,
+            [description, minCode, maxCode],
+        );
+
+        const code = Number(rows?.[0]?.code);
+        if (!Number.isFinite(code)) {
+            return null;
+        }
+        return code;
+    }
+
+    async getNextCodeInRange(minCode, maxCode, executor = this.pool) {
+        const [rows] = await executor.query(
+            `
+            SELECT
+                CASE
+                    WHEN MAX(Code) IS NULL THEN ?
+                    ELSE MAX(Code) + 1
+                END AS next_code
+            FROM campaignresultmanagement
+            WHERE COALESCE(State, '1') = '1'
+              AND Code BETWEEN ? AND ?
+            `,
+            [minCode, minCode, maxCode],
+        );
+
+        const nextCode = Number(rows?.[0]?.next_code);
+        if (!Number.isFinite(nextCode)) {
+            return null;
+        }
+        if (nextCode < minCode || nextCode > maxCode) {
+            return null;
+        }
+        return nextCode;
+    }
+
     async isActiveSubcampaignByCategory(
         categoryId,
         campaignId,
@@ -118,6 +168,29 @@ export class AdminManagementDAO {
         `);
 
         return { level1: level1Rows, level2: level2Rows };
+    }
+
+    async getFlexibleDescriptionSuggestions(
+        minCode,
+        maxCode,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            `
+            SELECT
+                TRIM(COALESCE(Description, '')) AS description,
+                MIN(Code) AS code
+            FROM campaignresultmanagement
+            WHERE COALESCE(State, '1') = '1'
+              AND TRIM(COALESCE(Description, '')) <> ''
+              AND Code BETWEEN ? AND ?
+            GROUP BY TRIM(COALESCE(Description, ''))
+            ORDER BY TRIM(COALESCE(Description, '')) ASC
+            `,
+            [minCode, maxCode],
+        );
+
+        return rows;
     }
 
     async getManagementLevelCampaigns(categoryId, executor = this.pool) {

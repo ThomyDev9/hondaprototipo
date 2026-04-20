@@ -9,6 +9,37 @@ import { generarUsuarioSeguro } from "../../utils/userGenerator.js";
 
 const router = express.Router();
 
+function formatDateOnly(value) {
+    if (!value) {
+        return "";
+    }
+
+    if (value instanceof Date) {
+        if (Number.isNaN(value.getTime())) {
+            return "";
+        }
+        return value.toISOString().slice(0, 10);
+    }
+
+    const raw = String(value).trim();
+    if (!raw) {
+        return "";
+    }
+
+    // Cuando ya viene en formato YYYY-MM-DD (o YYYY-MM-DD HH:mm:ss), usamos la parte de fecha.
+    const maybeDatePart = raw.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(maybeDatePart)) {
+        return maybeDatePart === "0000-00-00" ? "" : maybeDatePart;
+    }
+
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+        return "";
+    }
+
+    return parsed.toISOString().slice(0, 10);
+}
+
 /* =========================================================
    GET /admin/users  → Listar usuarios con campo "usuario"
    ========================================================= */
@@ -31,9 +62,7 @@ router.get(
                     .toUpperCase(),
                 Email: u.Email || "",
                 Address: u.Address || "",
-                dateBirth: u.dateBirth
-                    ? u.dateBirth.toISOString().slice(0, 10)
-                    : "",
+                dateBirth: formatDateOnly(u.dateBirth),
                 Celular: u.ContacAddress || "",
                 Perfil: u.Description || "",
                 Estado: u.State == 1 ? "ACTIVO" : "INACTIVO",

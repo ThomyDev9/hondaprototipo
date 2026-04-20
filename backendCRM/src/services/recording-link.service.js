@@ -40,7 +40,12 @@ export function buildRecordingPath(recordingfile, calldate) {
     return `${yyyy}/${mm}/${dd}/${recordingfile}`;
 }
 
-export async function findBestCdrMatch({ phoneNumber, managementTimestamp }) {
+export async function findBestCdrMatch({
+    phoneNumber,
+    managementTimestamp,
+    preferredPeerIp = "",
+}) {
+    const normalizedPreferredPeerIp = normalizeValue(preferredPeerIp);
     const phone = normalizeValue(phoneNumber);
     if (!phone) {
         return null;
@@ -58,6 +63,7 @@ export async function findBestCdrMatch({ phoneNumber, managementTimestamp }) {
     const cdr = await recordingLinkDAO.findNearestCdrByPhoneAndDate({
         phoneNumber: phone,
         managementTimestamp: timestamp,
+        preferredPeerIp: normalizedPreferredPeerIp,
     });
 
     if (!cdr) {
@@ -79,6 +85,7 @@ export async function linkManagementToRecording({
     agent = "",
     contactAddress = "",
     managementTimestamp = new Date(),
+    preferredPeerIp = "",
 }) {
     const normalizedContactId = normalizeValue(contactId);
     const normalizedPhone = normalizeValue(contactAddress);
@@ -90,6 +97,7 @@ export async function linkManagementToRecording({
     const cdr = await findBestCdrMatch({
         phoneNumber: normalizedPhone,
         managementTimestamp,
+        preferredPeerIp,
     });
 
     if (!cdr) {

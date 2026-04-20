@@ -154,6 +154,15 @@ function buildManualSubmitSignature({
     );
 }
 
+function buildFollowupInboundTicketId() {
+    const timestampBase36 = Date.now().toString(36).toUpperCase();
+    const randomSuffix = Math.floor(Math.random() * 1679616)
+        .toString(36)
+        .toUpperCase()
+        .padStart(4, "0");
+    return `SEG-${timestampBase36}-${randomSuffix}`;
+}
+
 export default function useAgentGestionSubmit({
     manualFlowActivo,
     dynamicFormConfig,
@@ -181,6 +190,7 @@ export default function useAgentGestionSubmit({
     inboundImageDrafts,
     setIsSavingGestion,
     resetManualGestionDraft,
+    isFollowupInboundManual = false,
 }) {
     return useCallback(
         async (event) => {
@@ -295,6 +305,13 @@ export default function useAgentGestionSubmit({
                             observacion ||
                             "",
                     };
+
+                    if (isFollowupInboundManual && !isRedesManualFlow) {
+                        const followupTicketId = buildFollowupInboundTicketId();
+                        inboundFormData.ticketId = followupTicketId;
+                        inboundFormData.idLlamada = followupTicketId;
+                        inboundFormData.CAMPO5 = followupTicketId;
+                    }
 
                     if (isRedesManualFlow) {
                         const normalizedFullName =
@@ -693,6 +710,7 @@ export default function useAgentGestionSubmit({
             inboundChildOptions,
             inboundImageDrafts,
             inboundInteractionDetails,
+            isFollowupInboundManual,
             interactionIdActual,
             level1Seleccionado,
             level2Seleccionado,

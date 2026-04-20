@@ -49,11 +49,69 @@ function isFlexibleManagementCategoryName(categoryName = "") {
     return normalized.includes("inbound") || normalized.includes("redes");
 }
 
+function getFlexibleCategoryCodeRange(categoryName = "") {
+    const normalized = String(categoryName || "").trim().toLowerCase();
+    if (normalized.includes("inbound")) {
+        return { minCode: 1000, maxCode: 1999 };
+    }
+    if (normalized.includes("redes")) {
+        return { minCode: 2000, maxCode: 2099 };
+    }
+    return null;
+}
+
 async function isFlexibleManagementCategory(adminManagementDAO, categoryId) {
     const categoryName = await adminManagementDAO.getCategoryNameById(
         categoryId,
     );
     return isFlexibleManagementCategoryName(categoryName);
+}
+
+async function resolveCodeForFlexibleCategory(
+    adminManagementDAO,
+    categoryId,
+    description,
+) {
+    const trimmedDescription = String(description || "").trim();
+    if (!trimmedDescription) {
+        throw createHttpError(
+            400,
+            "description es requerida para campañas inbound y redes",
+        );
+    }
+
+    const categoryName = await adminManagementDAO.getCategoryNameById(
+        categoryId,
+    );
+    const codeRange = getFlexibleCategoryCodeRange(categoryName);
+    if (!codeRange) {
+        return null;
+    }
+
+    const existingCode =
+        await adminManagementDAO.getExistingCodeByDescriptionInRange(
+            trimmedDescription,
+            codeRange.minCode,
+            codeRange.maxCode,
+        );
+    if (Number.isFinite(existingCode)) {
+        return existingCode;
+    }
+
+    const nextCode = await adminManagementDAO.getNextCodeInRange(
+        codeRange.minCode,
+        codeRange.maxCode,
+    );
+    if (!Number.isFinite(nextCode)) {
+        throw createHttpError(
+            409,
+            `No hay codes disponibles para ${
+                categoryName || "la categoría"
+            } en el rango ${codeRange.minCode}-${codeRange.maxCode}`,
+        );
+    }
+
+    return nextCode;
 }
 
 export async function createManagementLevelsFromPairs(
@@ -93,9 +151,23 @@ export async function createManagementLevelsFromPairs(
         categoryId,
     );
     const fallbackCode = Number.isFinite(Number(code)) ? Number(code) : 0;
+    const flexibleAutoCode = allowCustomLevel1
+        ? await resolveCodeForFlexibleCategory(
+              adminManagementDAO,
+              categoryId,
+              description,
+          )
+        : null;
 
     const codeByLevel1 = allowCustomLevel1
-        ? new Map(level1List.map((level1) => [level1, fallbackCode]))
+        ? new Map(
+              level1List.map((level1) => [
+                  level1,
+                  Number.isFinite(flexibleAutoCode)
+                      ? flexibleAutoCode
+                      : fallbackCode,
+              ]),
+          )
         : await adminManagementDAO.getCodeByLevel1Map(level1List);
 
     const missingCodeItems = allowCustomLevel1
@@ -245,7 +317,7 @@ export async function createManagementLevel(
     adminManagementDAO,
     payload,
 ) {
-    const {
+    let {
         categoryId,
         campaignId,
         code,
@@ -263,6 +335,21 @@ export async function createManagementLevel(
             400,
             "campaignId, level1 y level2 son requeridos",
         );
+    }
+
+    const allowCustomLevel1 = await isFlexibleManagementCategory(
+        adminManagementDAO,
+        categoryId,
+    );
+    if (allowCustomLevel1) {
+        const flexibleAutoCode = await resolveCodeForFlexibleCategory(
+            adminManagementDAO,
+            categoryId,
+            description,
+        );
+        if (Number.isFinite(flexibleAutoCode)) {
+            code = flexibleAutoCode;
+        }
     }
 
     await validateManagementCampaignAndCode(adminManagementDAO, {
@@ -302,7 +389,7 @@ export async function createManagementLevelsBulk(
     adminManagementDAO,
     payload,
 ) {
-    const {
+    let {
         categoryId,
         campaignId,
         code,
@@ -316,6 +403,21 @@ export async function createManagementLevelsBulk(
 
     if (!campaignId || !level1) {
         throw createHttpError(400, "campaignId y level1 son requeridos");
+    }
+
+    const allowCustomLevel1 = await isFlexibleManagementCategory(
+        adminManagementDAO,
+        categoryId,
+    );
+    if (allowCustomLevel1) {
+        const flexibleAutoCode = await resolveCodeForFlexibleCategory(
+            adminManagementDAO,
+            categoryId,
+            description,
+        );
+        if (Number.isFinite(flexibleAutoCode)) {
+            code = flexibleAutoCode;
+        }
     }
 
     const normalizedLevel2List = normalizeBulkLevel2List(level2List);
@@ -376,7 +478,7 @@ export async function updateManagementLevel(
     adminManagementDAO,
     payload,
 ) {
-    const {
+    let {
         id,
         categoryId,
         campaignId,
@@ -398,6 +500,21 @@ export async function updateManagementLevel(
             400,
             "campaignId, level1 y level2 son requeridos",
         );
+    }
+
+    const allowCustomLevel1 = await isFlexibleManagementCategory(
+        adminManagementDAO,
+        categoryId,
+    );
+    if (allowCustomLevel1) {
+        const flexibleAutoCode = await resolveCodeForFlexibleCategory(
+            adminManagementDAO,
+            categoryId,
+            description,
+        );
+        if (Number.isFinite(flexibleAutoCode)) {
+            code = flexibleAutoCode;
+        }
     }
 
     await validateManagementCampaignAndCode(adminManagementDAO, {

@@ -75,6 +75,20 @@ const INBOUND_DEFAULT_TARGET_LABELS = [
     "oscus",
 ];
 
+function isInboundAutoEligibleTarget(target) {
+    const categoryId = String(target?.categoryId || "").trim();
+    const isManualFlow = Boolean(target?.manualFlow);
+    const isSecureManual = Boolean(target?.secureInboundManual);
+    const isFollowupManual = Boolean(target?.followupInboundManual);
+
+    return (
+        categoryId === INBOUND_MENU_CATEGORY_ID &&
+        isManualFlow &&
+        !isSecureManual &&
+        !isFollowupManual
+    );
+}
+
 function Sidebar({
     user,
     role,
@@ -158,13 +172,33 @@ function Sidebar({
     useEffect(() => {
         if (effectiveRole.toUpperCase() !== "ASESOR") return;
 
-        const hasSavedTarget =
-            Boolean(sessionStorage.getItem(INBOUND_AUTO_TARGET_SESSION_KEY)) ||
-            Boolean(localStorage.getItem(INBOUND_AUTO_TARGET_SHARED_KEY));
+        const resolveRawSavedInboundTarget = () => {
+            const savedTargetRaw =
+                sessionStorage.getItem(INBOUND_AUTO_TARGET_SESSION_KEY) ||
+                localStorage.getItem(INBOUND_AUTO_TARGET_SHARED_KEY) ||
+                "";
+
+            if (!savedTargetRaw) {
+                return null;
+            }
+
+            try {
+                return JSON.parse(savedTargetRaw);
+            } catch {
+                return null;
+            }
+        };
+
+        const savedTarget = resolveRawSavedInboundTarget();
+        const hasSavedTarget = isInboundAutoEligibleTarget(savedTarget);
 
         if (hasSavedTarget) {
             return;
         }
+
+        // Limpia objetivos heredados (seguimiento/manual seguro) para no reabrirlos en llamadas nuevas.
+        sessionStorage.removeItem(INBOUND_AUTO_TARGET_SESSION_KEY);
+        localStorage.removeItem(INBOUND_AUTO_TARGET_SHARED_KEY);
 
         let cancelled = false;
 
@@ -488,7 +522,7 @@ function Sidebar({
         };
     }, [effectiveRole, inboundAgentNumber]);
 
-    const resolveSavedInboundTarget = () => {
+    const resolveSavedInboundTarget = ({ autoEligibleOnly = false } = {}) => {
         const savedTargetRaw =
             sessionStorage.getItem(INBOUND_AUTO_TARGET_SESSION_KEY) ||
             localStorage.getItem(INBOUND_AUTO_TARGET_SHARED_KEY) ||
@@ -498,7 +532,11 @@ function Sidebar({
         }
 
         try {
-            return JSON.parse(savedTargetRaw);
+            const parsed = JSON.parse(savedTargetRaw);
+            if (autoEligibleOnly && !isInboundAutoEligibleTarget(parsed)) {
+                return null;
+            }
+            return parsed;
         } catch {
             return null;
         }
@@ -510,7 +548,9 @@ function Sidebar({
         if (!hasActiveInboundCall || !activeInboundCallId) return;
         if (lastAutoOpenedInboundCallRef.current === activeInboundCallId)
             return;
-        const savedTarget = resolveSavedInboundTarget();
+        const savedTarget = resolveSavedInboundTarget({
+            autoEligibleOnly: true,
+        });
 
         const campaignId = String(savedTarget?.campaignId || "").trim();
         if (!campaignId || typeof onSelectCampaign !== "function") {
@@ -575,7 +615,9 @@ function Sidebar({
         const hasDraft = Boolean(draftState?.hasDraft);
         const draftCallId = String(draftState?.callId || "").trim();
         const isDifferentCall = !draftCallId || draftCallId !== currentCallId;
-        const savedInboundTarget = resolveSavedInboundTarget();
+        const savedInboundTarget = resolveSavedInboundTarget({
+            autoEligibleOnly: true,
+        });
         const isInboundManualTarget =
             Boolean(savedInboundTarget?.manualFlow) &&
             String(savedInboundTarget?.categoryId || "").trim() ===
@@ -588,7 +630,9 @@ function Sidebar({
     }, [activeInboundCallId, agentPage, effectiveRole]);
 
     const handleOpenPendingInboundInNewTab = () => {
-        const savedTarget = resolveSavedInboundTarget();
+        const savedTarget = resolveSavedInboundTarget({
+            autoEligibleOnly: true,
+        });
         const campaignId = String(savedTarget?.campaignId || "").trim();
         if (!campaignId) {
             alert(
@@ -882,6 +926,7 @@ function Sidebar({
                     </div>
                     )}
                     <AccordionMenu
+                        hideFollowupInboundManual={hasActiveInboundCall}
                         hiddenNormalizedLabels={
                             hasActiveInboundCall
                                 ? ["kullki wasi", "atm", "oscus", "atm oscus"]
@@ -971,7 +1016,8 @@ function Sidebar({
                             if (onSelectCampaign && campaignId) {
                                 if (
                                     requiresInboundAgentCode &&
-                                    !isHistoricoInbound
+                                    !isHistoricoInbound &&
+                                    !isUnlockedInboundManual
                                 ) {
                                     sessionStorage.setItem(
                                         INBOUND_AUTO_TARGET_SESSION_KEY,

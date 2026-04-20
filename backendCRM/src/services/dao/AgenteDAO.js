@@ -399,14 +399,39 @@ const INSERT_AGENT_SESSION_STATE_LOG = `
         CreatedAt,
         UpdatedAt
     )
-    VALUES (?, ?, NULLIF(?, ''), ?, ?, NULL, NOW(), NOW())
+    VALUES (?, ?, NULLIF(?, ''), ?, NOW(), NULL, NOW(), NOW())
 `;
 
 const CLOSE_AGENT_SESSION_STATE_LOG = `
     UPDATE session_estado_log
-    SET EstadoFin = ?,
+    SET EstadoFin = NOW(),
         UpdatedAt = NOW()
     WHERE id = ?
+`;
+
+const CLOSE_OTHER_OPEN_AGENT_STATE_LOGS = `
+    UPDATE session_estado_log
+    SET EstadoFin = NOW(),
+        UpdatedAt = NOW()
+    WHERE LOWER(TRIM(Agent)) = LOWER(TRIM(?))
+      AND EstadoFin IS NULL
+      AND SessionId <> ?
+`;
+
+const CLOSE_OTHER_OPEN_AGENT_SESSIONS = `
+    UPDATE session
+    SET EstadoFin = CASE
+            WHEN EstadoFin IS NULL THEN NOW()
+            ELSE EstadoFin
+        END,
+        LogoutAt = CASE
+            WHEN LogoutAt IS NULL THEN NOW()
+            ELSE LogoutAt
+        END,
+        TmStmp = NOW()
+    WHERE LOWER(TRIM(Agent)) = LOWER(TRIM(?))
+      AND LogoutAt IS NULL
+      AND SessionId <> ?
 `;
 
 const GET_OTHER_ADVISORS = `
@@ -1472,7 +1497,7 @@ export class AgenteDAO {
     }
 
     async insertAgentSessionStateLog(
-        { sessionId, agent, agentNumber = "", estado, estadoInicio },
+        { sessionId, agent, agentNumber = "", estado },
         executor = this.pool,
     ) {
         return executor.query(INSERT_AGENT_SESSION_STATE_LOG, [
@@ -1480,15 +1505,40 @@ export class AgenteDAO {
             agent,
             agentNumber,
             estado,
-            estadoInicio,
         ]);
     }
 
     async closeAgentSessionStateLog(
-        { id, estadoFin },
+        { id },
         executor = this.pool,
     ) {
-        return executor.query(CLOSE_AGENT_SESSION_STATE_LOG, [estadoFin, id]);
+        return executor.query(CLOSE_AGENT_SESSION_STATE_LOG, [id]);
+    }
+
+    async closeOtherOpenAgentContexts(
+        { agent, currentSessionId },
+        executor = this.pool,
+    ) {
+        const normalizedAgent = String(agent || "").trim();
+        const normalizedSessionId = String(currentSessionId || "").trim();
+
+        if (!normalizedAgent || !normalizedSessionId) {
+            return { closedLogs: 0, closedSessions: 0 };
+        }
+
+        const [closedLogsResult] = await executor.query(
+            CLOSE_OTHER_OPEN_AGENT_STATE_LOGS,
+            [normalizedAgent, normalizedSessionId],
+        );
+        const [closedSessionsResult] = await executor.query(
+            CLOSE_OTHER_OPEN_AGENT_SESSIONS,
+            [normalizedAgent, normalizedSessionId],
+        );
+
+        return {
+            closedLogs: Number(closedLogsResult?.affectedRows || 0),
+            closedSessions: Number(closedSessionsResult?.affectedRows || 0),
+        };
     }
 
     async getOtherAdvisors(executor = this.pool) {

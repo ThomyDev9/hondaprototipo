@@ -934,6 +934,8 @@ export function registerInboundRoutes(
                 ).trim();
                 const normalizedTicketId = String(ticketId || "").trim();
                 const normalizedCampaignId = String(campaignId || "").trim();
+                const isFollowupTicket =
+                    normalizedTicketId.toUpperCase().startsWith("SEG-");
 
                 if (isRedesFlow) {
                     const existingClientByCampaign =
@@ -1374,6 +1376,9 @@ export function registerInboundRoutes(
                             agent: agenteActor,
                             contactAddress: celular,
                             managementTimestamp: tmstmp,
+                            preferredPeerIp: isFollowupTicket
+                                ? "172.19.10.40"
+                                : "",
                         });
                     }
                 } catch (linkErr) {

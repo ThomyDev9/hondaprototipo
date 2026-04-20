@@ -141,6 +141,7 @@ async function getAgentStateAccumulation(
         `
         SELECT
           id,
+          SessionId AS sessionId,
           Agent AS agent,
           AgentNumber AS agentNumber,
           COALESCE(NULLIF(TRIM(Estado), ''), 'Sin estado') AS estado,
@@ -172,6 +173,46 @@ async function getAgentStateAccumulation(
     );
 
     const aggregation = new Map();
+    const sessionCutoffByAgentSession = new Map();
+    const sessionsByAgent = new Map();
+
+    for (const row of rows) {
+        const rawStart = parseMysqlDateTime(row.estadoInicio);
+        if (!rawStart) continue;
+
+        const agentKey = String(row.agent || "")
+            .trim()
+            .toLowerCase();
+        const sessionId = String(row.sessionId || "").trim();
+        if (!agentKey || !sessionId) continue;
+
+        let sessionMap = sessionsByAgent.get(agentKey);
+        if (!sessionMap) {
+            sessionMap = new Map();
+            sessionsByAgent.set(agentKey, sessionMap);
+        }
+
+        const existingStart = sessionMap.get(sessionId);
+        if (!existingStart || rawStart.getTime() < existingStart.getTime()) {
+            sessionMap.set(sessionId, rawStart);
+        }
+    }
+
+    for (const [agentKey, sessionMap] of sessionsByAgent.entries()) {
+        const orderedSessions = Array.from(sessionMap.entries()).sort(
+            (a, b) => a[1].getTime() - b[1].getTime(),
+        );
+
+        for (let index = 0; index < orderedSessions.length; index += 1) {
+            const [sessionId] = orderedSessions[index];
+            const next = orderedSessions[index + 1];
+            const nextSessionStart = next ? next[1] : null;
+            sessionCutoffByAgentSession.set(
+                `${agentKey}|${sessionId}`,
+                nextSessionStart,
+            );
+        }
+    }
 
     for (const row of rows) {
         const rawStart = parseMysqlDateTime(row.estadoInicio);
@@ -179,8 +220,21 @@ async function getAgentStateAccumulation(
 
         if (!rawStart || !rawEnd) continue;
 
+        const agentKey = String(row.agent || "")
+            .trim()
+            .toLowerCase();
+        const sessionId = String(row.sessionId || "").trim();
+        const nextSessionStart =
+            sessionCutoffByAgentSession.get(`${agentKey}|${sessionId}`) || null;
+        const effectiveEnd =
+            nextSessionStart && nextSessionStart < rawEnd
+                ? nextSessionStart
+                : rawEnd;
+        if (effectiveEnd <= rawStart) continue;
+
         let segmentStart = rawStart > rangeStart ? rawStart : rangeStart;
-        const segmentEnd = rawEnd < rangeEndExclusive ? rawEnd : rangeEndExclusive;
+        const segmentEnd =
+            effectiveEnd < rangeEndExclusive ? effectiveEnd : rangeEndExclusive;
 
         while (segmentStart < segmentEnd) {
             const dayStart = getDayStart(segmentStart);
@@ -193,22 +247,32 @@ async function getAgentStateAccumulation(
 
             if (minutes > 0) {
                 const fecha = formatDateKey(dayStart);
+                const rawAgent = String(row.agent || "").trim();
+                const rawEstado = String(row.estado || "").trim();
+                const normalizedAgentKey = rawAgent.toLowerCase();
+                const normalizedEstadoKey = rawEstado.toLowerCase();
+                const rawAgentNumber = String(row.agentNumber || "").trim();
                 const key = [
                     fecha,
-                    String(row.agent || "").trim(),
-                    String(row.agentNumber || "").trim(),
-                    String(row.estado || "").trim(),
+                    normalizedAgentKey,
+                    normalizedEstadoKey,
                 ].join("|");
 
                 const existing = aggregation.get(key) || {
                     fecha,
-                    agent: String(row.agent || "").trim(),
-                    agentNumber: String(row.agentNumber || "").trim(),
-                    estado: String(row.estado || "").trim() || "Sin estado",
+                    agent: rawAgent,
+                    estado: rawEstado || "Sin estado",
                     registros: 0,
                     intervals: [],
+                    agentNumbers: new Set(),
                 };
 
+                if (!existing.agent && rawAgent) {
+                    existing.agent = rawAgent;
+                }
+                if (rawAgentNumber) {
+                    existing.agentNumbers.add(rawAgentNumber);
+                }
                 existing.registros += 1;
                 existing.intervals.push({
                     start: new Date(segmentStart.getTime()),
@@ -258,7 +322,10 @@ async function getAgentStateAccumulation(
         return {
             fecha: item.fecha,
             agent: item.agent,
-            agentNumber: item.agentNumber,
+            agentNumber:
+                item.agentNumbers.size > 0
+                    ? Array.from(item.agentNumbers).join(" / ")
+                    : "",
             estado: item.estado,
             minutos,
             registros: item.registros,

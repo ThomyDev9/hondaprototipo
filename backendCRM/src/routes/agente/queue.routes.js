@@ -134,6 +134,10 @@ export function registerQueueRoutes(
         }
 
         const changedAt = new Date();
+        await agenteDAO.closeOtherOpenAgentContexts({
+            agent,
+            currentSessionId: normalizedSessionId,
+        });
         const existingSession =
             await agenteDAO.getAgentSessionById(normalizedSessionId);
         const openStateLog =
@@ -144,7 +148,6 @@ export function registerQueueRoutes(
         if (openStateLog && !sameEstado) {
             await agenteDAO.closeAgentSessionStateLog({
                 id: openStateLog.id,
-                estadoFin: changedAt,
             });
         }
 
@@ -168,7 +171,6 @@ export function registerQueueRoutes(
                 agent,
                 agentNumber,
                 estado: normalizedEstado,
-                estadoInicio: changedAt,
             });
         }
 
@@ -243,6 +245,12 @@ export function registerQueueRoutes(
                 await resolveAgentNumberFromMachineIp(req);
             const agentNumber =
                 requestedAgentNumber || machineMappedAgentNumber || "";
+            const startedAt = new Date();
+
+            await agenteDAO.closeOtherOpenAgentContexts({
+                agent: agenteActor,
+                currentSessionId: sessionId,
+            });
 
             const existingSession =
                 await agenteDAO.getAgentSessionById(sessionId);
@@ -253,7 +261,6 @@ export function registerQueueRoutes(
                 ).trim();
 
                 if (agentNumber && existingAgentNumber !== agentNumber) {
-                    const now = new Date();
                     await agenteDAO.upsertAgentSessionContext({
                         sessionId,
                         agent: String(existingSession.Agent || agenteActor).trim(),
@@ -262,11 +269,11 @@ export function registerQueueRoutes(
                         estadoInicio:
                             existingSession.EstadoInicio ||
                             existingSession.LoginAt ||
-                            now,
+                            startedAt,
                         estadoFin: existingSession.EstadoFin || null,
-                        loginAt: existingSession.LoginAt || now,
+                        loginAt: existingSession.LoginAt || startedAt,
                         logoutAt: existingSession.LogoutAt || null,
-                        tmstmp: now,
+                        tmstmp: startedAt,
                     });
                     const refreshedSession =
                         await agenteDAO.getAgentSessionById(sessionId);
@@ -276,7 +283,6 @@ export function registerQueueRoutes(
                 return res.json({ data: existingSession });
             }
 
-            const startedAt = new Date();
             await agenteDAO.upsertAgentSessionContext({
                 sessionId,
                 agent: agenteActor,
@@ -294,7 +300,6 @@ export function registerQueueRoutes(
                 agent: agenteActor,
                 agentNumber,
                 estado: "Login",
-                estadoInicio: startedAt,
             });
 
             const sessionRow = await agenteDAO.getAgentSessionById(sessionId);
@@ -331,7 +336,6 @@ export function registerQueueRoutes(
             if (openStateLog) {
                 await agenteDAO.closeAgentSessionStateLog({
                     id: openStateLog.id,
-                    estadoFin: endedAt,
                 });
             }
 

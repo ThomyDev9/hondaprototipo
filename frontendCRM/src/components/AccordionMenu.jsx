@@ -182,7 +182,11 @@ function shouldHideInboundTreeNode({
     );
 }
 
-function AccordionMenu({ onLeafSelect, hiddenNormalizedLabels = [] }) {
+function AccordionMenu({
+    onLeafSelect,
+    hiddenNormalizedLabels = [],
+    hideFollowupInboundManual = false,
+}) {
     const [categoryOptions, setCategoryOptions] = useState([]);
     const [selectedCategoryId, setSelectedCategoryId] = useState(
         DEFAULT_MENU_CATEGORY_ID,
@@ -837,7 +841,8 @@ function AccordionMenu({ onLeafSelect, hiddenNormalizedLabels = [] }) {
                                                         </button>
                                                     );
                                                 })}
-                                            {secureInboundManualEntry && (
+                                            {secureInboundManualEntry &&
+                                                !hideFollowupInboundManual && (
                                                 <button
                                                     key="inbound-quick-followup-manual"
                                                     type="button"
@@ -988,6 +993,7 @@ export default AccordionMenu;
 AccordionMenu.propTypes = {
     onLeafSelect: PropTypes.func,
     hiddenNormalizedLabels: PropTypes.arrayOf(PropTypes.string),
+    hideFollowupInboundManual: PropTypes.bool,
 };
 
 

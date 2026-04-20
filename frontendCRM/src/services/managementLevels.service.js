@@ -34,9 +34,15 @@ export async function listarCampaniasParaNiveles(categoryId) {
     return json.data || [];
 }
 
-export async function listarSugerenciasNivelesGestion() {
+export async function listarSugerenciasNivelesGestion(categoryId = "") {
+    const params = new URLSearchParams();
+    const normalizedCategoryId = String(categoryId || "").trim();
+    if (normalizedCategoryId) {
+        params.set("categoryId", normalizedCategoryId);
+    }
+
     const response = await fetch(
-        `${API_BASE}/admin/management-levels/suggestions`,
+        `${API_BASE}/admin/management-levels/suggestions${params.toString() ? `?${params.toString()}` : ""}`,
         {
             headers: getAuthHeaders(),
         },
@@ -50,6 +56,8 @@ export async function listarSugerenciasNivelesGestion() {
     return {
         level1: json?.data?.level1 || [],
         level2: json?.data?.level2 || [],
+        descriptions: json?.data?.descriptions || [],
+        nextCode: json?.data?.nextCode ?? null,
     };
 }
 

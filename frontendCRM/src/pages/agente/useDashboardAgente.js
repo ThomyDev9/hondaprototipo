@@ -787,12 +787,14 @@ export default function useDashboardAgenteState({
                 CAMPO2: String(client.email || "").trim(),
                 CAMPO3: String(client.celular || "").trim(),
                 CAMPO4: String(client.convencional || "").trim(),
-                CAMPO5:
-                    String(prev.CAMPO5 || "").trim() ||
-                    String(client.ticketId || "").trim(),
-                ticketId:
-                    String(prev.ticketId || "").trim() ||
-                    String(client.ticketId || "").trim(),
+                CAMPO5: allowsManualInboundClientSelection
+                    ? String(prev.CAMPO5 || "").trim()
+                    : String(prev.CAMPO5 || "").trim() ||
+                      String(client.ticketId || "").trim(),
+                ticketId: allowsManualInboundClientSelection
+                    ? String(prev.ticketId || "").trim()
+                    : String(prev.ticketId || "").trim() ||
+                      String(client.ticketId || "").trim(),
                 __inbound_tipo_identificacion:
                     String(client.tipoIdentificacion || "").trim() ||
                     prev.__inbound_tipo_identificacion ||
@@ -1182,6 +1184,7 @@ export default function useDashboardAgenteState({
         inboundImageDrafts,
         setIsSavingGestion,
         resetManualGestionDraft,
+        isFollowupInboundManual: Boolean(selectedFollowupInboundManual),
     });
 
     const handleCancelarGestion = useCallback(async () => {
