@@ -362,7 +362,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
     );
 
     const cargarSiguienteRegistro = React.useCallback(
-        async (currentIdentification = "") => {
+        async ({ currentIdentification = "", currentRowId = "" } = {}) => {
             let all = [];
             try {
                 all = await loadFlowRows();
@@ -375,17 +375,27 @@ export default function OutMaquitaRrssFlow({ onBack }) {
             }
 
             const currentId = String(currentIdentification || "").trim();
+            const normalizedRowId = String(currentRowId || "").trim();
+            const isCurrentRow = (item) => {
+                if (!item) return false;
+                const itemRowId = String(item?.id || "").trim();
+                if (normalizedRowId && itemRowId) {
+                    return itemRowId === normalizedRowId;
+                }
+                const itemId = getRrssRegistroIdentification(item);
+                return Boolean(currentId && itemId && itemId === currentId);
+            };
             const siguiente =
                 all.find((item) => {
                     const itemId = getRrssRegistroIdentification(item);
-                    return itemId && itemId !== currentId;
+                    return itemId && !isCurrentRow(item);
                 }) || null;
 
             if (isRegestionTab) {
                 setRegestionRows(
                     all.filter((item) => {
                         const itemId = getRrssRegistroIdentification(item);
-                        return itemId && itemId !== currentId;
+                        return itemId && !isCurrentRow(item);
                     }),
                 );
                 setRegistro(null);
@@ -393,7 +403,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                 setGestionRows(
                     all.filter((item) => {
                         const itemId = getRrssRegistroIdentification(item);
-                        return itemId && itemId !== currentId;
+                        return itemId && !isCurrentRow(item);
                     }),
                 );
                 setRegistro(null);
@@ -457,6 +467,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                 onGuardar={async (formData) => {
                     try {
                         setError("");
+                        const currentRowId = String(registro?.id || "").trim();
                         const merged = {
                             ...rrssDraft,
                             ...formData,
@@ -468,7 +479,11 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                         );
                         setSuccessMessage("Registro guardado correctamente");
                         await cargarSiguienteRegistro(
-                            getRegistroIdentification(merged),
+                            {
+                                currentIdentification:
+                                    getRegistroIdentification(merged),
+                                currentRowId,
+                            },
                         );
                     } catch (saveError) {
                         setSuccessMessage("");
@@ -481,6 +496,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                 onActualizar={async (formData) => {
                     try {
                         setError("");
+                        const currentRowId = String(registro?.id || "").trim();
                         const merged = {
                             ...rrssDraft,
                             ...formData,
@@ -492,7 +508,11 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                         );
                         setSuccessMessage("Registro actualizado correctamente");
                         await cargarSiguienteRegistro(
-                            getRegistroIdentification(merged),
+                            {
+                                currentIdentification:
+                                    getRegistroIdentification(merged),
+                                currentRowId,
+                            },
                         );
                     } catch (saveError) {
                         setSuccessMessage("");

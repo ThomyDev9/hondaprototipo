@@ -6,6 +6,7 @@ import ReportesSupervisorPage from "./pages/supervisor/ReportesSupervisorPage";
 import AgentesSupervisorPage from "./pages/supervisor/AgentesSupervisorPageV2";
 import GrabacionesOutboundPage from "./pages/supervisor/GrabacionesOutboundPage";
 import GrabacionesInboundPage from "./pages/supervisor/GrabacionesInboundPage";
+import CorreccionesInboundPage from "./pages/supervisor/CorreccionesInboundPage";
 import DashboardAgente from "./pages/agente/DashboardAgente";
 import InboundEmailComposerPage from "./pages/agente/InboundEmailComposerPage";
 import DashboardConsultor from "./pages/consultor/DashboardConsultor";
@@ -427,6 +428,8 @@ function App() {
                         <GrabacionesOutboundPage />
                     ) : adminPage === "grabaciones-inbound" ? (
                         <GrabacionesInboundPage />
+                    ) : adminPage === "correcciones-inbound" ? (
+                        <CorreccionesInboundPage />
                     ) : (
                         <DashboardSupervisor />
                     ))}

@@ -292,6 +292,23 @@ export const fetchInboundHistorico = ({
         )}&endDate=${encodeURIComponent(String(endDate || "").trim())}`,
     );
 
+export const fetchInboundCorrectionContext = ({ gestionId }) =>
+    request(
+        `agente/inbound-correccion-contexto?gestionId=${encodeURIComponent(
+            String(gestionId || "").trim(),
+        )}`,
+    );
+
+export const saveInboundCorrection = ({ gestionId, interactionDetails }) =>
+    request("agente/guardar-correccion-inbound", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            gestionId,
+            interactionDetails,
+        }),
+    });
+
 export const uploadInboundImages = (formData) =>
     request("agente/upload-inbound-images", {
         method: "POST",

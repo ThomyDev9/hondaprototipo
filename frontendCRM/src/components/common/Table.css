@@ -62,6 +62,7 @@
     display: flex;
     gap: 0.5rem;
     justify-content: flex-end;
+    flex-wrap: nowrap;
 }
 
 .table-action-btn {
@@ -73,6 +74,8 @@
     border-radius: 6px;
     transition: all 0.2s ease;
     font-weight: 600;
+    white-space: nowrap;
+    min-width: 86px;
 }
 
 .table-action-default {

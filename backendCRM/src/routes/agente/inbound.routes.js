@@ -393,6 +393,318 @@ export function registerInboundRoutes(
     );
 
     router.get(
+        "/inbound-correccion-contexto",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const gestionId = Number(req.query?.gestionId || 0);
+
+                if (!gestionId) {
+                    return res.status(400).json({
+                        error: "gestionId es requerido",
+                    });
+                }
+
+                const baseGestion = await agenteDAO.getInboundGestionById(
+                    gestionId,
+                );
+
+                if (!baseGestion) {
+                    return res.status(404).json({
+                        error: "No se encontró la gestión inbound solicitada",
+                    });
+                }
+
+                const interactionId = String(
+                    baseGestion?.interaction_id || "",
+                ).trim();
+                if (!interactionId) {
+                    return res.status(400).json({
+                        error: "La gestión no tiene interaction_id",
+                    });
+                }
+
+                const actions = await agenteDAO.listInboundGestionesByInteraction(
+                    interactionId,
+                );
+                const levels =
+                    await agenteDAO.getInboundManagementLevelsByCampaign(
+                        String(baseGestion?.campaign_id || "").trim(),
+                    );
+
+                return res.json({
+                    success: true,
+                    data: {
+                        base: {
+                            id: Number(baseGestion?.id || 0),
+                            interactionId,
+                            campaignId: String(
+                                baseGestion?.campaign_id || "",
+                            ).trim(),
+                            categoryId: String(
+                                baseGestion?.category_id || "",
+                            ).trim(),
+                            menuItemId: String(
+                                baseGestion?.menu_item_id || "",
+                            ).trim(),
+                            contactId: String(
+                                baseGestion?.contact_id || "",
+                            ).trim(),
+                            clienteInboundId: Number(
+                                baseGestion?.cliente_inbound_id || 0,
+                            ),
+                            ticketId: String(baseGestion?.ticket_id || "").trim(),
+                            nombreClienteRef: String(
+                                baseGestion?.nombre_cliente_ref || "",
+                            ).trim(),
+                            identification: String(
+                                baseGestion?.identification || "",
+                            ).trim(),
+                            fullName: String(baseGestion?.full_name || "").trim(),
+                            celular: String(baseGestion?.celular || "").trim(),
+                            city: String(baseGestion?.city || "").trim(),
+                            email: String(baseGestion?.email || "").trim(),
+                            convencional: String(
+                                baseGestion?.convencional || "",
+                            ).trim(),
+                            tipoCliente: String(
+                                baseGestion?.tipo_cliente || "",
+                            ).trim(),
+                            tipoIdentificacion: String(
+                                baseGestion?.tipo_identificacion || "",
+                            ).trim(),
+                            tipoCanal: String(
+                                baseGestion?.tipo_canal || "",
+                            ).trim(),
+                            relacion: String(
+                                baseGestion?.relacion || "",
+                            ).trim(),
+                            fechaAgendamiento: String(
+                                baseGestion?.fecha_agendamiento || "",
+                            ).trim(),
+                            payloadJson: String(
+                                baseGestion?.payload_json || "",
+                            ).trim(),
+                            fieldsMetaJson: String(
+                                baseGestion?.fields_meta_json || "",
+                            ).trim(),
+                            startedManagement: String(
+                                baseGestion?.started_management || "",
+                            ).trim(),
+                            tmstmp: formatLocalDateTime(
+                                new Date(baseGestion?.tmstmp || Date.now()),
+                            ),
+                            intentos: Number(baseGestion?.intentos || 1),
+                        },
+                        actions: (Array.isArray(actions) ? actions : []).map(
+                            (row) => ({
+                                id: Number(row?.id || 0),
+                                actionOrder: Number(row?.action_order || 0),
+                                categorizacion: String(
+                                    row?.categorizacion || "",
+                                ).trim(),
+                                motivo: String(row?.result_level1 || "").trim(),
+                                submotivo: String(
+                                    row?.result_level2 || "",
+                                ).trim(),
+                                observaciones: String(
+                                    row?.observaciones || "",
+                                ).trim(),
+                                agent: String(row?.agent || "").trim(),
+                                tmstmp: String(row?.tmstmp || "").trim(),
+                            }),
+                        ),
+                        levels: Array.isArray(levels) ? levels : [],
+                    },
+                });
+            } catch (err) {
+                console.error(
+                    "Error en /agente/inbound-correccion-contexto:",
+                    err,
+                );
+                return res.status(500).json({
+                    error: "Error obteniendo contexto de corrección inbound",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.post(
+        "/guardar-correccion-inbound",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const gestionId = Number(req.body?.gestionId || 0);
+                const interactionDetails = Array.isArray(
+                    req.body?.interactionDetails,
+                )
+                    ? req.body.interactionDetails
+                    : [];
+
+                if (!gestionId) {
+                    return res.status(400).json({
+                        error: "gestionId es requerido",
+                    });
+                }
+
+                const normalizedDetails = interactionDetails
+                    .map((detail) => ({
+                        categorizacion: String(
+                            detail?.categorizacion || "",
+                        ).trim(),
+                        motivo: String(detail?.motivo || "").trim(),
+                        submotivo: String(detail?.submotivo || "").trim(),
+                        observaciones: String(
+                            detail?.observaciones || "",
+                        ).trim(),
+                    }))
+                    .filter(
+                        (detail) =>
+                            detail.categorizacion &&
+                            detail.motivo &&
+                            detail.submotivo,
+                    );
+
+                if (normalizedDetails.length === 0) {
+                    return res.status(400).json({
+                        error: "Debes enviar al menos una transacción válida",
+                    });
+                }
+
+                const baseGestion = await agenteDAO.getInboundGestionById(
+                    gestionId,
+                );
+
+                if (!baseGestion) {
+                    return res.status(404).json({
+                        error: "No se encontró la gestión inbound para corregir",
+                    });
+                }
+
+                const interactionId = String(
+                    baseGestion?.interaction_id || "",
+                ).trim();
+                if (!interactionId) {
+                    return res.status(400).json({
+                        error: "La gestión seleccionada no tiene interaction_id",
+                    });
+                }
+
+                const existingActions =
+                    await agenteDAO.listInboundGestionesByInteraction(
+                        interactionId,
+                    );
+                const maxActionOrder = (Array.isArray(existingActions)
+                    ? existingActions
+                    : []
+                ).reduce(
+                    (maxValue, row) =>
+                        Math.max(maxValue, Number(row?.action_order || 0)),
+                    0,
+                );
+
+                const campaignId = String(baseGestion?.campaign_id || "").trim();
+                const agenteActor = getAgentActor(req);
+                const payloadJson = String(baseGestion?.payload_json || "").trim();
+                const fieldsMetaJson = String(
+                    baseGestion?.fields_meta_json || "",
+                ).trim();
+                const correctionTimestamp = formatLocalDateTime(
+                    new Date(baseGestion?.tmstmp || Date.now()),
+                );
+                const startedManagement = String(
+                    baseGestion?.started_management || correctionTimestamp,
+                ).trim();
+                const intentos = Number(baseGestion?.intentos || 1) || 1;
+                const preguntasVacias = Array.from({ length: 30 }, () => "");
+                const respuestasVacias = Array.from({ length: 30 }, () => "");
+
+                const insertedRows = [];
+
+                for (const [index, detail] of normalizedDetails.entries()) {
+                    const actionOrder = maxActionOrder + index + 1;
+                    let managementResultCode = "";
+
+                    if (campaignId && detail.motivo && detail.submotivo) {
+                        const codeRow =
+                            await agenteDAO.getInboundManagementCodeByLevelsWithoutLevel3(
+                                campaignId,
+                                detail.motivo,
+                                detail.submotivo,
+                            );
+                        managementResultCode = String(codeRow?.code || "").trim();
+                    }
+
+                    const gestionParams = [
+                        String(baseGestion?.contact_id || "").trim(),
+                        Number(baseGestion?.cliente_inbound_id || 0),
+                        campaignId,
+                        String(baseGestion?.category_id || "").trim(),
+                        String(baseGestion?.menu_item_id || "").trim(),
+                        interactionId,
+                        actionOrder,
+                        agenteActor,
+                        managementResultCode ||
+                            detail.submotivo ||
+                            detail.motivo ||
+                            "sin_gestion",
+                        detail.motivo,
+                        detail.submotivo,
+                        detail.categorizacion,
+                        detail.observaciones,
+                        String(baseGestion?.fecha_agendamiento || "").trim(),
+                        String(baseGestion?.identification || "").trim(),
+                        String(baseGestion?.full_name || "").trim(),
+                        String(baseGestion?.celular || "").trim(),
+                        String(baseGestion?.tipo_cliente || "").trim(),
+                        String(baseGestion?.tipo_identificacion || "").trim(),
+                        String(baseGestion?.tipo_canal || "").trim(),
+                        String(baseGestion?.relacion || "").trim(),
+                        String(baseGestion?.nombre_cliente_ref || "").trim(),
+                        String(baseGestion?.city || "").trim(),
+                        String(baseGestion?.email || "").trim(),
+                        String(baseGestion?.convencional || "").trim(),
+                        String(baseGestion?.ticket_id || "").trim(),
+                        payloadJson,
+                        fieldsMetaJson,
+                        ...preguntasVacias,
+                        ...respuestasVacias,
+                        startedManagement,
+                        correctionTimestamp,
+                        intentos,
+                    ];
+
+                    const [insertResult] =
+                        await agenteDAO.insertInboundGestionFinal(gestionParams);
+
+                    insertedRows.push({
+                        id: Number(insertResult?.insertId || 0),
+                        actionOrder,
+                    });
+                }
+
+                return res.json({
+                    success: true,
+                    message: "Correcciones inbound guardadas correctamente",
+                    data: {
+                        gestionId,
+                        interactionId,
+                        insertedCount: insertedRows.length,
+                        insertedRows,
+                    },
+                });
+            } catch (err) {
+                console.error("Error en /agente/guardar-correccion-inbound:", err);
+                return res.status(500).json({
+                    error: "Error guardando correcciones inbound",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.get(
         "/buscar-cliente-inbound",
         ...agenteMiddlewares,
         async (req, res) => {

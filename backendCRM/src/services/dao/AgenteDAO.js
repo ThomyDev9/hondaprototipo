@@ -923,6 +923,14 @@ const LIST_INBOUND_HISTORICO_CLIENT_OPTIONS = `
 
 const LIST_INBOUND_HISTORICO_ROWS = `
   SELECT
+    id,
+    interaction_id,
+    ticket_id,
+    action_order,
+    contact_id,
+    cliente_inbound_id,
+    category_id,
+    menu_item_id,
     campaign_id,
     agent,
     identification,
@@ -940,14 +948,62 @@ const LIST_INBOUND_HISTORICO_ROWS = `
     AND (? = '' OR TRIM(nombre_cliente_ref) = ?)
     AND (
       ? = ''
+      OR LOWER(COALESCE(TRIM(agent), '')) LIKE CONCAT('%', LOWER(?), '%')
       OR TRIM(identification) = ?
       OR LOWER(COALESCE(TRIM(full_name), '')) LIKE CONCAT('%', LOWER(?), '%')
       OR LOWER(COALESCE(TRIM(nombre_cliente_ref), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(categorizacion), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(result_level1), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(result_level2), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(observaciones), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(campaign_id), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(ticket_id), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(celular), '')) LIKE CONCAT('%', LOWER(?), '%')
     )
     AND (? = '' OR DATE(tmstmp) >= DATE(?))
     AND (? = '' OR DATE(tmstmp) <= DATE(?))
   ORDER BY tmstmp DESC, id DESC
   LIMIT 500
+`;
+
+const GET_INBOUND_GESTION_BY_ID = `
+  SELECT *
+  FROM gestionfinal_inbound
+  WHERE id = ?
+  LIMIT 1
+`;
+
+const LIST_INBOUND_GESTIONES_BY_INTERACTION = `
+  SELECT
+    id,
+    interaction_id,
+    action_order,
+    ticket_id,
+    campaign_id,
+    category_id,
+    menu_item_id,
+    contact_id,
+    cliente_inbound_id,
+    agent,
+    identification,
+    full_name,
+    celular,
+    tipo_cliente,
+    tipo_identificacion,
+    tipo_canal,
+    relacion,
+    nombre_cliente_ref,
+    categorizacion,
+    result_level1,
+    result_level2,
+    observaciones,
+    fecha_agendamiento,
+    DATE_FORMAT(tmstmp, '%Y-%m-%d %H:%i:%s') AS tmstmp,
+    started_management,
+    intentos
+  FROM gestionfinal_inbound
+  WHERE interaction_id = ?
+  ORDER BY action_order ASC, id ASC
 `;
 
 const GET_REDES_CLIENT_BY_IDENTIFICATION_AND_CAMPAIGN = `
@@ -1881,6 +1937,13 @@ export class AgenteDAO {
         return rows[0] || null;
     }
 
+    async getInboundGestionById(gestionId, executor = this.pool) {
+        const [rows] = await executor.query(GET_INBOUND_GESTION_BY_ID, [
+            gestionId,
+        ]);
+        return rows[0] || null;
+    }
+
     async getInboundGestionFinalByCampaignAndTicket(
         campaignId,
         ticketId,
@@ -1941,6 +2004,7 @@ export class AgenteDAO {
         },
         executor = this.pool,
     ) {
+        const normalizedSearchText = String(searchText || "").trim();
         const [rows] = await executor.query(LIST_INBOUND_HISTORICO_ROWS, [
             campaignId,
             campaignId,
@@ -1948,15 +2012,34 @@ export class AgenteDAO {
             advisor,
             clientName,
             clientName,
-            searchText,
-            searchText,
-            searchText,
-            searchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
             startDate,
             startDate,
             endDate,
             endDate,
         ]);
+        return rows;
+    }
+
+    async listInboundGestionesByInteraction(
+        interactionId,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            LIST_INBOUND_GESTIONES_BY_INTERACTION,
+            [interactionId],
+        );
         return rows;
     }
 

@@ -299,27 +299,39 @@ export default function OutMaquitaMailFlow({ onBack }) {
     }, [identificacion]);
 
     const cargarSiguienteRegistro = React.useCallback(
-        async (currentIdentification = "") => {
+        async ({ currentIdentification = "", currentRowId = "" } = {}) => {
             const all = await loadFlowRows();
 
             const currentId = String(currentIdentification || "").trim();
+            const normalizedRowId = String(currentRowId || "").trim();
+            const isCurrentRow = (item) => {
+                if (!item) return false;
+                const itemRowId = String(item?.id || "").trim();
+                if (normalizedRowId && itemRowId) {
+                    return itemRowId === normalizedRowId;
+                }
+                const itemId = getMailRegistroIdentification(item);
+                return Boolean(currentId && itemId && itemId === currentId);
+            };
             const siguiente =
                 all.find((item) => {
                     const itemId = getMailRegistroIdentification(item);
-                    return itemId && itemId !== currentId;
+                    return itemId && !isCurrentRow(item);
                 }) || null;
 
             if (activeTab === "regestion") {
-                setRegestionRows(all.filter((item) => {
-                    const itemId = getMailRegistroIdentification(item);
-                    return itemId && itemId !== currentId;
-                }));
+                setRegestionRows(
+                    all.filter((item) => {
+                        const itemId = getMailRegistroIdentification(item);
+                        return itemId && !isCurrentRow(item);
+                    }),
+                );
                 setRegistro(null);
             } else {
                 setGestionRows(
                     all.filter((item) => {
                         const itemId = getMailRegistroIdentification(item);
-                        return itemId && itemId !== currentId;
+                        return itemId && !isCurrentRow(item);
                     }),
                 );
                 setRegistro(null);
@@ -605,12 +617,21 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         onGuardar={async (formData) => {
                                             try {
                                                 setError("");
+                                                const currentRowId = String(
+                                                    registro?.id || "",
+                                                ).trim();
                                                 await saveOutboundGestion(formData);
                                                 setSuccessMessage(
                                                     "Registro guardado correctamente",
                                                 );
                                                 await cargarSiguienteRegistro(
-                                                    getRegistroIdentification(formData),
+                                                    {
+                                                        currentIdentification:
+                                                            getRegistroIdentification(
+                                                                formData,
+                                                            ),
+                                                        currentRowId,
+                                                    },
                                                 );
                                             } catch (saveError) {
                                                 setSuccessMessage("");
@@ -623,12 +644,21 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         onActualizar={async (formData) => {
                                             try {
                                                 setError("");
+                                                const currentRowId = String(
+                                                    registro?.id || "",
+                                                ).trim();
                                                 await saveOutboundGestion(formData);
                                                 setSuccessMessage(
                                                     "Registro actualizado correctamente",
                                                 );
                                                 await cargarSiguienteRegistro(
-                                                    getRegistroIdentification(formData),
+                                                    {
+                                                        currentIdentification:
+                                                            getRegistroIdentification(
+                                                                formData,
+                                                            ),
+                                                        currentRowId,
+                                                    },
                                                 );
                                             } catch (saveError) {
                                                 setSuccessMessage("");
@@ -680,12 +710,21 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         onGuardar={async (formData) => {
                                             try {
                                                 setError("");
+                                                const currentRowId = String(
+                                                    registro?.id || "",
+                                                ).trim();
                                                 await saveOutboundGestion(formData);
                                                 setSuccessMessage(
                                                     "Registro guardado correctamente",
                                                 );
                                                 await cargarSiguienteRegistro(
-                                                    getRegistroIdentification(formData),
+                                                    {
+                                                        currentIdentification:
+                                                            getRegistroIdentification(
+                                                                formData,
+                                                            ),
+                                                        currentRowId,
+                                                    },
                                                 );
                                             } catch (saveError) {
                                                 setSuccessMessage("");
@@ -698,12 +737,21 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         onActualizar={async (formData) => {
                                             try {
                                                 setError("");
+                                                const currentRowId = String(
+                                                    registro?.id || "",
+                                                ).trim();
                                                 await saveOutboundGestion(formData);
                                                 setSuccessMessage(
                                                     "Registro actualizado correctamente",
                                                 );
                                                 await cargarSiguienteRegistro(
-                                                    getRegistroIdentification(formData),
+                                                    {
+                                                        currentIdentification:
+                                                            getRegistroIdentification(
+                                                                formData,
+                                                            ),
+                                                        currentRowId,
+                                                    },
                                                 );
                                             } catch (saveError) {
                                                 setSuccessMessage("");

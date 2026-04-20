@@ -4,6 +4,11 @@ import multer from "multer";
 import { formatLocalDateTime } from "../../utils/dateTime.js";
 import pool from "../../services/db.js";
 
+const outboundSchema =
+    process.env.MYSQL_DB ||
+    process.env.MYSQL_DB_ENCUESTA ||
+    "cck_dev_pruebas";
+const OUT_MAQUITA_CAMPAIGN_ID = "Out Maquita Cushunchic";
 const outMaquitaUploadsDir =
     process.env.ENTREGA_DOCUMENTOS_PATH ||
     path.join(process.cwd(), "entrega_documentos");
@@ -176,9 +181,79 @@ export function registerOutboundRoutes(
                     [...params, limit],
                 );
 
+                let filteredRows = rows || [];
+                const importIdByFlow =
+                    flow === "rrss" ? "OUTBOUND REDES" : "OUTBOUND MAIL";
+                const managedRowsByIdentification = new Set();
+                if (filteredRows.length > 0) {
+                    const identificationList = [
+                        ...new Set(
+                            filteredRows
+                                .map((row) =>
+                                    String(row?.identification || "").trim(),
+                                )
+                                .filter(Boolean),
+                        ),
+                    ];
+
+                    if (identificationList.length > 0) {
+                        const placeholders = identificationList
+                            .map(() => "?")
+                            .join(", ");
+                        const [managedRows] = await pool.query(
+                            `
+                            SELECT DISTINCT
+                                TRIM(COALESCE(gf.IDENTIFICACION, '')) AS identification
+                            FROM ${outboundSchema}.gestionfinal_outbound gf
+                            WHERE TRIM(COALESCE(gf.IDENTIFICACION, '')) IN (${placeholders})
+                              AND TRIM(COALESCE(gf.CampaignId, '')) = ?
+                              AND TRIM(COALESCE(gf.ImportId, '')) = ?
+                            `,
+                            [
+                                ...identificationList,
+                                OUT_MAQUITA_CAMPAIGN_ID,
+                                importIdByFlow,
+                            ],
+                        );
+
+                        const managedSet = new Set(
+                            (managedRows || [])
+                                .map((row) =>
+                                    String(row?.identification || "").trim(),
+                                )
+                                .filter(Boolean),
+                        );
+                        for (const item of managedSet) {
+                            managedRowsByIdentification.add(item);
+                        }
+                    }
+                }
+
+                if (mode === "gestion") {
+                    filteredRows = filteredRows.filter((row) => {
+                        const identification = String(
+                            row?.identification || "",
+                        ).trim();
+                        if (!identification) {
+                            return true;
+                        }
+                        return !managedRowsByIdentification.has(identification);
+                    });
+                } else if (mode === "regestion") {
+                    filteredRows = filteredRows.filter((row) => {
+                        const identification = String(
+                            row?.identification || "",
+                        ).trim();
+                        if (!identification) {
+                            return false;
+                        }
+                        return managedRowsByIdentification.has(identification);
+                    });
+                }
+
                 return res.json({
                     success: true,
-                    data: rows,
+                    data: filteredRows,
                 });
             } catch (err) {
                 console.error("Error en /agente/out-maquita-external-leads:", err);

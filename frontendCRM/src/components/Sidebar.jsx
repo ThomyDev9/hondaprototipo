@@ -27,6 +27,7 @@ const MENU_ICONS = {
     gestion: "\u260E\uFE0F",
     "grabaciones-outbound": "\u{1F399}\uFE0F",
     "grabaciones-inbound": "\u{1F4DE}",
+    "correcciones-inbound": "\u{1F4DD}",
     "consultor-leads": "\u{1F4CB}",
     "consultor-documents": "\u{1F4C1}",
     "consultor-credit-status": "\u{1F4B3}",
@@ -672,6 +673,7 @@ function Sidebar({
         { label: "Reportes", key: "reports" },
         { label: "Grabaciones Outbound", key: "grabaciones-outbound" },
         { label: "Grabaciones Inbound", key: "grabaciones-inbound" },
+        { label: "Correcciones Inbound", key: "correcciones-inbound" },
     ];
     const menuAgente = [{ label: "Inicio", key: "inicio" }];
     const menuConsultor = [
@@ -778,6 +780,7 @@ function Sidebar({
                 "reports",
                 "grabaciones-outbound",
                 "grabaciones-inbound",
+                "correcciones-inbound",
             ].includes(adminPage)
                 ? adminPage
                 : "dashboard";
