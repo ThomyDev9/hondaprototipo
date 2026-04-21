@@ -313,8 +313,11 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
         const token = getAuthToken();
 
         try {
+            const audioBasePath = selfMode
+                ? "agente/grabacion-sftp"
+                : "supervisor/grabacion-sftp";
             const res = await fetch(
-                `${API_BASE}/supervisor/grabacion-sftp/${relativePath}?flow=inbound`,
+                `${API_BASE}/${audioBasePath}/${relativePath}?flow=inbound`,
                 { headers: { Authorization: `Bearer ${token}` } },
             );
 

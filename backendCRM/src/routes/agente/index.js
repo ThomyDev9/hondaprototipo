@@ -17,6 +17,7 @@ import { registerGestionRoutes } from "./gestion.routes.js";
 import { registerOutboundRoutes } from "./outbound.routes.js";
 import { registerInboundRoutes } from "./inbound.routes.js";
 import { registerRedesRoutes } from "./redes.routes.js";
+import recordingSftpRouter from "../supervisor/recording.sftp.js";
 import {
     loadUserRoles,
     requireRole,
@@ -298,5 +299,7 @@ registerRedesRoutes(router, {
     getAgentActor,
     saveDynamicResponseIfTemplateActive,
 });
+
+router.use("/grabacion-sftp", ...agenteMiddlewares, recordingSftpRouter);
 
 export default router;
