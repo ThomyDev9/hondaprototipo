@@ -3,7 +3,7 @@ services:
     build:
       context: ./backendCRM
       dockerfile: Dockerfile
-    container_name: backendCRM
+    container_name: backendCRM_prod
     restart: always
     env_file:
       - .env.docker
@@ -24,7 +24,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE: ${VITE_API_BASE:-http://172.19.10.61:4004}
-    container_name: frontendCRM
+    container_name: frontendCRM_prod
     restart: always
     ports:
       - "5173:80"
