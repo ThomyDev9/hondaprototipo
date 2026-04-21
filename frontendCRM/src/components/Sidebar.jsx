@@ -68,6 +68,8 @@ const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 const INBOUND_AUTO_TARGET_SESSION_KEY = "inbound_auto_last_target";
 const INBOUND_AUTO_TARGET_SHARED_KEY = "inbound_auto_last_target_shared";
 const INBOUND_DRAFT_STATE_SESSION_KEY = "inbound_manual_draft_state";
+const INBOUND_PRESERVE_CALL_ID_SESSION_KEY =
+    "inbound_preserve_current_call_id";
 const INBOUND_AGENT_LOCK_SESSION_KEY = "inbound_agent_number_locked";
 const INBOUND_AGENT_LOCK_SHARED_KEY = "inbound_agent_number_locked_shared";
 const INBOUND_DEFAULT_TARGET_LABELS = [
@@ -122,6 +124,7 @@ function Sidebar({
     const sessionIdRef = useRef("");
     const lastAutoOpenedInboundCallRef = useRef("");
     const previousInboundCallIdRef = useRef("");
+    const acknowledgedPendingInboundCallRef = useRef("");
 
     useEffect(() => {
         if (
@@ -137,6 +140,9 @@ function Sidebar({
     useEffect(() => {
         sessionIdRef.current = getOrCreateTabSessionId();
         const searchParams = new URLSearchParams(window.location.search);
+        const inboundFreshContext =
+            String(searchParams.get("inboundFreshContext") || "").trim() ===
+            "1";
         const inboundAgentFromQuery = String(
             searchParams.get("inboundAgentNumber") || "",
         ).trim();
@@ -162,13 +168,19 @@ function Sidebar({
             localStorage.setItem("inbound_agent_number_shared", storedValue);
         }
 
-        if (inboundAgentFromQuery) {
+        if (inboundAgentFromQuery || inboundFreshContext) {
             searchParams.delete("inboundAgentNumber");
+            searchParams.delete("inboundFreshContext");
             const nextSearch = searchParams.toString();
             const nextUrl = `${window.location.pathname}${
                 nextSearch ? `?${nextSearch}` : ""
             }${window.location.hash || ""}`;
             window.history.replaceState({}, "", nextUrl);
+        }
+
+        if (inboundFreshContext) {
+            sessionStorage.removeItem(INBOUND_DRAFT_STATE_SESSION_KEY);
+            sessionStorage.removeItem(INBOUND_PRESERVE_CALL_ID_SESSION_KEY);
         }
     }, []);
 
@@ -626,8 +638,22 @@ function Sidebar({
             String(savedInboundTarget?.categoryId || "").trim() ===
                 "fa70b8a1-2c69-11f1-b790-000c2904c92f";
         const hasInboundContext = Boolean(draftCallId) || isInboundManualTarget;
+        const callIdToPreserve = draftCallId || previousCallId;
+
+        if (
+            currentCallId ===
+            String(acknowledgedPendingInboundCallRef.current || "").trim()
+        ) {
+            return;
+        }
 
         if ((hasDraft || hasInboundContext) && isDifferentCall) {
+            if (callIdToPreserve) {
+                sessionStorage.setItem(
+                    INBOUND_PRESERVE_CALL_ID_SESSION_KEY,
+                    callIdToPreserve,
+                );
+            }
             setPendingInboundCallId(currentCallId);
         }
     }, [activeInboundCallId, agentPage, effectiveRole]);
@@ -649,8 +675,13 @@ function Sidebar({
         if (resolvedAgentNumber) {
             url.searchParams.set("inboundAgentNumber", resolvedAgentNumber);
         }
+        url.searchParams.set("inboundFreshContext", "1");
 
-        const openedWindow = window.open(url.toString(), "_blank");
+        const openedWindow = window.open(
+            url.toString(),
+            "_blank",
+            "noopener,noreferrer",
+        );
         if (!openedWindow) {
             alert(
                 "Tu navegador bloqueó la nueva pestaña. Permite ventanas emergentes para continuar.",
@@ -658,6 +689,16 @@ function Sidebar({
             return;
         }
 
+        acknowledgedPendingInboundCallRef.current = String(
+            pendingInboundCallId || activeInboundCallId || "",
+        ).trim();
+        setPendingInboundCallId("");
+    };
+
+    const handleDismissPendingInbound = () => {
+        acknowledgedPendingInboundCallRef.current = String(
+            pendingInboundCallId || activeInboundCallId || "",
+        ).trim();
         setPendingInboundCallId("");
     };
 
@@ -1137,6 +1178,13 @@ function Sidebar({
                             >
                                 Abrir nueva llamada
                             </button>
+                            <button
+                                type="button"
+                                style={styles.inboundPendingSecondaryButton}
+                                onClick={handleDismissPendingInbound}
+                            >
+                                Seguir con mi gestión
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1350,6 +1398,16 @@ const styles = {
         border: "1px solid rgba(30, 64, 175, 0.45)",
         backgroundColor: "#1d4ed8",
         color: "#fff",
+        borderRadius: "8px",
+        padding: "0.4rem 0.55rem",
+        fontSize: "0.76rem",
+        fontWeight: 600,
+        cursor: "pointer",
+    },
+    inboundPendingSecondaryButton: {
+        border: "1px solid rgba(30, 64, 175, 0.3)",
+        backgroundColor: "#fff",
+        color: "#1e3a8a",
         borderRadius: "8px",
         padding: "0.4rem 0.55rem",
         fontSize: "0.76rem",

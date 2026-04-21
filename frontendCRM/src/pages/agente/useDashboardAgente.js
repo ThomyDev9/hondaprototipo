@@ -32,6 +32,8 @@ export default function useDashboardAgenteState({
 }) {
     const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
     const INBOUND_DRAFT_STATE_SESSION_KEY = "inbound_manual_draft_state";
+    const INBOUND_PRESERVE_CALL_ID_SESSION_KEY =
+        "inbound_preserve_current_call_id";
     const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
     const REDES_SHARED_LABEL = "gestion redes";
     const normalizeFlowLabel = (value) =>
@@ -492,10 +494,19 @@ export default function useDashboardAgenteState({
                             "{}",
                     );
                     const hasDraft = Boolean(draftState?.hasDraft);
+                    const preservedCallId = String(
+                        sessionStorage.getItem(
+                            INBOUND_PRESERVE_CALL_ID_SESSION_KEY,
+                        ) || "",
+                    ).trim();
+                    const shouldPreserveCurrentCall =
+                        Boolean(preservedCallId) &&
+                        preservedCallId === previousCallId &&
+                        preservedCallId !== resolvedTicketId;
 
                     // Si existe una gestión en borrador, no se pisan los datos
                     // de la llamada actual en esta pestaña.
-                    if (hasDraft) {
+                    if (hasDraft || shouldPreserveCurrentCall) {
                         return prev;
                     }
                 } catch {
@@ -1089,6 +1100,7 @@ export default function useDashboardAgenteState({
 
         if (!isInboundManualFlow) {
             sessionStorage.removeItem(INBOUND_DRAFT_STATE_SESSION_KEY);
+            sessionStorage.removeItem(INBOUND_PRESERVE_CALL_ID_SESSION_KEY);
             return;
         }
 
