@@ -47,7 +47,10 @@ function buildSubmotivoOptions(levels = [], categorizacion = "", motivo = "") {
     );
 }
 
-export default function CorreccionesInboundPage() {
+export default function CorreccionesInboundPage({
+    selfMode = false,
+    currentAdvisor = "",
+}) {
     const [searchText, setSearchText] = useState("");
     const [campaignFilter, setCampaignFilter] = useState("");
     const [agentFilter, setAgentFilter] = useState("");
@@ -156,9 +159,14 @@ export default function CorreccionesInboundPage() {
         setLoadingRows(true);
         setError("");
 
+        const effectiveAdvisor = selfMode
+            ? String(currentAdvisor || "").trim()
+            : "";
+
         try {
             const { ok, json } = await fetchInboundHistorico({
                 campaignId: "",
+                advisor: effectiveAdvisor,
                 searchText: nextSearchText,
                 startDate: nextStartDate,
                 endDate: nextEndDate,
@@ -355,7 +363,11 @@ export default function CorreccionesInboundPage() {
         <PageContainer>
             <section className="agent-form-card agent-form-card--secondary">
                 <div className="agent-form-header-row">
-                    <p className="agent-form-card__title">Correcciones Inbound</p>
+                    <p className="agent-form-card__title">
+                        {selfMode
+                            ? "Mis Correcciones Inbound"
+                            : "Correcciones Inbound"}
+                    </p>
                 </div>
 
                 <div className="agent-dynamic-section agent-dynamic-section--standard">
@@ -389,23 +401,25 @@ export default function CorreccionesInboundPage() {
                             </select>
                         </div>
 
-                        <div className="agent-form-field agent-form-field--standard">
-                            <span className="agent-dynamic-label">Agente</span>
-                            <select
-                                className="agent-input agent-survey-input"
-                                value={agentFilter}
-                                onChange={(event) =>
-                                    setAgentFilter(event.target.value)
-                                }
-                            >
-                                <option value="">Todos</option>
-                                {agentOptions.map((option) => (
-                                    <option key={option} value={option}>
-                                        {option}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        {!selfMode ? (
+                            <div className="agent-form-field agent-form-field--standard">
+                                <span className="agent-dynamic-label">Agente</span>
+                                <select
+                                    className="agent-input agent-survey-input"
+                                    value={agentFilter}
+                                    onChange={(event) =>
+                                        setAgentFilter(event.target.value)
+                                    }
+                                >
+                                    <option value="">Todos</option>
+                                    {agentOptions.map((option) => (
+                                        <option key={option} value={option}>
+                                            {option}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        ) : null}
 
                         <div className="agent-form-field agent-form-field--standard">
                             <span className="agent-dynamic-label">Fecha inicio</span>

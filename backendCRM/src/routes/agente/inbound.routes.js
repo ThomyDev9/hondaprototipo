@@ -203,6 +203,14 @@ function normalizeFlowText(value) {
         .toLowerCase();
 }
 
+function isAsesorOnlyRole(user = {}) {
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    const isAsesor = roles.includes("ASESOR");
+    const hasElevatedRole =
+        roles.includes("SUPERVISOR") || roles.includes("ADMINISTRADOR");
+    return isAsesor && !hasElevatedRole;
+}
+
 function parseOptionalManagementDate(value) {
     const raw = String(value || "").trim();
     if (!raw) return null;
@@ -379,7 +387,10 @@ export function registerInboundRoutes(
         async (req, res) => {
             try {
                 const campaignId = String(req.query?.campaignId || "").trim();
-                const advisor = String(req.query?.advisor || "").trim();
+                const advisorQuery = String(req.query?.advisor || "").trim();
+                const advisor = isAsesorOnlyRole(req.user)
+                    ? String(getAgentActor(req) || "").trim()
+                    : advisorQuery;
                 const clientName = String(req.query?.clientName || "").trim();
                 const searchText = String(req.query?.searchText || "").trim();
                 const startDate = String(req.query?.startDate || "").trim();
@@ -429,6 +440,20 @@ export function registerInboundRoutes(
                     return res.status(404).json({
                         error: "No se encontró la gestión inbound solicitada",
                     });
+                }
+
+                if (isAsesorOnlyRole(req.user)) {
+                    const owner = String(baseGestion?.agent || "").trim();
+                    const actor = String(getAgentActor(req) || "").trim();
+                    if (
+                        !owner ||
+                        !actor ||
+                        owner.toLowerCase() !== actor.toLowerCase()
+                    ) {
+                        return res.status(403).json({
+                            error: "No tienes permisos para ver esta gestión",
+                        });
+                    }
                 }
 
                 const interactionId = String(
@@ -596,6 +621,20 @@ export function registerInboundRoutes(
                     return res.status(404).json({
                         error: "No se encontró la gestión inbound para corregir",
                     });
+                }
+
+                if (isAsesorOnlyRole(req.user)) {
+                    const owner = String(baseGestion?.agent || "").trim();
+                    const actor = String(getAgentActor(req) || "").trim();
+                    if (
+                        !owner ||
+                        !actor ||
+                        owner.toLowerCase() !== actor.toLowerCase()
+                    ) {
+                        return res.status(403).json({
+                            error: "No tienes permisos para corregir esta gestión",
+                        });
+                    }
                 }
 
                 const interactionId = String(

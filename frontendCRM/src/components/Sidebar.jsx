@@ -681,6 +681,7 @@ function Sidebar({
     ];
     const menuAgente = [
         { label: "Inicio", key: "inicio" },
+        { label: "Mis Correcciones Inbound", key: "correcciones-inbound" },
         { label: "Mis Inbound No Registradas", key: "inbound-no-registradas" },
     ];
     const menuConsultor = [
@@ -771,6 +772,14 @@ function Sidebar({
             item.key === "inbound-no-registradas"
         ) {
             onChangeAgentPage?.("inbound-no-registradas");
+            return;
+        }
+
+        if (
+            effectiveRole.toUpperCase() === "ASESOR" &&
+            item.key === "correcciones-inbound"
+        ) {
+            onChangeAgentPage?.("correcciones-inbound");
             return;
         }
 

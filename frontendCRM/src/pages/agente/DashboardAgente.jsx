@@ -10,6 +10,7 @@ import BaseCardSection from "./components/BaseCardSection";
 import "./DashboardAgente.css";
 import { INBOUND_HISTORICO_MENU_ITEM_ID } from "../../components/AccordionMenu";
 import InboundNoRegistradasPage from "../supervisor/InboundNoRegistradasPage";
+import CorreccionesInboundPage from "../supervisor/CorreccionesInboundPage";
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 
@@ -196,6 +197,15 @@ export default function DashboardAgente({
 
     if (agentPage === "inbound-no-registradas") {
         return <InboundNoRegistradasPage selfMode />;
+    }
+
+    if (agentPage === "correcciones-inbound") {
+        return (
+            <CorreccionesInboundPage
+                selfMode
+                currentAdvisor={String(user?.username || "").trim()}
+            />
+        );
     }
 
     return (
