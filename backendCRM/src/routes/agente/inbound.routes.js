@@ -203,6 +203,22 @@ function normalizeFlowText(value) {
         .toLowerCase();
 }
 
+function parseOptionalManagementDate(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+
+    const normalized = raw.includes("T")
+        ? raw
+        : raw.replace(" ", "T");
+
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) {
+        return null;
+    }
+
+    return parsed;
+}
+
 function isRedesFormFlow({
     campaignId = "",
     menuItemId = "",
@@ -1097,14 +1113,23 @@ export function registerInboundRoutes(
                     });
                 }
 
-                const now = new Date();
+                const requestedManagementDate = parseOptionalManagementDate(
+                    req.body?.managementDateTime || req.body?.managementTimestamp,
+                );
+                const now = requestedManagementDate || new Date();
                 const tmstmp = formatLocalDateTime(now);
                 const startedManagement = formatLocalDateTime(now);
                 const interactionId = `INB-${Date.now()}-${Math.floor(
                     Math.random() * 100000,
                 )}`;
-                const payloadJson = null;
-                const fieldsMetaJson = null;
+                const payloadJson =
+                    formData && Object.keys(formData).length > 0
+                        ? JSON.stringify(formData)
+                        : null;
+                const fieldsMetaJson =
+                    Array.isArray(fieldsMeta) && fieldsMeta.length > 0
+                        ? JSON.stringify(fieldsMeta)
+                        : null;
                 const isRedesFlow = isRedesFormFlow({
                     campaignId,
                     menuItemId,

@@ -28,6 +28,8 @@ const MENU_ICONS = {
     "grabaciones-outbound": "\u{1F399}\uFE0F",
     "grabaciones-inbound": "\u{1F4DE}",
     "correcciones-inbound": "\u{1F4DD}",
+    "inbound-sin-gestion": "\u{1F50D}",
+    "inbound-no-registradas": "\u{1F464}",
     "consultor-leads": "\u{1F4CB}",
     "consultor-documents": "\u{1F4C1}",
     "consultor-credit-status": "\u{1F4B3}",
@@ -674,8 +676,13 @@ function Sidebar({
         { label: "Grabaciones Outbound", key: "grabaciones-outbound" },
         { label: "Grabaciones Inbound", key: "grabaciones-inbound" },
         { label: "Correcciones Inbound", key: "correcciones-inbound" },
+        { label: "Inbound Sin Gestión", key: "inbound-sin-gestion" },
+        { label: "Inbound No Registradas", key: "inbound-no-registradas" },
     ];
-    const menuAgente = [{ label: "Inicio", key: "inicio" }];
+    const menuAgente = [
+        { label: "Inicio", key: "inicio" },
+        { label: "Mis Inbound No Registradas", key: "inbound-no-registradas" },
+    ];
     const menuConsultor = [
         { label: "Gestion Externa", key: "consultor-leads" },
         { label: "Seguimiento Documentos", key: "consultor-documents" },
@@ -759,6 +766,14 @@ function Sidebar({
             return;
         }
 
+        if (
+            effectiveRole.toUpperCase() === "ASESOR" &&
+            item.key === "inbound-no-registradas"
+        ) {
+            onChangeAgentPage?.("inbound-no-registradas");
+            return;
+        }
+
         if (effectiveRole === "SUPERVISOR" && onChangeAdminPage) {
             onChangeAdminPage(item.key);
         }
@@ -781,6 +796,8 @@ function Sidebar({
                 "grabaciones-outbound",
                 "grabaciones-inbound",
                 "correcciones-inbound",
+                "inbound-sin-gestion",
+                "inbound-no-registradas",
             ].includes(adminPage)
                 ? adminPage
                 : "dashboard";

@@ -9,6 +9,7 @@ import useDashboardAgenteState from "./useDashboardAgente";
 import BaseCardSection from "./components/BaseCardSection";
 import "./DashboardAgente.css";
 import { INBOUND_HISTORICO_MENU_ITEM_ID } from "../../components/AccordionMenu";
+import InboundNoRegistradasPage from "../supervisor/InboundNoRegistradasPage";
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 
@@ -56,7 +57,6 @@ export default function DashboardAgente({
         loadingActiveBaseCards,
         regestionBaseCards,
         loadingRegestionBaseCards,
-        hasCampaignSelection,
         manualFlowActivo,
         menuItemIdSeleccionado,
         categoryIdSeleccionada,
@@ -192,6 +192,10 @@ export default function DashboardAgente({
                 </div>
             </PageContainer>
         );
+    }
+
+    if (agentPage === "inbound-no-registradas") {
+        return <InboundNoRegistradasPage selfMode />;
     }
 
     return (

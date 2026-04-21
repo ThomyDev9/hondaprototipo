@@ -131,6 +131,11 @@
     cursor: pointer;
 }
 
+.grabaciones-chip-btn--register {
+    width: 100%;
+    white-space: nowrap;
+}
+
 .grabaciones-filters-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -290,6 +295,66 @@
 
 .grabaciones-icon {
     display: block;
+}
+
+.grabaciones-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.42);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.grabaciones-modal {
+    width: min(980px, 100%);
+    max-height: calc(100vh - 40px);
+    overflow: auto;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2ece8;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.25);
+    padding: 18px;
+    display: grid;
+    gap: 12px;
+}
+
+.grabaciones-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.grabaciones-modal-head h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #17362e;
+}
+
+.grabaciones-modal-form {
+    display: grid;
+    gap: 14px;
+}
+
+.grabaciones-modal-section {
+    border: 1px solid #e2ece8;
+    border-radius: 12px;
+    padding: 12px;
+    display: grid;
+    gap: 10px;
+}
+
+.grabaciones-modal-section h4 {
+    margin: 0;
+    color: #17362e;
+}
+
+.grabaciones-modal-actions {
+    display: flex;
+    justify-content: flex-end;
 }
 
 @media (max-width: 1200px) {

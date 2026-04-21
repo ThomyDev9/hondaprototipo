@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import { registerRoutes } from "./routes/index.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { startInboundGhostDepurationScheduler } from "./services/inboundGhostDepuration.service.js";
 
 dotenv.config();
 
@@ -88,6 +89,7 @@ async function start() {
     try {
         // Registrar todas las rutas desde el registro centralizado
         await registerRoutes(app);
+        startInboundGhostDepurationScheduler();
 
         const PORT = process.env.PORT || 4004;
         app.listen(PORT, "0.0.0.0", () => {

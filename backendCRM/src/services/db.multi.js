@@ -41,6 +41,40 @@ const isabelPool = mysql.createPool({
     timezone: ISABEL_TIMEZONE,
 });
 
+const inboundIsabelPool = mysql.createPool({
+    host:
+        process.env.INBOUND_ISSABEL_HOST ||
+        process.env.CL_HOST ||
+        process.env.ISABEL_HOST ||
+        "172.19.10.44",
+    port: Number(
+        process.env.INBOUND_ISSABEL_PORT ||
+            process.env.CL_PORT ||
+            process.env.ISABEL_PORT ||
+            3306,
+    ),
+    user:
+        process.env.INBOUND_ISSABEL_USER ||
+        process.env.CL_USER ||
+        process.env.ISABEL_USER ||
+        "kimobill",
+    password:
+        process.env.INBOUND_ISSABEL_PASSWORD ||
+        process.env.CL_PASSWORD ||
+        process.env.ISABEL_PASSWORD ||
+        "sIst2m1s2020",
+    database:
+        process.env.INBOUND_ISSABEL_DB ||
+        process.env.ISABEL_DB ||
+        "asteriskcdrdb",
+    waitForConnections: true,
+    connectionLimit: 5,
+    queueLimit: 0,
+    charset: "utf8",
+    dateStrings: true,
+    timezone: ISABEL_TIMEZONE,
+});
+
 const callCenterPool = mysql.createPool({
     host: process.env.CL_HOST || "172.19.10.44",
     port: Number(process.env.CL_PORT) || 3306,
@@ -77,6 +111,17 @@ isabelPool.on("connection", (connection) => {
     });
 });
 
+inboundIsabelPool.on("connection", (connection) => {
+    connection.query("SET time_zone = ?", [ISABEL_TIMEZONE], (err) => {
+        if (err) {
+            console.error(
+                "No se pudo fijar time_zone en MySQL (db.multi.inboundIsabelPool):",
+                err,
+            );
+        }
+    });
+});
+
 callCenterPool.on("connection", (connection) => {
     connection.query("SET time_zone = ?", [CL_TIMEZONE], (err) => {
         if (err) {
@@ -88,4 +133,4 @@ callCenterPool.on("connection", (connection) => {
     });
 });
 
-export { pool, isabelPool, callCenterPool };
+export { pool, isabelPool, inboundIsabelPool, callCenterPool };

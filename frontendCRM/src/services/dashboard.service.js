@@ -18,7 +18,7 @@ const request = async (path, options = {}) => {
     let json;
     try {
         json = await resp.json();
-    } catch (err) {
+    } catch {
         json = null;
     }
     return {
@@ -175,7 +175,7 @@ export const fetchAgentMachineContext = (tokenOverride = "") =>
             let directJson = null;
             try {
                 directJson = await directResp.json();
-            } catch (_err) {
+            } catch {
                 directJson = null;
             }
 
@@ -185,7 +185,7 @@ export const fetchAgentMachineContext = (tokenOverride = "") =>
                 json: directJson,
                 response: directResp,
             };
-        } catch (_err) {
+        } catch {
             return proxiedResponse;
         }
     })();
@@ -306,6 +306,62 @@ export const saveInboundCorrection = ({ gestionId, interactionDetails }) =>
         body: JSON.stringify({
             gestionId,
             interactionDetails,
+        }),
+    });
+
+export const fetchInboundMissingCalls = ({
+    startDate = "",
+    endDate = "",
+    limit = 1200,
+} = {}) =>
+    request(
+        `supervisor/llamadas-inbound-sin-gestion?startDate=${encodeURIComponent(
+            String(startDate || "").trim(),
+        )}&endDate=${encodeURIComponent(
+            String(endDate || "").trim(),
+        )}&limit=${encodeURIComponent(String(limit || "").trim())}`,
+    );
+
+export const fetchInboundUnregisteredByAdvisor = ({
+    startDate = "",
+    endDate = "",
+    limit = 1200,
+} = {}) =>
+    request(
+        `supervisor/inbound-no-registradas?startDate=${encodeURIComponent(
+            String(startDate || "").trim(),
+        )}&endDate=${encodeURIComponent(
+            String(endDate || "").trim(),
+        )}&limit=${encodeURIComponent(String(limit || "").trim())}`,
+    );
+
+export const fetchInboundUnregisteredMine = ({
+    startDate = "",
+    endDate = "",
+    limit = 1200,
+} = {}) =>
+    request(
+        `supervisor/inbound-no-registradas-mias?startDate=${encodeURIComponent(
+            String(startDate || "").trim(),
+        )}&endDate=${encodeURIComponent(
+            String(endDate || "").trim(),
+        )}&limit=${encodeURIComponent(String(limit || "").trim())}`,
+    );
+
+export const runInboundGhostDepuration = ({
+    startDate = "",
+    endDate = "",
+    thresholdSeconds = 40,
+    limit = 5000,
+} = {}) =>
+    request("supervisor/depuracion-inbound-fantasma/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            startDate: String(startDate || "").trim(),
+            endDate: String(endDate || "").trim(),
+            thresholdSeconds: Number(thresholdSeconds) || 40,
+            limit: Number(limit) || 5000,
         }),
     });
 

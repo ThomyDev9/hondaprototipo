@@ -7,6 +7,8 @@ import AgentesSupervisorPage from "./pages/supervisor/AgentesSupervisorPageV2";
 import GrabacionesOutboundPage from "./pages/supervisor/GrabacionesOutboundPage";
 import GrabacionesInboundPage from "./pages/supervisor/GrabacionesInboundPage";
 import CorreccionesInboundPage from "./pages/supervisor/CorreccionesInboundPage";
+import LlamadasInboundSinGestionPage from "./pages/supervisor/LlamadasInboundSinGestionPage";
+import InboundNoRegistradasPage from "./pages/supervisor/InboundNoRegistradasPage";
 import DashboardAgente from "./pages/agente/DashboardAgente";
 import InboundEmailComposerPage from "./pages/agente/InboundEmailComposerPage";
 import DashboardConsultor from "./pages/consultor/DashboardConsultor";
@@ -430,6 +432,10 @@ function App() {
                         <GrabacionesInboundPage />
                     ) : adminPage === "correcciones-inbound" ? (
                         <CorreccionesInboundPage />
+                    ) : adminPage === "inbound-sin-gestion" ? (
+                        <LlamadasInboundSinGestionPage />
+                    ) : adminPage === "inbound-no-registradas" ? (
+                        <InboundNoRegistradasPage />
                     ) : (
                         <DashboardSupervisor />
                     ))}
