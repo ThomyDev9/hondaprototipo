@@ -3,6 +3,7 @@ import pool from "./db.js";
 
 const outboundSchema =
     process.env.MYSQL_DB || process.env.MYSQL_DB_ENCUESTA || "cck_dev_pruebas";
+const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
 
 const BASE_COLUMNS = [
     "CampaignId",
@@ -88,6 +89,21 @@ const SPECIAL_REPORT_DEFINITIONS = {
     },
 };
 const COBRANZA_CACPE_ZAMORA_KEY = "cobranza cacpe zamora";
+const REDES_COLUMN_ORDER = [
+    "Campana",
+    "Agente",
+    "Identificacion",
+    "Nombres",
+    "Celular",
+    "TipoRedSocial",
+    "EstadoConversacion",
+    "CantidadMensajes",
+    "Categorizacion",
+    "Motivo",
+    "Submotivo",
+    "Observaciones",
+    "Fecha_gestion",
+];
 
 function normalizeCellValue(value) {
     if (value === null || value === undefined) {
@@ -299,6 +315,33 @@ export async function listOutboundReportCampaigns(executor = pool) {
         .filter(Boolean);
 }
 
+export async function listRedesReportCampaigns(executor = pool) {
+    const [rows] = await executor.query(
+        `
+        SELECT campaign_id
+        FROM (
+            SELECT DISTINCT TRIM(mi.nombre_item) AS campaign_id
+            FROM menu_items mi
+            WHERE mi.id_padre = ?
+              AND mi.estado = 'activo'
+              AND COALESCE(TRIM(mi.nombre_item), '') <> ''
+
+            UNION
+
+            SELECT DISTINCT TRIM(gr.campaign_id) AS campaign_id
+            FROM ${outboundSchema}.gestion_redes gr
+            WHERE COALESCE(TRIM(gr.campaign_id), '') <> ''
+        ) campaigns
+        ORDER BY campaign_id ASC
+        `,
+        [REDES_PARENT_MENU_ITEM_ID],
+    );
+
+    return rows
+        .map((row) => String(row.campaign_id || "").trim())
+        .filter(Boolean);
+}
+
 export async function getOutboundReportRows(
     { campaignId, startDate, endDate },
     executor = pool,
@@ -457,6 +500,90 @@ export async function buildOutboundReportWorkbook({
     const fileCampaign = sanitizeFileSegment(campaignId) || "campana";
     const fileEndDate = sanitizeFileSegment(endDate) || "sin_fecha";
     const filename = `${fileCampaign}_${fileEndDate}.xlsx`;
+
+    return {
+        rowCount: rows.length,
+        filename,
+        buffer: XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }),
+    };
+}
+
+export async function getRedesReportRows(
+    { campaignId, startDate, endDate },
+    executor = pool,
+) {
+    const normalizedCampaignId = String(campaignId || "").trim();
+    const startDateTime = `${String(startDate || "").trim()} 00:00:00`;
+    const endExclusive = new Date(`${String(endDate || "").trim()}T00:00:00`);
+    endExclusive.setDate(endExclusive.getDate() + 1);
+    const endDateTime = `${endExclusive.getFullYear()}-${String(
+        endExclusive.getMonth() + 1,
+    ).padStart(2, "0")}-${String(endExclusive.getDate()).padStart(
+        2,
+        "0",
+    )} 00:00:00`;
+
+    const [rows] = await executor.query(
+        `
+        SELECT
+            campaign_id AS Campana,
+            agent AS Agente,
+            identification AS Identificacion,
+            full_name AS Nombres,
+            celular AS Celular,
+            tipo_red_social AS TipoRedSocial,
+            estado_conversacion AS EstadoConversacion,
+            cantidad_mensajes AS CantidadMensajes,
+            categorizacion AS Categorizacion,
+            level1 AS Motivo,
+            level2 AS Submotivo,
+            observaciones AS Observaciones,
+            tmstmp AS Fecha_gestion
+        FROM ${outboundSchema}.gestion_redes
+        WHERE TRIM(campaign_id) = TRIM(?)
+          AND tmstmp >= ?
+          AND tmstmp < ?
+        ORDER BY tmstmp DESC, id DESC
+        `,
+        [normalizedCampaignId, startDateTime, endDateTime],
+    );
+
+    return {
+        rows,
+        columnOrder: REDES_COLUMN_ORDER,
+    };
+}
+
+export async function buildRedesReportWorkbook({
+    campaignId,
+    startDate,
+    endDate,
+    executor = pool,
+}) {
+    const reportData = await getRedesReportRows(
+        { campaignId, startDate, endDate },
+        executor,
+    );
+    const rows = reportData.rows || [];
+
+    if (rows.length === 0) {
+        return {
+            rowCount: 0,
+            buffer: null,
+            filename: null,
+        };
+    }
+
+    const exportRows = buildExportRows(rows, reportData.columnOrder);
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    worksheet["!cols"] = buildSheetColumns(exportRows);
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, sanitizeSheetName("Redes"));
+
+    const fileCampaign = sanitizeFileSegment(campaignId) || "redes";
+    const fileEndDate = sanitizeFileSegment(endDate) || "sin_fecha";
+    const filename = `redes_${fileCampaign}_${fileEndDate}.xlsx`;
 
     return {
         rowCount: rows.length,

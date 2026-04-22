@@ -667,7 +667,7 @@ export default function ConfiguracionAdmin() {
     const [loadingSubcampaigns, setLoadingSubcampaigns] = useState(false);
     const [headerAlert, setHeaderAlert] = useState(null);
     const targetLabel =
-        formType === "F2" ? "Campaña / subcampaña" : "SubcampaÃ±a";
+        formType === "F2" ? "Campaña / subcampaña" : "Subcampaña";
 
     useEffect(() => {
         const loadCategories = async () => {
@@ -681,7 +681,9 @@ export default function ConfiguracionAdmin() {
                     }));
                 setCategoryOptions(options);
                 if (!options.some((item) => item.id === categoryId)) {
-                    setCategoryId(String(options[0]?.id || DEFAULT_MENU_CATEGORY_ID));
+                    setCategoryId(
+                        String(options[0]?.id || DEFAULT_MENU_CATEGORY_ID),
+                    );
                 }
             } catch (error) {
                 setHeaderAlert({

@@ -20,13 +20,32 @@ function sanitizeFileSegment(value = "") {
 }
 
 export async function fetchSupervisorOutboundCampaigns() {
-    const response = await fetch(`${API_BASE}/supervisor/reportes/outbound/campanias`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await fetch(
+        `${API_BASE}/supervisor/reportes/outbound/campanias`,
+        {
+            headers: getAuthHeaders(),
+        },
+    );
     const json = await response.json();
 
     if (!response.ok) {
         throw new Error(json.error || "Error obteniendo campañas");
+    }
+
+    return Array.isArray(json?.data) ? json.data : [];
+}
+
+export async function fetchSupervisorRedesCampaigns() {
+    const response = await fetch(
+        `${API_BASE}/supervisor/reportes/redes/campanias`,
+        {
+            headers: getAuthHeaders(),
+        },
+    );
+    const json = await response.json();
+
+    if (!response.ok) {
+        throw new Error(json.error || "Error obteniendo campanas");
     }
 
     return Array.isArray(json?.data) ? json.data : [];
@@ -68,7 +87,45 @@ export async function downloadSupervisorOutboundReport({
     };
 }
 
+export async function downloadSupervisorRedesReport({
+    campaignId,
+    startDate,
+    endDate,
+}) {
+    const params = new URLSearchParams({
+        campaignId: String(campaignId || "").trim(),
+        startDate: String(startDate || "").trim(),
+        endDate: String(endDate || "").trim(),
+    });
+
+    const response = await fetch(
+        `${API_BASE}/supervisor/reportes/redes/export?${params.toString()}`,
+        {
+            headers: getAuthHeaders(),
+        },
+    );
+
+    if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        throw new Error(json.error || "Error descargando reporte");
+    }
+
+    const blob = await response.blob();
+    const fallbackFilename = `redes_${
+        sanitizeFileSegment(campaignId) || "campana"
+    }_${sanitizeFileSegment(endDate) || "sin_fecha"}.xlsx`;
+
+    return {
+        blob,
+        filename:
+            extractFilename(response.headers.get("content-disposition")) ||
+            fallbackFilename,
+    };
+}
+
 export default {
     fetchSupervisorOutboundCampaigns,
+    fetchSupervisorRedesCampaigns,
     downloadSupervisorOutboundReport,
+    downloadSupervisorRedesReport,
 };

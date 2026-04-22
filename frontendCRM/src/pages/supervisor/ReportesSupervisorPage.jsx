@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
 import { Button, PageContainer } from "../../components/common";
 import {
+    downloadSupervisorRedesReport,
     downloadSupervisorOutboundReport,
+    fetchSupervisorRedesCampaigns,
     fetchSupervisorOutboundCampaigns,
 } from "../../services/supervisorReports.service";
+
+const REPORT_TYPES = [
+    { value: "outbound", label: "Outbound" },
+    { value: "redes", label: "Redes" },
+];
 
 function getTodayLocalDate() {
     const now = new Date();
@@ -23,6 +30,7 @@ function getMonthStart(dateText) {
 
 export default function ReportesSupervisorPage() {
     const today = getTodayLocalDate();
+    const [reportType, setReportType] = useState("outbound");
     const [campaigns, setCampaigns] = useState([]);
     const [campaignId, setCampaignId] = useState("");
     const [startDate, setStartDate] = useState(getMonthStart(today));
@@ -31,6 +39,7 @@ export default function ReportesSupervisorPage() {
     const [downloading, setDownloading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const monthStart = getMonthStart(today);
 
     useEffect(() => {
         let cancelled = false;
@@ -39,19 +48,23 @@ export default function ReportesSupervisorPage() {
             try {
                 setLoadingCampaigns(true);
                 setError("");
-                const data = await fetchSupervisorOutboundCampaigns();
+                setSuccess("");
+                const data =
+                    reportType === "redes"
+                        ? await fetchSupervisorRedesCampaigns()
+                        : await fetchSupervisorOutboundCampaigns();
 
                 if (cancelled) {
                     return;
                 }
 
                 setCampaigns(data);
-                setCampaignId((current) => current || data[0] || "");
+                setCampaignId((current) =>
+                    data.includes(current) ? current : data[0] || "",
+                );
             } catch (err) {
                 if (!cancelled) {
-                    setError(
-                        err.message || "No se pudieron cargar las campañas",
-                    );
+                    setError(err.message || "No se pudieron cargar las campanas");
                 }
             } finally {
                 if (!cancelled) {
@@ -65,7 +78,7 @@ export default function ReportesSupervisorPage() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [reportType]);
 
     const handleDownload = async () => {
         try {
@@ -73,11 +86,15 @@ export default function ReportesSupervisorPage() {
             setSuccess("");
 
             if (!campaignId || !startDate || !endDate) {
-                throw new Error("Selecciona campaña y rango de fechas");
+                throw new Error("Selecciona campana y rango de fechas");
             }
 
             setDownloading(true);
-            const { blob, filename } = await downloadSupervisorOutboundReport({
+            const downloadReport =
+                reportType === "redes"
+                    ? downloadSupervisorRedesReport
+                    : downloadSupervisorOutboundReport;
+            const { blob, filename } = await downloadReport({
                 campaignId,
                 startDate,
                 endDate,
@@ -93,7 +110,7 @@ export default function ReportesSupervisorPage() {
             window.URL.revokeObjectURL(url);
 
             setSuccess(
-                `Reporte descargado para ${campaignId} del ${startDate} al ${endDate}.`,
+                `Reporte ${reportType} descargado para ${campaignId} del ${startDate} al ${endDate}.`,
             );
         } catch (err) {
             setError(err.message || "No se pudo descargar el reporte");
@@ -102,15 +119,41 @@ export default function ReportesSupervisorPage() {
         }
     };
 
+    const handleClearFilters = () => {
+        setCampaignId("");
+        setStartDate(monthStart);
+        setEndDate(today);
+        setError("");
+        setSuccess("");
+    };
+
     return (
         <PageContainer title="Reportes Supervisor">
             <div style={styles.wrapper}>
                 <div style={styles.card}>
-                    <h3 style={styles.subtitle}>Exportar gestion outbound</h3>
+                    <h3 style={styles.subtitle}>Exportar reportes</h3>
 
                     <div style={styles.grid}>
                         <label style={styles.field}>
-                            <span style={styles.label}>Campaña</span>
+                            <span style={styles.label}>Tipo de reporte</span>
+                            <select
+                                value={reportType}
+                                onChange={(event) =>
+                                    setReportType(event.target.value)
+                                }
+                                disabled={downloading}
+                                style={styles.input}
+                            >
+                                {REPORT_TYPES.map((type) => (
+                                    <option key={type.value} value={type.value}>
+                                        {type.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+
+                        <label style={styles.field}>
+                            <span style={styles.label}>Campana</span>
                             <select
                                 value={campaignId}
                                 onChange={(event) =>
@@ -121,8 +164,8 @@ export default function ReportesSupervisorPage() {
                             >
                                 <option value="">
                                     {loadingCampaigns
-                                        ? "Cargando campañas..."
-                                        : "Selecciona una campaña"}
+                                        ? "Cargando campanas..."
+                                        : "Selecciona una campana"}
                                 </option>
                                 {campaigns.map((campaign) => (
                                     <option key={campaign} value={campaign}>
@@ -150,9 +193,7 @@ export default function ReportesSupervisorPage() {
                             <input
                                 type="date"
                                 value={endDate}
-                                onChange={(event) =>
-                                    setEndDate(event.target.value)
-                                }
+                                onChange={(event) => setEndDate(event.target.value)}
                                 disabled={downloading}
                                 style={styles.input}
                             />
@@ -171,6 +212,14 @@ export default function ReportesSupervisorPage() {
                             }
                         >
                             {downloading ? "Descargando..." : "Exportar Excel"}
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            type="button"
+                            onClick={handleClearFilters}
+                            disabled={downloading}
+                        >
+                            Limpiar filtros
                         </Button>
                     </div>
 
