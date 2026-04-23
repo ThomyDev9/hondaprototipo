@@ -17,6 +17,60 @@ import {
 import { runInboundGhostDepuration } from "../../services/inboundGhostDepuration.service.js";
 
 const router = express.Router();
+const INBOUND_SCOPE_TODO = "todo";
+const INBOUND_SCOPE_HISTORICO = "historico";
+const INBOUND_SCOPE_NUEVO = "nuevo";
+const INBOUND_HISTORICAL_FLOOR_DATE = "2020-01-01";
+
+function resolveInboundDateScope({ startDate = "", endDate = "", scope = "" } = {}) {
+    const normalizedScope = String(scope || "").trim().toLowerCase();
+    const today = new Date();
+    const fallbackStart = new Date(today);
+    fallbackStart.setDate(today.getDate() - 7);
+    const firstDayCurrentMonth = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1,
+        0,
+        0,
+        0,
+        0,
+    );
+    const lastDayPreviousMonth = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        0,
+        0,
+        0,
+        0,
+        0,
+    );
+
+    if (normalizedScope === INBOUND_SCOPE_HISTORICO) {
+        return {
+            resolvedScope: INBOUND_SCOPE_HISTORICO,
+            resolvedStartDate:
+                String(startDate || "").trim() || INBOUND_HISTORICAL_FLOOR_DATE,
+            resolvedEndDate:
+                String(endDate || "").trim() || formatDateKey(lastDayPreviousMonth),
+        };
+    }
+
+    if (normalizedScope === INBOUND_SCOPE_NUEVO) {
+        return {
+            resolvedScope: INBOUND_SCOPE_NUEVO,
+            resolvedStartDate:
+                String(startDate || "").trim() || formatDateKey(firstDayCurrentMonth),
+            resolvedEndDate: String(endDate || "").trim() || formatDateKey(today),
+        };
+    }
+
+    return {
+        resolvedScope: INBOUND_SCOPE_TODO,
+        resolvedStartDate: String(startDate || "").trim() || formatDateKey(fallbackStart),
+        resolvedEndDate: String(endDate || "").trim() || formatDateKey(today),
+    };
+}
 
 function parseMysqlDateTime(value) {
     if (!value) return null;
@@ -593,13 +647,15 @@ function getAgentNumberCandidatesFromCall(row = {}) {
 async function buildInboundMissingCallsDataset({
     startDate = "",
     endDate = "",
+    scope = INBOUND_SCOPE_TODO,
     limit = 1200,
 } = {}) {
-    const today = new Date();
-    const fallbackStart = new Date(today);
-    fallbackStart.setDate(today.getDate() - 7);
-    const resolvedStartDate = startDate || formatDateKey(fallbackStart);
-    const resolvedEndDate = endDate || formatDateKey(today);
+    const { resolvedStartDate, resolvedEndDate, resolvedScope } =
+        resolveInboundDateScope({
+            startDate,
+            endDate,
+            scope,
+        });
 
     if (resolvedStartDate > resolvedEndDate) {
         const error = new Error("La fecha inicial no puede ser mayor a la fecha final");
@@ -723,6 +779,7 @@ async function buildInboundMissingCallsDataset({
             filters: {
                 startDate: resolvedStartDate,
                 endDate: resolvedEndDate,
+                scope: resolvedScope,
                 limit,
             },
             totals: { total: 0, missing: 0 },
@@ -929,6 +986,7 @@ async function buildInboundMissingCallsDataset({
         filters: {
             startDate: resolvedStartDate,
             endDate: resolvedEndDate,
+            scope: resolvedScope,
             limit,
         },
         totals: {
@@ -938,6 +996,104 @@ async function buildInboundMissingCallsDataset({
         catalog,
         data,
     };
+}
+
+function buildInboundUnregisteredManualAssignmentKey({
+    uniqueid = "",
+    recordingfile = "",
+}) {
+    const normalizedUniqueId = String(uniqueid || "").trim();
+    const normalizedRecording = normalizeRecordingValue(recordingfile);
+    return `${normalizedUniqueId}::${normalizedRecording}`;
+}
+
+async function getInboundManualAssignmentMap(rows = [], connection = pool) {
+    const uniqueIds = Array.from(
+        new Set(
+            rows
+                .map((row) => String(row?.uniqueid || "").trim())
+                .filter(Boolean),
+        ),
+    );
+    const recordingNames = Array.from(
+        new Set(
+            rows
+                .map((row) =>
+                    normalizeRecordingValue(
+                        row?.recordingfileNormalized || row?.recordingfile,
+                    ),
+                )
+                .filter(Boolean),
+        ),
+    );
+
+    const whereClauses = [];
+    const params = [];
+
+    if (uniqueIds.length > 0) {
+        whereClauses.push(
+            `TRIM(COALESCE(cdr_uniqueid, '')) IN (${uniqueIds.map(() => "?").join(",")})`,
+        );
+        params.push(...uniqueIds);
+    }
+
+    if (recordingNames.length > 0) {
+        whereClauses.push(
+            `LOWER(TRIM(COALESCE(recordingfile_normalized, ''))) IN (${recordingNames.map(() => "?").join(",")})`,
+        );
+        params.push(...recordingNames);
+    }
+
+    if (whereClauses.length === 0) {
+        return new Map();
+    }
+
+    const [assignmentRows] = await connection.query(
+        `
+            SELECT
+                id,
+                cdr_uniqueid,
+                recordingfile,
+                recordingfile_normalized,
+                management_date_time,
+                assigned_agent_user_id,
+                assigned_agent_name,
+                assigned_agent_zoiper,
+                notes,
+                assigned_at,
+                assigned_by_user_id,
+                assigned_by_username
+            FROM inbound_no_registradas_asignaciones
+            WHERE is_active = 1
+              AND (${whereClauses.join(" OR ")})
+            ORDER BY assigned_at DESC, id DESC
+        `,
+        params,
+    );
+
+    const assignmentMap = new Map();
+    for (const row of assignmentRows || []) {
+        const key = buildInboundUnregisteredManualAssignmentKey({
+            uniqueid: row?.cdr_uniqueid,
+            recordingfile: row?.recordingfile_normalized || row?.recordingfile,
+        });
+        if (!assignmentMap.has(key)) {
+            assignmentMap.set(key, {
+                id: Number(row?.id || 0),
+                assignedAgentUserId:
+                    Number(row?.assigned_agent_user_id || 0) || null,
+                managementDateTime: row?.management_date_time || null,
+                assignedAgentName: String(row?.assigned_agent_name || "").trim(),
+                assignedAgentZoiper: String(row?.assigned_agent_zoiper || "").trim(),
+                notes: String(row?.notes || "").trim(),
+                assignedAt: row?.assigned_at || null,
+                assignedByUserId: Number(row?.assigned_by_user_id || 0) || null,
+                assignedByUsername: String(row?.assigned_by_username || "").trim(),
+            });
+        }
+    }
+
+    return assignmentMap;
 }
 
 function normalizeAgentIdentity(value = "") {
@@ -964,13 +1120,16 @@ function getUserAgentIdentityKeys(user = {}) {
 async function buildInboundUnregisteredByAdvisorDataset({
     startDate = "",
     endDate = "",
+    scope = INBOUND_SCOPE_TODO,
     limit = 1200,
 }) {
     const base = await buildInboundMissingCallsDataset({
         startDate,
         endDate,
+        scope,
         limit,
     });
+    const manualAssignmentMap = await getInboundManualAssignmentMap(base.data, pool);
 
     const [sessionRows] = await pool.query(
         `
@@ -1103,6 +1262,27 @@ async function buildInboundUnregisteredByAdvisorDataset({
             }
         }
 
+        const manualAssignmentKey = buildInboundUnregisteredManualAssignmentKey({
+            uniqueid: row?.uniqueid,
+            recordingfile: row?.recordingfileNormalized || row?.recordingfile,
+        });
+        const manualAssignment = manualAssignmentMap.get(manualAssignmentKey) || null;
+
+        if (manualAssignment?.assignedAgentName) {
+            assigned = {
+                agent: manualAssignment.assignedAgentName,
+                agentNumber:
+                    manualAssignment.assignedAgentZoiper ||
+                    String(assigned?.agentNumber || "").trim(),
+                estadoInicio:
+                    manualAssignment.managementDateTime ||
+                    manualAssignment.assignedAt ||
+                    null,
+                estadoFin: null,
+                matchMethod: "asignacion_manual",
+            };
+        }
+
         return {
             ...row,
             zoiperCandidate: candidates.join(" / "),
@@ -1111,6 +1291,17 @@ async function buildInboundUnregisteredByAdvisorDataset({
             asesorEstadoInicio: assigned?.estadoInicio || null,
             asesorEstadoFin: assigned?.estadoFin || null,
             asesorMatchMethod: String(assigned?.matchMethod || "").trim(),
+            hasManualAssignment: Boolean(manualAssignment?.assignedAgentName),
+            manualAssignmentAdvisorUserId:
+                Number(manualAssignment?.assignedAgentUserId || 0) || null,
+            manualAssignmentId: Number(manualAssignment?.id || 0) || null,
+            manualAssignmentNotes: String(manualAssignment?.notes || "").trim(),
+            manualAssignmentBy: String(
+                manualAssignment?.assignedByUsername || "",
+            ).trim(),
+            manualAssignmentManagementDateTime:
+                manualAssignment?.managementDateTime || null,
+            manualAssignmentAt: manualAssignment?.assignedAt || null,
         };
     });
 
@@ -1157,6 +1348,7 @@ router.get(
         try {
             const startDate = String(req.query?.startDate || "").trim();
             const endDate = String(req.query?.endDate || "").trim();
+            const scope = String(req.query?.scope || "").trim().toLowerCase();
             const limitRaw = Number(req.query?.limit || 1200);
             const limit = Number.isFinite(limitRaw)
                 ? Math.max(100, Math.min(5000, Math.floor(limitRaw)))
@@ -1165,11 +1357,16 @@ router.get(
             const dataset = await buildInboundUnregisteredByAdvisorDataset({
                 startDate,
                 endDate,
+                scope,
                 limit,
             });
 
             const agentKeys = getUserAgentIdentityKeys(req.user);
+            const currentUserId = Number(req.user?.id || 0) || null;
             const data = (dataset.data || []).filter((row) =>
+                (currentUserId &&
+                    Number(row?.manualAssignmentAdvisorUserId || 0) ===
+                        currentUserId) ||
                 agentKeys.has(normalizeAgentIdentity(row?.asesorProbable || "")),
             );
 
@@ -1226,6 +1423,48 @@ router.get(
 );
 router.use(requireRole(["SUPERVISOR"]));
 
+router.get("/asesores-activos", async (_req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `
+            SELECT
+                u.IdUser AS idUser,
+                TRIM(
+                    CONCAT(
+                        COALESCE(u.Name1, ''), ' ',
+                        COALESCE(u.Name2, ''), ' ',
+                        COALESCE(u.Surname1, ''), ' ',
+                        COALESCE(u.Surname2, '')
+                    )
+                ) AS advisorName,
+                COALESCE(NULLIF(TRIM(u.extensionIn), ''), NULLIF(TRIM(u.extensionOut), '')) AS advisorZoiper
+            FROM user u
+            INNER JOIN workgroup w
+                ON w.Id = u.UserGroup
+            WHERE u.State = 1
+              AND UPPER(TRIM(w.Description)) = 'ASESOR'
+            ORDER BY advisorName ASC, u.IdUser ASC
+            `,
+        );
+
+        const data = (rows || [])
+            .map((row) => ({
+                idUser: Number(row?.idUser || 0),
+                advisorName: String(row?.advisorName || "").trim(),
+                advisorZoiper: String(row?.advisorZoiper || "").trim(),
+            }))
+            .filter((item) => Boolean(item.advisorName));
+
+        return res.json({ data });
+    } catch (err) {
+        console.error("Error obteniendo asesores activos:", err);
+        return res.status(500).json({
+            error: "Error obteniendo asesores activos",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
 router.get("/grabaciones", getRecordingsByPhone);
 router.get("/grabaciones-inbound", getInboundRecordings);
 router.post("/depuracion-inbound-fantasma/run", async (req, res) => {
@@ -1263,6 +1502,7 @@ router.get("/llamadas-inbound-sin-gestion", async (req, res) => {
     try {
         const startDate = String(req.query?.startDate || "").trim();
         const endDate = String(req.query?.endDate || "").trim();
+        const scope = String(req.query?.scope || "").trim().toLowerCase();
         const limitRaw = Number(req.query?.limit || 1200);
         const limit = Number.isFinite(limitRaw)
             ? Math.max(100, Math.min(5000, Math.floor(limitRaw)))
@@ -1271,6 +1511,7 @@ router.get("/llamadas-inbound-sin-gestion", async (req, res) => {
         const result = await buildInboundMissingCallsDataset({
             startDate,
             endDate,
+            scope,
             limit,
         });
 
@@ -1291,6 +1532,7 @@ router.get("/inbound-no-registradas", async (req, res) => {
     try {
         const startDate = String(req.query?.startDate || "").trim();
         const endDate = String(req.query?.endDate || "").trim();
+        const scope = String(req.query?.scope || "").trim().toLowerCase();
         const limitRaw = Number(req.query?.limit || 1200);
         const limit = Number.isFinite(limitRaw)
             ? Math.max(100, Math.min(5000, Math.floor(limitRaw)))
@@ -1299,6 +1541,7 @@ router.get("/inbound-no-registradas", async (req, res) => {
         const dataset = await buildInboundUnregisteredByAdvisorDataset({
             startDate,
             endDate,
+            scope,
             limit,
         });
         return res.json(dataset);
@@ -1313,6 +1556,166 @@ router.get("/inbound-no-registradas", async (req, res) => {
         });
     }
 });
+
+router.post("/inbound-no-registradas/asignar", async (req, res) => {
+    try {
+        const uniqueid = String(req.body?.uniqueid || "").trim();
+        const recordingfile = String(req.body?.recordingfile || "").trim();
+        const recordingfileNormalized = normalizeRecordingValue(recordingfile);
+        const advisorUserId = Number(req.body?.advisorUserId || 0) || null;
+        const managementDateTimeRaw = String(
+            req.body?.managementDateTime || "",
+        ).trim();
+        const managementDateTimeParsed = managementDateTimeRaw
+            ? parseMysqlDateTime(managementDateTimeRaw)
+            : null;
+        const managementDateTimeForSql = managementDateTimeParsed
+            ? formatDateTimeForSql(managementDateTimeParsed)
+            : null;
+        const advisorZoiperOverride = String(req.body?.advisorZoiper || "").trim();
+        const notes = String(req.body?.notes || "").trim().slice(0, 500);
+
+        if (!advisorUserId) {
+            return res.status(400).json({
+                error: "advisorUserId es requerido para asignar",
+            });
+        }
+
+        if (!uniqueid && !recordingfileNormalized) {
+            return res.status(400).json({
+                error: "Debes enviar uniqueid o recordingfile",
+            });
+        }
+
+        if (managementDateTimeRaw && !managementDateTimeParsed) {
+            return res.status(400).json({
+                error: "managementDateTime no tiene un formato de fecha valido",
+            });
+        }
+
+        const [advisorRows] = await pool.query(
+            `
+            SELECT
+                u.IdUser AS idUser,
+                TRIM(
+                    CONCAT(
+                        COALESCE(u.Name1, ''), ' ',
+                        COALESCE(u.Name2, ''), ' ',
+                        COALESCE(u.Surname1, ''), ' ',
+                        COALESCE(u.Surname2, '')
+                    )
+                ) AS advisorName,
+                COALESCE(NULLIF(TRIM(u.extensionIn), ''), NULLIF(TRIM(u.extensionOut), '')) AS advisorZoiper,
+                u.State AS advisorState,
+                w.Description AS roleDescription
+            FROM user u
+            LEFT JOIN workgroup w
+                ON w.Id = u.UserGroup
+            WHERE u.IdUser = ?
+            LIMIT 1
+            `,
+            [advisorUserId],
+        );
+
+        const advisor = Array.isArray(advisorRows) ? advisorRows[0] : null;
+        if (!advisor) {
+            return res.status(404).json({
+                error: "No existe el asesor seleccionado",
+            });
+        }
+
+        const advisorRole = String(advisor?.roleDescription || "")
+            .trim()
+            .toUpperCase();
+        const advisorState = Number(advisor?.advisorState || 0);
+        if (advisorRole !== "ASESOR" || advisorState !== 1) {
+            return res.status(400).json({
+                error: "El usuario seleccionado no es un asesor activo",
+            });
+        }
+
+        const advisorName = String(advisor?.advisorName || "").trim();
+        const advisorZoiper =
+            advisorZoiperOverride || String(advisor?.advisorZoiper || "").trim();
+        if (!advisorName) {
+            return res.status(400).json({
+                error: "No se pudo resolver el nombre del asesor por advisorUserId",
+            });
+        }
+
+        const assignedByUserId = Number(req.user?.id || 0) || null;
+        const assignedByUsername = String(
+            req.user?.username || req.user?.email || "",
+        ).trim();
+
+        await pool.query(
+            `
+            INSERT INTO inbound_no_registradas_asignaciones (
+                cdr_uniqueid,
+                recordingfile,
+                recordingfile_normalized,
+                management_date_time,
+                assigned_agent_user_id,
+                assigned_agent_name,
+                assigned_agent_zoiper,
+                notes,
+                assigned_by_user_id,
+                assigned_by_username,
+                assigned_at,
+                is_active
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 1)
+            ON DUPLICATE KEY UPDATE
+                cdr_uniqueid = VALUES(cdr_uniqueid),
+                recordingfile = VALUES(recordingfile),
+                recordingfile_normalized = VALUES(recordingfile_normalized),
+                management_date_time = VALUES(management_date_time),
+                assigned_agent_user_id = VALUES(assigned_agent_user_id),
+                assigned_agent_name = VALUES(assigned_agent_name),
+                assigned_agent_zoiper = VALUES(assigned_agent_zoiper),
+                notes = VALUES(notes),
+                assigned_by_user_id = VALUES(assigned_by_user_id),
+                assigned_by_username = VALUES(assigned_by_username),
+                assigned_at = NOW(),
+                is_active = 1
+            `,
+            [
+                uniqueid || null,
+                recordingfile || null,
+                recordingfileNormalized || null,
+                managementDateTimeForSql,
+                advisorUserId,
+                advisorName,
+                advisorZoiper || null,
+                notes || null,
+                assignedByUserId,
+                assignedByUsername || null,
+            ],
+        );
+
+        return res.json({
+            ok: true,
+            message: "Inbound no registrada asignada manualmente",
+            data: {
+                uniqueid,
+                recordingfile,
+                recordingfileNormalized,
+                managementDateTime: managementDateTimeForSql,
+                advisorUserId,
+                advisorName,
+                advisorZoiper,
+                notes,
+            },
+        });
+    } catch (err) {
+        console.error("Error asignando inbound no registrada:", err);
+        return res.status(500).json({
+            error: "Error al guardar asignacion manual",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
 router.use("/grabacion-sftp", recordingSftpRouter);
 
 router.get("/reportes/outbound/campanias", async (_req, res) => {

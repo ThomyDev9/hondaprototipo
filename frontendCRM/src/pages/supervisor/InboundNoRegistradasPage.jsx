@@ -6,6 +6,8 @@ import {
     fetchInboundUnregisteredByAdvisor,
     fetchInboundUnregisteredMine,
     guardarGestionInbound,
+    assignInboundUnregisteredAdvisor,
+    fetchSupervisorActiveAdvisors,
 } from "../../services/dashboard.service";
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
@@ -211,6 +213,7 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
     const currentAudioRef = useRef(null);
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
+    const [scopeFilter, setScopeFilter] = useState("todo");
     const [advisorFilter, setAdvisorFilter] = useState("");
     const [queueFilter, setQueueFilter] = useState("");
     const [searchText, setSearchText] = useState("");
@@ -238,12 +241,21 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
     const [registerDetails, setRegisterDetails] = useState([
         { ...DEFAULT_INTERACTION_DETAIL },
     ]);
+    const [advisorMasterCatalog, setAdvisorMasterCatalog] = useState([]);
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [assignRow, setAssignRow] = useState(null);
+    const [assignAdvisorUserId, setAssignAdvisorUserId] = useState("");
+    const [assignAdvisorName, setAssignAdvisorName] = useState("");
+    const [assignAdvisorZoiper, setAssignAdvisorZoiper] = useState("");
+    const [assignSaving, setAssignSaving] = useState(false);
 
     const loadData = async (filters = {}) => {
         const nextStartDate =
             filters.startDate !== undefined ? filters.startDate : startDate;
         const nextEndDate =
             filters.endDate !== undefined ? filters.endDate : endDate;
+        const nextScope =
+            filters.scope !== undefined ? filters.scope : scopeFilter;
 
         if (nextStartDate && nextEndDate && nextStartDate > nextEndDate) {
             setError("La fecha inicial no puede ser mayor que la fecha final.");
@@ -261,6 +273,7 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
             const { ok, json } = await fetcher({
                 startDate: nextStartDate,
                 endDate: nextEndDate,
+                scope: nextScope,
             });
 
             if (!ok) {
@@ -283,6 +296,13 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
                 assigned: Number(json?.totals?.assigned || 0),
                 unassigned: Number(json?.totals?.unassigned || 0),
             });
+            setScopeFilter(
+                String(json?.filters?.scope || nextScope || "todo")
+                    .trim()
+                    .toLowerCase(),
+            );
+            setStartDate(String(json?.filters?.startDate || nextStartDate || ""));
+            setEndDate(String(json?.filters?.endDate || nextEndDate || ""));
         } finally {
             setLoading(false);
         }
@@ -292,6 +312,16 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
         loadData({ startDate: "", endDate: "" });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        if (selfMode) return;
+        const loadAdvisorCatalog = async () => {
+            const { ok, json } = await fetchSupervisorActiveAdvisors();
+            if (!ok) return;
+            setAdvisorMasterCatalog(Array.isArray(json?.data) ? json.data : []);
+        };
+        loadAdvisorCatalog();
+    }, [selfMode]);
 
     useEffect(() => {
         return () => {
@@ -456,13 +486,80 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
         });
     };
 
+    const advisorCatalog = useMemo(() => {
+        const map = new Map();
+        const ensureEntry = (name, zoiperRaw = "") => {
+            const normalizedName = String(name || "").trim();
+            if (!normalizedName || normalizedName === "SIN_ASIGNAR") return;
+            const normalizedZoiper = String(zoiperRaw || "").trim();
+            const entry = map.get(normalizedName) || {
+                name: normalizedName,
+                zoiperCodes: new Set(),
+            };
+            if (normalizedZoiper) {
+                entry.zoiperCodes.add(normalizedZoiper);
+            }
+            map.set(normalizedName, entry);
+        };
+
+        for (const item of advisorMasterCatalog || []) {
+            ensureEntry(item?.advisorName, item?.advisorZoiper);
+        }
+        for (const row of rows || []) {
+            ensureEntry(row?.asesorProbable, row?.asesorZoiperCode);
+        }
+        for (const item of summary || []) {
+            const rawCodes = String(item?.zoiperCodes || "").trim();
+            const splitCodes = rawCodes
+                ? rawCodes.split("/").map((code) => String(code || "").trim())
+                : [];
+            ensureEntry(item?.asesor, splitCodes[0] || "");
+            splitCodes.forEach((code) => ensureEntry(item?.asesor, code));
+        }
+
+        return Array.from(map.values())
+            .map((entry) => ({
+                name: entry.name,
+                zoiperCodes: Array.from(entry.zoiperCodes).sort((a, b) =>
+                    a.localeCompare(b),
+                ),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [advisorMasterCatalog, rows, summary]);
+
     const advisorOptions = useMemo(
         () =>
-            Array.from(
-                new Set(rows.map((item) => item.asesorProbable).filter(Boolean)),
-            ).sort((a, b) => a.localeCompare(b)),
+            buildUniqueOptions(
+                rows
+                    .map((row) => String(row?.asesorProbable || "").trim())
+                    .filter((value) => value && value !== "SIN_ASIGNAR"),
+            ),
         [rows],
     );
+
+    const assignAdvisorOptions = useMemo(() => {
+        const byId = new Map();
+        for (const item of advisorMasterCatalog || []) {
+            const idUser = Number(item?.idUser || 0) || 0;
+            if (!idUser) continue;
+            byId.set(String(idUser), {
+                idUser,
+                advisorName: String(item?.advisorName || "").trim(),
+                advisorZoiper: String(item?.advisorZoiper || "").trim(),
+            });
+        }
+
+        if (byId.size > 0) {
+            return Array.from(byId.values()).filter((item) => item.advisorName);
+        }
+
+        return (advisorCatalog || []).map((item, index) => ({
+            idUser: 0,
+            optionKey: `fallback-${index}`,
+            advisorName: String(item?.name || "").trim(),
+            advisorZoiper: String(item?.zoiperCodes?.[0] || "").trim(),
+        }));
+    }, [advisorMasterCatalog, advisorCatalog]);
 
     const queueOptions = useMemo(
         () =>
@@ -713,6 +810,99 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
         }
     };
 
+    const openManualAssignModal = (row) => {
+        if (!assignAdvisorOptions.length) {
+            setError(
+                "No hay asesores disponibles para asignar en este momento.",
+            );
+            return;
+        }
+        const suggestedName = String(row?.asesorProbable || "").trim();
+        const suggestedOption =
+            assignAdvisorOptions.find(
+                (item) => String(item?.advisorName || "").trim() === suggestedName,
+            ) || null;
+        const selectedOption = suggestedOption || assignAdvisorOptions[0] || null;
+        const selectedName = String(selectedOption?.advisorName || "").trim();
+        const selectedUserId = Number(selectedOption?.idUser || 0) || 0;
+        const suggestedZoiper = String(row?.asesorZoiperCode || "").trim();
+        const resolvedZoiper =
+            suggestedZoiper || String(selectedOption?.advisorZoiper || "").trim();
+
+        setAssignRow(row);
+        setAssignAdvisorUserId(selectedUserId ? String(selectedUserId) : "");
+        setAssignAdvisorName(selectedName);
+        setAssignAdvisorZoiper(resolvedZoiper);
+        setIsAssignModalOpen(true);
+        setError("");
+        setRegisterMessage("");
+    };
+
+    const closeAssignModal = () => {
+        if (assignSaving) return;
+        setIsAssignModalOpen(false);
+        setAssignRow(null);
+        setAssignAdvisorUserId("");
+        setAssignAdvisorName("");
+        setAssignAdvisorZoiper("");
+    };
+
+    const handleAssignAdvisorChange = (advisorUserIdOrName) => {
+        const rawValue = String(advisorUserIdOrName || "").trim();
+        const selectedByUserId = assignAdvisorOptions.find(
+            (item) => String(item?.idUser || "") === rawValue,
+        );
+        const selected =
+            selectedByUserId ||
+            assignAdvisorOptions.find(
+                (item) =>
+                    String(item?.advisorName || "").trim() === rawValue,
+            ) ||
+            null;
+        setAssignAdvisorUserId(
+            selected?.idUser ? String(selected.idUser) : "",
+        );
+        setAssignAdvisorName(String(selected?.advisorName || rawValue).trim());
+        setAssignAdvisorZoiper(String(selected?.advisorZoiper || "").trim());
+    };
+
+    const submitManualAssignAdvisor = async (event) => {
+        event.preventDefault();
+        if (!assignRow) return;
+
+        const normalizedAdvisorName = String(assignAdvisorName || "").trim();
+        if (!normalizedAdvisorName) {
+            setError("Selecciona un asesor.");
+            return;
+        }
+
+        setAssignSaving(true);
+        setError("");
+        setRegisterMessage("");
+        const { ok, json } = await assignInboundUnregisteredAdvisor({
+            uniqueid: String(assignRow?.uniqueid || "").trim(),
+            recordingfile: String(assignRow?.recordingfile || "").trim(),
+            managementDateTime: String(assignRow?.calldate || "").trim(),
+            advisorUserId: assignAdvisorUserId,
+            advisorName: normalizedAdvisorName,
+            advisorZoiper: String(assignAdvisorZoiper || "").trim(),
+            notes: "Asignacion manual desde pantalla supervisor",
+        });
+        setAssignSaving(false);
+
+        if (!ok) {
+            setError(
+                json?.detail ||
+                    json?.error ||
+                    "No se pudo guardar la asignacion manual.",
+            );
+            return;
+        }
+
+        setRegisterMessage("Asignacion manual guardada correctamente.");
+        closeAssignModal();
+        await loadData();
+    };
     return (
         <PageContainer>
             <div className="grabaciones-page">
@@ -755,10 +945,15 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
                                 onClick={() => {
                                     setStartDate("");
                                     setEndDate("");
+                                    setScopeFilter("todo");
                                     setAdvisorFilter("");
                                     setQueueFilter("");
                                     setSearchText("");
-                                    loadData({ startDate: "", endDate: "" });
+                                    loadData({
+                                        startDate: "",
+                                        endDate: "",
+                                        scope: "todo",
+                                    });
                                 }}
                                 disabled={loading}
                             >
@@ -768,6 +963,24 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
                     </div>
 
                     <div className="grabaciones-filters-grid">
+                        <div className="grabaciones-field">
+                            <span className="grabaciones-field-label">Período</span>
+                            <select
+                                className="grabaciones-input"
+                                value={scopeFilter}
+                                onChange={(event) =>
+                                    setScopeFilter(event.target.value)
+                                }
+                            >
+                                <option value="todo">Todo</option>
+                                <option value="historico">
+                                    Histórico (hasta mes pasado)
+                                </option>
+                                <option value="nuevo">
+                                    Nuevo sistema (mes actual)
+                                </option>
+                            </select>
+                        </div>
                         <div className="grabaciones-field">
                             <span className="grabaciones-field-label">
                                 Fecha inicio
@@ -948,6 +1161,23 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
                                                 >
                                                     Registrar
                                                 </button>
+                                                {!selfMode ? (
+                                                    <button
+                                                        type="button"
+                                                        className="grabaciones-chip-btn"
+                                                        style={{
+                                                            marginTop: "6px",
+                                                            width: "100%",
+                                                        }}
+                                                        onClick={() =>
+                                                            openManualAssignModal(
+                                                                row,
+                                                            )
+                                                        }
+                                                    >
+                                                        Asignar asesor
+                                                    </button>
+                                                ) : null}
                                                 <button
                                                     type="button"
                                                     className="grabaciones-chip-btn"
@@ -1328,6 +1558,104 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
                     </div>
                 </div>
             ) : null}
+
+            {isAssignModalOpen && assignRow ? (
+                <div className="grabaciones-modal-overlay" onClick={closeAssignModal}>
+                    <div
+                        className="grabaciones-modal"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="grabaciones-modal-head">
+                            <h3>Asignar asesor</h3>
+                            <button
+                                type="button"
+                                className="grabaciones-chip-btn"
+                                onClick={closeAssignModal}
+                                disabled={assignSaving}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+
+                        <p className="grabaciones-helper-text">
+                            Selecciona el asesor correcto para la llamada{" "}
+                            {String(assignRow?.uniqueid || "").trim() || "-"}.
+                        </p>
+
+                        <form
+                            onSubmit={submitManualAssignAdvisor}
+                            className="grabaciones-modal-form"
+                        >
+                            <div className="grabaciones-filters-grid">
+                                <div className="grabaciones-field">
+                                    <span className="grabaciones-field-label">
+                                        Asesor *
+                                    </span>
+                                    <select
+                                        className="grabaciones-input"
+                                        value={assignAdvisorUserId || assignAdvisorName}
+                                        onChange={(event) =>
+                                            handleAssignAdvisorChange(
+                                                event.target.value,
+                                            )
+                                        }
+                                        required
+                                    >
+                                        <option value="">Selecciona...</option>
+                                        {assignAdvisorOptions.map((item) => (
+                                            <option
+                                                key={
+                                                    item.idUser
+                                                        ? `adv-${item.idUser}`
+                                                        : item.optionKey
+                                                }
+                                                value={
+                                                    item.idUser
+                                                        ? String(item.idUser)
+                                                        : item.advisorName
+                                                }
+                                            >
+                                                {item.advisorName}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="grabaciones-field">
+                                    <span className="grabaciones-field-label">
+                                        Codigo Zoiper (opcional)
+                                    </span>
+                                    <input
+                                        className="grabaciones-input"
+                                        value={assignAdvisorZoiper}
+                                        onChange={(event) =>
+                                            setAssignAdvisorZoiper(
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="Ej: 101"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grabaciones-modal-actions">
+                                <button
+                                    type="submit"
+                                    className="grabaciones-primary-btn"
+                                    disabled={
+                                        assignSaving ||
+                                        assignAdvisorOptions.length === 0
+                                    }
+                                >
+                                    {assignSaving
+                                        ? "Guardando..."
+                                        : "Guardar asignacion"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            ) : null}
         </PageContainer>
     );
 }
+

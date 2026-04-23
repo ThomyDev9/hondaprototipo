@@ -1,0 +1,5 @@
+ALTER TABLE inbound_no_registradas_asignaciones
+ADD COLUMN IF NOT EXISTS assigned_agent_user_id BIGINT DEFAULT NULL AFTER recordingfile_normalized;
+
+CREATE INDEX idx_inbound_no_reg_assigned_agent_user
+ON inbound_no_registradas_asignaciones (assigned_agent_user_id);

@@ -1,0 +1,5 @@
+ALTER TABLE inbound_no_registradas_asignaciones
+ADD COLUMN IF NOT EXISTS management_date_time DATETIME DEFAULT NULL AFTER recordingfile_normalized;
+
+CREATE INDEX idx_inbound_no_reg_management_date_time
+ON inbound_no_registradas_asignaciones (management_date_time);

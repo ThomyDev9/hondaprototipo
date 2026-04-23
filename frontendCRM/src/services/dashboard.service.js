@@ -325,6 +325,7 @@ export const fetchInboundMissingCalls = ({
 export const fetchInboundUnregisteredByAdvisor = ({
     startDate = "",
     endDate = "",
+    scope = "todo",
     limit = 1200,
 } = {}) =>
     request(
@@ -332,12 +333,15 @@ export const fetchInboundUnregisteredByAdvisor = ({
             String(startDate || "").trim(),
         )}&endDate=${encodeURIComponent(
             String(endDate || "").trim(),
+        )}&scope=${encodeURIComponent(
+            String(scope || "todo").trim().toLowerCase(),
         )}&limit=${encodeURIComponent(String(limit || "").trim())}`,
     );
 
 export const fetchInboundUnregisteredMine = ({
     startDate = "",
     endDate = "",
+    scope = "todo",
     limit = 1200,
 } = {}) =>
     request(
@@ -345,8 +349,39 @@ export const fetchInboundUnregisteredMine = ({
             String(startDate || "").trim(),
         )}&endDate=${encodeURIComponent(
             String(endDate || "").trim(),
+        )}&scope=${encodeURIComponent(
+            String(scope || "todo").trim().toLowerCase(),
         )}&limit=${encodeURIComponent(String(limit || "").trim())}`,
     );
+
+export const fetchSupervisorActiveAdvisors = () =>
+    request("supervisor/asesores-activos");
+
+export const assignInboundUnregisteredAdvisor = ({
+    uniqueid = "",
+    recordingfile = "",
+    managementDateTime = "",
+    advisorUserId = "",
+    advisorName = "",
+    advisorZoiper = "",
+    notes = "",
+} = {}) =>
+    request("supervisor/inbound-no-registradas/asignar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            uniqueid: String(uniqueid || "").trim(),
+            recordingfile: String(recordingfile || "").trim(),
+            managementDateTime: String(managementDateTime || "").trim(),
+            advisorUserId:
+                String(advisorUserId || "").trim() === ""
+                    ? null
+                    : Number(advisorUserId),
+            advisorName: String(advisorName || "").trim(),
+            advisorZoiper: String(advisorZoiper || "").trim(),
+            notes: String(notes || "").trim(),
+        }),
+    });
 
 export const runInboundGhostDepuration = ({
     startDate = "",
