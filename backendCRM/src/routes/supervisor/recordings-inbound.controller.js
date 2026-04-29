@@ -5,7 +5,6 @@ import { desencriptar } from "../../utils/crypto.js";
 
 const TARGET_YEAR = 2026;
 const TARGET_YEAR_START = `${TARGET_YEAR}-01-01 00:00:00`;
-const TARGET_YEAR_END = `${TARGET_YEAR + 1}-01-01 00:00:00`;
 const MAIN_SCHEMA =
     process.env.MYSQL_DB ||
     process.env.MYSQL_DB_ENCUESTA ||
@@ -57,7 +56,7 @@ async function buildAgentNameMap() {
 
 export async function getInboundRecordings(req, res) {
     try {
-        const { phone = "" } = req.query;
+        const { phone = "", identification = "" } = req.query;
         let query = `
             SELECT
                 '${MAIN_SCHEMA}' AS schema_name,
@@ -70,6 +69,7 @@ export async function getInboundRecordings(req, res) {
                 menu_item_id AS MenuItemId,
                 agent AS Agent,
                 full_name AS ContactName,
+                identification AS Identification,
                 celular AS ContactAddress,
                 ticket_id AS TicketId,
                 categorizacion AS Categorizacion,
@@ -78,13 +78,18 @@ export async function getInboundRecordings(req, res) {
                 payload_json AS PayloadJson
             FROM gestionfinal_inbound
             WHERE tmstmp >= ?
-              AND tmstmp < ?
+              AND LOWER(TRIM(COALESCE(categorizacion, ''))) <> 'llamada fantasma'
         `;
-        const params = [TARGET_YEAR_START, TARGET_YEAR_END];
+        const params = [TARGET_YEAR_START];
 
         if (String(phone || "").trim()) {
-            query += " AND celular = ? ";
-            params.push(String(phone).trim());
+            query += " AND celular LIKE ? ";
+            params.push(`%${String(phone).trim()}%`);
+        }
+
+        if (String(identification || "").trim()) {
+            query += " AND identification LIKE ? ";
+            params.push(`%${String(identification).trim()}%`);
         }
 
         query += " ORDER BY tmstmp DESC, id DESC LIMIT 1000";

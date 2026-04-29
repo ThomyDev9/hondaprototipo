@@ -23,6 +23,7 @@ function UsuariosAdmin() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [actionLoading, setActionLoading] = useState(false);
+    const [downloadLoading, setDownloadLoading] = useState(false);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
 
@@ -50,6 +51,11 @@ function UsuariosAdmin() {
         } catch {
             throw new Error("Respuesta no válida del servidor");
         }
+    };
+
+    const extractFilename = (contentDisposition = "") => {
+        const match = /filename="?([^"]+)"?/i.exec(contentDisposition);
+        return match?.[1] || "";
     };
 
     // =============================
@@ -192,6 +198,47 @@ function UsuariosAdmin() {
         }
     };
 
+    const handleDownloadExcel = async () => {
+        try {
+            setDownloadLoading(true);
+            setError("");
+
+            const exportState = tab === "ACTIVOS" ? "ACTIVOS" : "INACTIVOS";
+            const params = new URLSearchParams({ estado: exportState });
+            const res = await fetch(
+                `${API_BASE}/admin/users/export?${params.toString()}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                },
+            );
+
+            if (!res.ok) {
+                const data = await parseJsonSafe(res).catch(() => ({}));
+                throw new Error(data.error || "Error exportando usuarios");
+            }
+
+            const blob = await res.blob();
+            const filename =
+                extractFilename(res.headers.get("content-disposition")) ||
+                `usuarios_${exportState.toLowerCase()}.xlsx`;
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err.message || "No se pudo descargar el reporte");
+        } finally {
+            setDownloadLoading(false);
+        }
+    };
+
     // =============================
     // CONTENT - Configuración de la tabla
     // =============================
@@ -328,6 +375,15 @@ function UsuariosAdmin() {
                     />
                     <Button variant="create" onClick={handleCreate}>
                         + Crear usuario
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        onClick={handleDownloadExcel}
+                        disabled={downloadLoading || loading}
+                    >
+                        {downloadLoading
+                            ? "Descargando..."
+                            : `Exportar ${tab === "ACTIVOS" ? "Activos" : "Inactivos"} a Excel`}
                     </Button>
                 </div>
             </div>

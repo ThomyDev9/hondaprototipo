@@ -649,15 +649,31 @@ export default function useAgentGestionSubmit({
                 setIsSavingGestion?.(true);
                 setError("");
 
+                const level1ToUse = String(level1Seleccionado || "").trim();
+                const level2ToUse = String(level2Seleccionado || "").trim();
+                const observacionToUse = String(observacion || "").trim();
+
+                if (!level1ToUse || !level2ToUse) {
+                    setError(
+                        "Motivo de interacción y submotivo son obligatorios para guardar.",
+                    );
+                    return;
+                }
+
+                if (!observacionToUse) {
+                    setError("La observación es obligatoria para guardar.");
+                    return;
+                }
+
                 const payload = {
                     registro_id: registro.id,
-                    estado_final: level2Seleccionado || level1Seleccionado,
-                    level1: level1Seleccionado,
-                    level2: level2Seleccionado,
+                    estado_final: level2ToUse || level1ToUse,
+                    level1: level1ToUse,
+                    level2: level2ToUse,
                     campaign_id: registro?.campaign_id || campaignIdSeleccionada,
                     interactionId: interactionIdActual || null,
                     telefono_ad: telefonoSeleccionado || null,
-                    comentarios: observacion || null,
+                    comentarios: observacionToUse,
                     fecha_agendamiento: surveyAnswers?.respuesta1 || null,
                     encuesta: surveyAnswers,
                     encuestaPreguntas: surveyFieldsToRender.map((field) =>

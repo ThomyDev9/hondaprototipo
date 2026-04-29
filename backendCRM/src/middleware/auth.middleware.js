@@ -9,13 +9,17 @@ export const requireAuth = (req, res, next) => {
         }
 
         const token = authHeader.slice(7);
-        const payload = verificarToken(token);
+        const { payload, error } = verificarToken(token);
         if (!payload) {
-            console.error("[AUTH] Token inválido recibido:", token);
+            console.error("[AUTH] Token invalido recibido:", token);
         }
 
         if (!payload) {
-            return res.status(401).json({ error: "Invalid token" });
+            const isExpired = error?.name === "TokenExpiredError";
+            return res.status(401).json({
+                error: isExpired ? "Token expired" : "Invalid token",
+                code: isExpired ? "TOKEN_EXPIRED" : "INVALID_TOKEN",
+            });
         }
 
         // Usuario autenticado
@@ -27,5 +31,5 @@ export const requireAuth = (req, res, next) => {
     }
 };
 
-// Compatibilidad con código antiguo
+// Compatibilidad con codigo antiguo
 export const authMiddleware = requireAuth;

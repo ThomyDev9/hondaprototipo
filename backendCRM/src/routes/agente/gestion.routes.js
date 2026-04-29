@@ -76,7 +76,17 @@ export function registerGestionRoutes(
             ).trim();
             const level1ToUse = String(level1 || "").trim();
             const level2ToUse = String(level2 || "").trim();
+            const observacionesToUse = String(
+                comentarios || req.body?.observacion || "",
+            ).trim();
             const level3ToUse = "";
+
+            if (!level1ToUse || !level2ToUse || !observacionesToUse) {
+                return res.status(400).json({
+                    error: "Level1, Level2 y observacion son obligatorios",
+                });
+            }
+
             const estadoFinalToUse =
                 String(estado_final || "").trim() ||
                 level2ToUse ||
@@ -207,9 +217,6 @@ export function registerGestionRoutes(
 
             const telefonoAdToUse = String(
                 telefono_ad || encuestaData?.telefono_ad || "",
-            ).trim();
-            const observacionesToUse = String(
-                comentarios || req.body?.observacion || "",
             ).trim();
             const fechaAgendamientoToUse = String(
                 fecha_agendamiento || respuestas[0] || "",

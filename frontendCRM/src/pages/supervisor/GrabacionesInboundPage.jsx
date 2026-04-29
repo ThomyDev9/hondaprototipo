@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./GrabacionesOutboundPage.css";
 import { PageContainer } from "../../components/common";
 
@@ -177,7 +177,42 @@ export default function GrabacionesInboundPage() {
     const [filtroCategorizacion, setFiltroCategorizacion] = useState("");
     const [filtroAgente, setFiltroAgente] = useState("");
     const [filtroTelefono, setFiltroTelefono] = useState("");
+    const [filtroIdentificacion, setFiltroIdentificacion] = useState("");
     const [filtroFecha, setFiltroFecha] = useState("");
+
+    const grabacionesVista = useMemo(() => {
+        const rows = Array.isArray(grabaciones) ? grabaciones : [];
+        const byInteraction = new Map();
+
+        for (const row of rows) {
+            const interactionId = String(row?.InteractionId || "").trim();
+            if (!interactionId) {
+                const fallbackKey = `row-${String(row?.id || "").trim()}-${String(
+                    row?.recordingfile || "",
+                ).trim()}`;
+                if (!byInteraction.has(fallbackKey)) {
+                    byInteraction.set(fallbackKey, row);
+                }
+                continue;
+            }
+
+            const current = byInteraction.get(interactionId);
+            if (!current) {
+                byInteraction.set(interactionId, row);
+                continue;
+            }
+
+            const currentOrder = Number(current?.ActionOrder || current?.action_order || 0);
+            const nextOrder = Number(row?.ActionOrder || row?.action_order || 0);
+
+            // Prioriza accion 1 para evitar duplicados visuales por multiples acciones.
+            if (currentOrder !== 1 && nextOrder === 1) {
+                byInteraction.set(interactionId, row);
+            }
+        }
+
+        return Array.from(byInteraction.values());
+    }, [grabaciones]);
 
     useEffect(() => {
         const API_BASE = import.meta.env.VITE_API_BASE;
@@ -247,25 +282,29 @@ export default function GrabacionesInboundPage() {
     };
 
     const campanias = Array.from(
-        new Set(grabaciones.map((g) => g.CampaignId).filter(Boolean)),
+        new Set(grabacionesVista.map((g) => g.CampaignId).filter(Boolean)),
     );
     const categorizaciones = Array.from(
-        new Set(grabaciones.map((g) => g.Categorizacion).filter(Boolean)),
+        new Set(grabacionesVista.map((g) => g.Categorizacion).filter(Boolean)),
     );
     const agentes = Array.from(
-        new Set(grabaciones.map((g) => g.AgentName || g.Agent).filter(Boolean)),
+        new Set(grabacionesVista.map((g) => g.AgentName || g.Agent).filter(Boolean)),
     );
 
-    const grabacionesFiltradas = grabaciones.filter((g) => {
+    const grabacionesFiltradas = grabacionesVista.filter((g) => {
         const fechaGrabacion =
             g.calldateLocal || toLocalDateString(g.calldate || g.TmStmp);
+        const telefono = String(g.dst || g.ContactAddress || "");
+        const identificacion = String(g.Identification || "");
         return (
             (!filtroFecha || fechaGrabacion === filtroFecha) &&
             (!filtroCampania || g.CampaignId === filtroCampania) &&
             (!filtroCategorizacion ||
                 g.Categorizacion === filtroCategorizacion) &&
             (!filtroAgente || (g.AgentName || g.Agent) === filtroAgente) &&
-            (!filtroTelefono || (g.dst && g.dst.includes(filtroTelefono)))
+            (!filtroTelefono || telefono.includes(filtroTelefono)) &&
+            (!filtroIdentificacion ||
+                identificacion.includes(filtroIdentificacion))
         );
     });
 
@@ -299,6 +338,7 @@ export default function GrabacionesInboundPage() {
         setFiltroCategorizacion("");
         setFiltroAgente("");
         setFiltroTelefono("");
+        setFiltroIdentificacion("");
         setFiltroFecha("");
     };
 
@@ -423,6 +463,20 @@ export default function GrabacionesInboundPage() {
                                 placeholder="Teléfono"
                             />
                         </div>
+                        <div className="grabaciones-field">
+                            <span className="grabaciones-field-label">
+                                Identificación
+                            </span>
+                            <input
+                                className="grabaciones-input"
+                                type="text"
+                                value={filtroIdentificacion}
+                                onChange={(e) =>
+                                    setFiltroIdentificacion(e.target.value)
+                                }
+                                placeholder="Identificación"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -442,6 +496,7 @@ export default function GrabacionesInboundPage() {
                                 <tr>
                                     <th>Fecha</th>
                                     <th>Teléfono</th>
+                                    <th>Identificación</th>
                                     <th>Agente</th>
                                     <th>Cliente</th>
                                     <th>Campaña</th>
@@ -466,6 +521,7 @@ export default function GrabacionesInboundPage() {
                                                     : ""}
                                             </td>
                                             <td>{g.dst || g.ContactAddress}</td>
+                                            <td>{g.Identification || "-"}</td>
                                             <td>
                                                 <div className="grabaciones-agent-main">
                                                     {g.AgentName || g.Agent}
@@ -513,4 +569,3 @@ export default function GrabacionesInboundPage() {
         </PageContainer>
     );
 }
-

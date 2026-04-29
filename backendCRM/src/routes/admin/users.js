@@ -4,6 +4,7 @@ import * as userService from "../../services/user.service.js";
 import { UserDAO } from "../../services/dao/UserDAO.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
+import XLSX from "xlsx";
 import { encriptar, desencriptar, generarPassword,} from "../../utils/crypto.js";
 import { generarUsuarioSeguro } from "../../utils/userGenerator.js";
 
@@ -40,6 +41,35 @@ function formatDateOnly(value) {
     return parsed.toISOString().slice(0, 10);
 }
 
+function sanitizeFileSegment(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9_-]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 80);
+}
+
+function formatUserForAdmin(u = {}) {
+    return {
+        IdUser: u.IdUser,
+        Usuario: desencriptar(u.Id),
+        Identificacion: u.Identification,
+        Nombres: [u.Name1, u.Name2, u.Surname1, u.Surname2]
+            .filter(Boolean)
+            .join(" ")
+            .toUpperCase(),
+        Email: u.Email || "",
+        Address: u.Address || "",
+        dateBirth: formatDateOnly(u.dateBirth),
+        Celular: u.ContacAddress || "",
+        Perfil: u.Description || "",
+        Estado: u.State == 1 ? "ACTIVO" : "INACTIVO",
+        UserGroup: u.IdWorkgroup || "",
+        UsuarioAnadio: u.UserCreate || "",
+    };
+}
+
 /* =========================================================
    GET /admin/users  → Listar usuarios con campo "usuario"
    ========================================================= */
@@ -52,28 +82,11 @@ router.get(
             // Usar el servicio para obtener todos los usuarios
             const allUsers = await userService.obtenerUsuarios();
 
-            const formatearUsuario = (u) => ({
-                IdUser: u.IdUser,
-                Usuario: desencriptar(u.Id),
-                Identificacion: u.Identification,
-                Nombres: [u.Name1, u.Name2, u.Surname1, u.Surname2]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toUpperCase(),
-                Email: u.Email || "",
-                Address: u.Address || "",
-                dateBirth: formatDateOnly(u.dateBirth),
-                Celular: u.ContacAddress || "",
-                Perfil: u.Description || "",
-                Estado: u.State == 1 ? "ACTIVO" : "INACTIVO",
-                UserGroup: u.IdWorkgroup || "",
-            });
-
             const activos = [];
             const inactivos = [];
 
             allUsers.forEach((u) => {
-                const usuario = formatearUsuario(u);
+                const usuario = formatUserForAdmin(u);
 
                 if (u.State == 1) {
                     activos.push(usuario);
@@ -90,6 +103,108 @@ router.get(
             console.error("Error listando usuarios:", err);
             res.status(500).json({
                 error: "Error listando usuarios",
+            });
+        }
+    },
+);
+
+/* =========================================================
+   GET /admin/users/export  → Exportar usuarios a Excel
+   ========================================================= */
+router.get(
+    "/export",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (req, res) => {
+        try {
+            const estado = String(req.query?.estado || "TODOS")
+                .trim()
+                .toUpperCase();
+            const allowedStates = new Set(["ACTIVOS", "INACTIVOS", "TODOS"]);
+
+            if (!allowedStates.has(estado)) {
+                return res.status(400).json({
+                    error: "Parámetro estado inválido. Usa ACTIVOS, INACTIVOS o TODOS",
+                });
+            }
+
+            const allUsers = await userService.obtenerUsuarios();
+            const formattedUsers = allUsers.map(formatUserForAdmin);
+
+            const filteredUsers = formattedUsers.filter((u) => {
+                if (estado === "ACTIVOS") return u.Estado === "ACTIVO";
+                if (estado === "INACTIVOS") return u.Estado === "INACTIVO";
+                return true;
+            });
+
+            const exportRows = filteredUsers.map((u) => ({
+                Usuario: u.Usuario,
+                Identificacion: u.Identificacion,
+                Nombres: u.Nombres,
+                Celular: u.Celular,
+                Email: u.Email,
+                Perfil: u.Perfil,
+                Estado: u.Estado,
+                "Usuario anadido": u.UsuarioAnadio,
+                FechaNacimiento: u.dateBirth,
+                Direccion: u.Address,
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportRows, {
+                header: [
+                    "Usuario",
+                    "Identificacion",
+                    "Nombres",
+                    "Celular",
+                    "Email",
+                    "Perfil",
+                    "Estado",
+                    "Usuario anadido",
+                    "FechaNacimiento",
+                    "Direccion",
+                ],
+            });
+            worksheet["!cols"] = [
+                { wch: 24 },
+                { wch: 16 },
+                { wch: 34 },
+                { wch: 16 },
+                { wch: 30 },
+                { wch: 20 },
+                { wch: 12 },
+                { wch: 20 },
+                { wch: 16 },
+                { wch: 26 },
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Usuarios");
+
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, "0");
+            const dd = String(today.getDate()).padStart(2, "0");
+            const fileDate = `${yyyy}${mm}${dd}`;
+            const filename = `usuarios_${sanitizeFileSegment(estado.toLowerCase())}_${fileDate}.xlsx`;
+            const buffer = XLSX.write(workbook, {
+                type: "buffer",
+                bookType: "xlsx",
+            });
+
+            res.setHeader(
+                "Content-Type",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            );
+            res.setHeader(
+                "Content-Disposition",
+                `attachment; filename="${filename}"`,
+            );
+
+            return res.send(buffer);
+        } catch (err) {
+            console.error("Error exportando usuarios:", err);
+            return res.status(500).json({
+                error: "Error exportando usuarios",
             });
         }
     },

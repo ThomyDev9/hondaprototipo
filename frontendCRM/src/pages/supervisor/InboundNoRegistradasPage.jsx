@@ -527,15 +527,22 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [advisorMasterCatalog, rows, summary]);
 
-    const advisorOptions = useMemo(
-        () =>
-            buildUniqueOptions(
-                rows
-                    .map((row) => String(row?.asesorProbable || "").trim())
-                    .filter((value) => value && value !== "SIN_ASIGNAR"),
-            ),
-        [rows],
-    );
+    const advisorOptions = useMemo(() => {
+        const counts = new Map();
+        for (const row of rows || []) {
+            const advisor =
+                String(row?.asesorProbable || "").trim() || "SIN_ASIGNAR";
+            counts.set(advisor, Number(counts.get(advisor) || 0) + 1);
+        }
+
+        return Array.from(counts.entries())
+            .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+            .map(([value, count]) => ({
+                value,
+                count,
+                label: `${value} (${count})`,
+            }));
+    }, [rows]);
 
     const assignAdvisorOptions = useMemo(() => {
         const byId = new Map();
@@ -561,13 +568,22 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
         }));
     }, [advisorMasterCatalog, advisorCatalog]);
 
-    const queueOptions = useMemo(
-        () =>
-            Array.from(
-                new Set(rows.map((item) => item.queueResolved).filter(Boolean)),
-            ).sort((a, b) => a.localeCompare(b)),
-        [rows],
-    );
+    const queueOptions = useMemo(() => {
+        const counts = new Map();
+        for (const row of rows || []) {
+            const queue = String(row?.queueResolved || "").trim();
+            if (!queue) continue;
+            counts.set(queue, Number(counts.get(queue) || 0) + 1);
+        }
+
+        return Array.from(counts.entries())
+            .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+            .map(([value, count]) => ({
+                value,
+                count,
+                label: `${value} (${count})`,
+            }));
+    }, [rows]);
 
     const filteredRows = useMemo(
         () =>
@@ -1015,8 +1031,8 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
                                 >
                                     <option value="">Todos</option>
                                     {advisorOptions.map((item) => (
-                                        <option key={item} value={item}>
-                                            {item}
+                                        <option key={item.value} value={item.value}>
+                                            {item.label}
                                         </option>
                                     ))}
                                 </select>
@@ -1031,8 +1047,8 @@ export default function InboundNoRegistradasPage({ selfMode = false }) {
                             >
                                 <option value="">Todas</option>
                                 {queueOptions.map((item) => (
-                                    <option key={item} value={item}>
-                                        {item}
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
                                     </option>
                                 ))}
                             </select>
