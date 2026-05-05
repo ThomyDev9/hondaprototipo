@@ -14,7 +14,7 @@ import {
     OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS,
     OUT_MAQUITA_ENTREGA_DOCUMENTOS_OPTIONS,
     OUT_MAQUITA_MAIL_MOTIVOS,
-    OUT_MAQUITA_MAIL_SUBMOTIVOS,
+    getOutMaquitaSubmotivosByMotivo,
 } from "./outMaquitaConfig";
 import "./OutMaquitaMailFlow.css";
 
@@ -185,6 +185,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
     const [error, setError] = React.useState("");
     const [successMessage, setSuccessMessage] = React.useState("");
     const [pdfUrl, setPdfUrl] = React.useState(null);
+    const [mailDraft, setMailDraft] = React.useState({});
 
     const activeFlowConfig = React.useMemo(
         () =>
@@ -373,7 +374,9 @@ export default function OutMaquitaMailFlow({ onBack }) {
                     return {
                         ...field,
                         type: "select",
-                        options: OUT_MAQUITA_MAIL_SUBMOTIVOS.map((item) => ({
+                        options: getOutMaquitaSubmotivosByMotivo(
+                            String(mailDraft?.motivoInteraccion || ""),
+                        ).map((item) => ({
                             value: item,
                             label: item,
                         })),
@@ -384,13 +387,16 @@ export default function OutMaquitaMailFlow({ onBack }) {
             }),
             ...MAIL_EXTRA_FIELDS,
         ],
-        [tiposCampania],
+        [mailDraft?.motivoInteraccion, tiposCampania],
     );
 
     const initialValues = React.useMemo(
         () => buildMailInitialValues(registro),
         [registro],
     );
+    React.useEffect(() => {
+        setMailDraft(initialValues);
+    }, [initialValues]);
 
     const quickActions = React.useMemo(
         () => [
@@ -400,7 +406,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
                 apply: (currentValues) => ({
                     ...currentValues,
                     motivoInteraccion: "No contactado",
-                    submotivoInteraccion: "Volver a llamar",
+                    submotivoInteraccion: "No contesta",
                     observaciones: "No contesta",
                 }),
             },
@@ -409,8 +415,8 @@ export default function OutMaquitaMailFlow({ onBack }) {
                 label: "Grabadora",
                 apply: (currentValues) => ({
                     ...currentValues,
-                    motivoInteraccion: "Grabadora.",
-                    submotivoInteraccion: "Volver a llamar",
+                    motivoInteraccion: "No contactado",
+                    submotivoInteraccion: "Buzón de voz / grabadora",
                     observaciones: "Contesta grabadora",
                 }),
             },
@@ -419,8 +425,8 @@ export default function OutMaquitaMailFlow({ onBack }) {
                 label: "Contesta tercero",
                 apply: (currentValues) => ({
                     ...currentValues,
-                    motivoInteraccion: "Contesta tercero.",
-                    submotivoInteraccion: "Contesta tercero",
+                    motivoInteraccion: "No contactado",
+                    submotivoInteraccion: "Tercero informa / contesta tercero",
                     observaciones: "Contesta tercero",
                 }),
             },
@@ -613,6 +619,18 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         variant="outbound"
                                         template={dynamicTemplate}
                                         initialValues={initialValues}
+                                        onChangeCampo={(name, value) =>
+                                            setMailDraft((prev) => ({
+                                                ...prev,
+                                                [name]: value,
+                                                ...(name === "motivoInteraccion"
+                                                    ? {
+                                                          submotivoInteraccion:
+                                                              "",
+                                                      }
+                                                    : {}),
+                                            }))
+                                        }
                                         quickActions={quickActions}
                                         onGuardar={async (formData) => {
                                             try {
@@ -706,6 +724,18 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                         variant="outbound"
                                         template={dynamicTemplate}
                                         initialValues={initialValues}
+                                        onChangeCampo={(name, value) =>
+                                            setMailDraft((prev) => ({
+                                                ...prev,
+                                                [name]: value,
+                                                ...(name === "motivoInteraccion"
+                                                    ? {
+                                                          submotivoInteraccion:
+                                                              "",
+                                                      }
+                                                    : {}),
+                                            }))
+                                        }
                                         quickActions={quickActions}
                                         onGuardar={async (formData) => {
                                             try {

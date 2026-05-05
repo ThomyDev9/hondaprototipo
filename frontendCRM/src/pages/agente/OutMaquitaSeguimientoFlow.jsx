@@ -5,9 +5,7 @@ import {
 } from "../../services/dashboard.service";
 import {
     OUT_MAQUITA_MAIL_MOTIVOS,
-    OUT_MAQUITA_MAIL_SUBMOTIVOS,
-    OUT_MAQUITA_RRSS_MOTIVOS,
-    OUT_MAQUITA_RRSS_SUBMOTIVOS,
+    getOutMaquitaSubmotivosByMotivo,
 } from "./outMaquitaConfig";
 import "./OutMaquitaDocumentosFlow.css";
 
@@ -90,13 +88,8 @@ export default function OutMaquitaSeguimientoFlow({ onBack }) {
         loadRows();
     }, [loadRows]);
 
-    const isRrssChannel = selectedRow?.sourceChannel === "rrss";
-    const motivoOptions = isRrssChannel
-        ? OUT_MAQUITA_RRSS_MOTIVOS
-        : OUT_MAQUITA_MAIL_MOTIVOS;
-    const submotivoOptions = isRrssChannel
-        ? OUT_MAQUITA_RRSS_SUBMOTIVOS
-        : OUT_MAQUITA_MAIL_SUBMOTIVOS;
+    const motivoOptions = OUT_MAQUITA_MAIL_MOTIVOS;
+    const submotivoOptions = getOutMaquitaSubmotivosByMotivo(motivoInteraccion);
 
     React.useEffect(() => {
         setMotivoInteraccion(selectedRow?.motivoInteraccion || "");
@@ -323,9 +316,10 @@ export default function OutMaquitaSeguimientoFlow({ onBack }) {
                             <span>Motivo</span>
                             <select
                                 value={motivoInteraccion}
-                                onChange={(event) =>
-                                    setMotivoInteraccion(event.target.value)
-                                }
+                                onChange={(event) => {
+                                    setMotivoInteraccion(event.target.value);
+                                    setSubmotivoInteraccion("");
+                                }}
                             >
                                 <option value="">Selecciona una opcion</option>
                                 {motivoOptions.map((option) => (

@@ -1,4 +1,19 @@
 const API_BASE = import.meta.env.VITE_API_BASE;
+const TICKET_API_URL =
+    import.meta.env.VITE_TICKET_API_URL ||
+    "http://192.168.1.83:2000/api";
+const TICKET_API_LOGIN_PATH =
+    import.meta.env.VITE_TICKET_API_LOGIN_PATH || "login";
+const TICKET_API_USE_CREDENTIALS =
+    String(import.meta.env.VITE_TICKET_API_USE_CREDENTIALS || "0").trim() ===
+    "1";
+const TICKET_API_USER = import.meta.env.VITE_TICKET_API_USER || "";
+const TICKET_API_PASSWORD = import.meta.env.VITE_TICKET_API_PASSWORD || "";
+const TICKET_API_STATIC_TOKEN = import.meta.env.VITE_TICKET_API_TOKEN || "";
+const TICKET_API_CATALOGS_PATH =
+    import.meta.env.VITE_TICKET_API_CATALOGS_PATH || "catalog";
+const TICKET_API_TOKEN_STORAGE_KEY = "ticket_api_token";
+const IS_TICKETS_PROXY = /\/tickets-proxy\/?$/i.test(TICKET_API_URL);
 
 const getAuthToken = () => localStorage.getItem("access_token") || "";
 
@@ -16,8 +31,14 @@ const request = async (path, options = {}) => {
         headers: buildHeaders(options.headers || {}),
     });
     let json;
+    let text = "";
     try {
-        json = await resp.json();
+        text = await resp.text();
+        try {
+            json = text ? JSON.parse(text) : null;
+        } catch {
+            json = text || null;
+        }
     } catch {
         json = null;
     }
@@ -25,8 +46,212 @@ const request = async (path, options = {}) => {
         status: resp.status,
         ok: resp.ok,
         json,
+        text,
         response: resp,
     };
+};
+
+const getTicketApiToken = () =>
+    String(
+        TICKET_API_STATIC_TOKEN ||
+            localStorage.getItem(TICKET_API_TOKEN_STORAGE_KEY) ||
+            "",
+    ).trim();
+
+const setTicketApiToken = (token = "") => {
+    const normalizedToken = String(token || "").trim();
+    if (!normalizedToken) return;
+    localStorage.setItem(TICKET_API_TOKEN_STORAGE_KEY, normalizedToken);
+};
+
+const extractTicketToken = (json = null) => {
+    if (typeof json === "string") {
+        return String(json || "").trim();
+    }
+
+    return String(
+        json?.access_token ||
+            json?.token ||
+            json?.jwt ||
+            json?.data?.access_token ||
+            json?.data?.token ||
+            json?.result?.access_token ||
+            json?.result?.token ||
+            "",
+    ).trim();
+};
+
+const loginTicketApi = async () => {
+    const username = String(TICKET_API_USER || "").trim();
+    const password = String(TICKET_API_PASSWORD || "").trim();
+
+    if (!username || !password) {
+        return {
+            ok: false,
+            status: 400,
+            json: {
+                detail: "Faltan VITE_TICKET_API_USER y VITE_TICKET_API_PASSWORD.",
+            },
+        };
+    }
+
+    const payloadCandidates = [
+        { username, password },
+        { user: username, password },
+        { email: username, password },
+    ];
+
+    let lastResponse = null;
+    for (const payload of payloadCandidates) {
+        const resp = await fetch(`${TICKET_API_URL}/${TICKET_API_LOGIN_PATH}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: TICKET_API_USE_CREDENTIALS ? "include" : "omit",
+            body: JSON.stringify(payload),
+        });
+
+        let json = null;
+        let rawText = "";
+        try {
+            rawText = await resp.text();
+            try {
+                json = rawText ? JSON.parse(rawText) : null;
+            } catch {
+                json = rawText || null;
+            }
+        } catch {
+            json = null;
+        }
+
+        const authHeader = String(resp.headers.get("authorization") || "").trim();
+        const tokenFromHeader = authHeader.toLowerCase().startsWith("bearer ")
+            ? authHeader.slice(7).trim()
+            : "";
+        const receivedToken = extractTicketToken(json) || tokenFromHeader;
+
+        if (resp.ok && receivedToken) {
+            setTicketApiToken(receivedToken);
+        }
+
+        lastResponse = {
+            status: resp.status,
+            ok: resp.ok,
+            json,
+            response: resp,
+        };
+
+        if (resp.ok) {
+            return lastResponse;
+        }
+    }
+
+    return (
+        lastResponse || {
+            status: 500,
+            ok: false,
+            json: { detail: "No se pudo autenticar en API de tickets." },
+        }
+    );
+};
+
+const buildTicketAuthHeaders = (token = "") => {
+    const normalizedToken = String(token || "").trim();
+    if (!normalizedToken) {
+        return {};
+    }
+    return { Authorization: `Bearer ${normalizedToken}` };
+};
+
+const requestTicketApi = async (path, options = {}) => {
+    if (IS_TICKETS_PROXY) {
+        const resp = await fetch(`${TICKET_API_URL}/${path}`, {
+            ...options,
+            credentials: TICKET_API_USE_CREDENTIALS ? "include" : "omit",
+            headers: {
+                ...buildHeaders(),
+                ...(options.headers || {}),
+            },
+        });
+        let json = null;
+        let text = "";
+        try {
+            text = await resp.text();
+            try {
+                json = text ? JSON.parse(text) : null;
+            } catch {
+                json = text || null;
+            }
+        } catch {
+            json = null;
+        }
+        return {
+            status: resp.status,
+            ok: resp.ok,
+            json,
+            text,
+            response: resp,
+        };
+    }
+
+    let token = getTicketApiToken();
+    if (!token) {
+        const loginResp = await loginTicketApi();
+        if (!loginResp.ok) {
+            return loginResp;
+        }
+        token = getTicketApiToken();
+        if (!token) {
+            return {
+                ok: false,
+                status: 401,
+                json: {
+                    detail: "No se obtuvo token del login del API de tickets.",
+                    login_response: loginResp?.json || null,
+                },
+            };
+        }
+    }
+
+    const makeRequest = async (authToken) => {
+        const resp = await fetch(`${TICKET_API_URL}/${path}`, {
+            ...options,
+            credentials: TICKET_API_USE_CREDENTIALS ? "include" : "omit",
+            headers: {
+                ...buildTicketAuthHeaders(authToken),
+                ...(options.headers || {}),
+            },
+        });
+        let json = null;
+        let text = "";
+        try {
+            text = await resp.text();
+            try {
+                json = text ? JSON.parse(text) : null;
+            } catch {
+                json = text || null;
+            }
+        } catch {
+            json = null;
+        }
+        return {
+            status: resp.status,
+            ok: resp.ok,
+            json,
+            text,
+            response: resp,
+        };
+    };
+
+    let response = await makeRequest(token);
+    if (response.status === 401) {
+        const reloginResp = await loginTicketApi();
+        if (!reloginResp.ok) {
+            return response;
+        }
+        response = await makeRequest(getTicketApiToken());
+    }
+
+    return response;
 };
 
 export const fetchActiveBasesSummary = () =>
@@ -101,8 +326,7 @@ export const changeAgentStatus = ({
         }),
     });
 
-export const fetchAgentStatusOptions = () =>
-    request("agente/estados-agente");
+export const fetchAgentStatusOptions = () => request("agente/estados-agente");
 
 export const fetchAgentSessionContext = (sessionId) =>
     request(
@@ -334,7 +558,9 @@ export const fetchInboundUnregisteredByAdvisor = ({
         )}&endDate=${encodeURIComponent(
             String(endDate || "").trim(),
         )}&scope=${encodeURIComponent(
-            String(scope || "todo").trim().toLowerCase(),
+            String(scope || "todo")
+                .trim()
+                .toLowerCase(),
         )}&limit=${encodeURIComponent(String(limit || "").trim())}`,
     );
 
@@ -350,7 +576,9 @@ export const fetchInboundUnregisteredMine = ({
         )}&endDate=${encodeURIComponent(
             String(endDate || "").trim(),
         )}&scope=${encodeURIComponent(
-            String(scope || "todo").trim().toLowerCase(),
+            String(scope || "todo")
+                .trim()
+                .toLowerCase(),
         )}&limit=${encodeURIComponent(String(limit || "").trim())}`,
     );
 
@@ -464,4 +692,171 @@ export const guardarOutMaquitaDocumentos = (formData) =>
     request("agente/guardar-out-maquita-documentos", {
         method: "POST",
         body: formData,
+    });
+
+export const fetchTicketCatalogs = async ({ page = 1, limit = 500 } = {}) => {
+    if (IS_TICKETS_PROXY) {
+        return requestTicketApi(
+            `catalogs?page=${encodeURIComponent(page)}&limit=${encodeURIComponent(limit)}`,
+            { method: "GET" },
+        );
+    }
+
+    const queryCandidates = [
+        `page=${encodeURIComponent(page)}&limit=${encodeURIComponent(limit)}`,
+        `pageNumber=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(
+            limit,
+        )}`,
+        `offset=${encodeURIComponent(
+            (Number(page) - 1) * Number(limit),
+        )}&limit=${encodeURIComponent(limit)}`,
+        `limit=${encodeURIComponent(limit)}`,
+        "",
+    ];
+    const configuredPath = String(TICKET_API_CATALOGS_PATH || "catalog").trim();
+    const candidatePaths = [configuredPath].filter(Boolean);
+
+    let lastResponse = null;
+    for (const path of [...new Set(candidatePaths)]) {
+        for (const query of queryCandidates) {
+            const endpoint = query ? `${path}?${query}` : path;
+            const response = await requestTicketApi(endpoint, {
+                method: "GET",
+            });
+            lastResponse = response;
+            if (response.ok) {
+                return response;
+            }
+            if (response.status !== 404 && response.status !== 400) {
+                return response;
+            }
+        }
+    }
+
+    // Swagger indica un endpoint específico para catálogo de tickets.
+    const catalogTicketResp = await requestTicketApi("catalog/ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+    });
+    if (catalogTicketResp.ok) {
+        return catalogTicketResp;
+    }
+    lastResponse = catalogTicketResp;
+
+    return lastResponse || {
+        ok: false,
+        status: 404,
+        json: { detail: "No se encontró un endpoint de catálogos válido." },
+    };
+};
+
+export const createExternalTicket = async ({ ticketData, files = [] }) => {
+    const formData = new FormData();
+    formData.append("ticket", JSON.stringify(ticketData || {}));
+    (files || []).forEach((file) => {
+        if (file instanceof File) {
+            formData.append("files", file);
+        }
+    });
+
+    return requestTicketApi("tickets", {
+        method: "POST",
+        body: formData,
+    });
+};
+
+export const fetchTicketClientByIdentification = async (identification = "") => {
+    const normalized = String(identification || "").trim();
+    if (!normalized) {
+        return {
+            ok: false,
+            status: 400,
+            json: { detail: "Identificacion requerida." },
+        };
+    }
+
+    return requestTicketApi(
+        `client/${encodeURIComponent(normalized)}`,
+        { method: "GET" },
+    );
+};
+
+export const createTicketClient = async (payload = {}) =>
+    requestTicketApi("client", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+    });
+
+export const sendTicketCreateMail = async (ticketId, payload = {}) => {
+    const normalized = String(ticketId || "").trim();
+    if (!normalized) {
+        return {
+            ok: false,
+            status: 400,
+            json: { detail: "ticket_id requerido para enviar correo." },
+        };
+    }
+    return requestTicketApi(`mail/create/${encodeURIComponent(normalized)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+    });
+};
+
+export const fetchTicketTypes = async () =>
+    requestTicketApi("type", { method: "GET" });
+
+export const fetchTicketProductsByType = async (typeId = "") =>
+    requestTicketApi(`catalog/type/${encodeURIComponent(String(typeId || "").trim())}`, {
+        method: "GET",
+    });
+
+export const fetchTicketTopProducts = async (payload = {}) =>
+    requestTicketApi("catalog/top_product", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+    });
+
+export const fetchTicketReasons = async (payload = {}) =>
+    requestTicketApi("catalog/product", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+    });
+
+export const fetchTicketCatalogFromCascade = async (payload = {}) =>
+    requestTicketApi("catalog/ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+    });
+
+export const fetchTicketCanalTypes = async () =>
+    requestTicketApi("canal_type", { method: "GET" });
+
+export const fetchTicketCanals = async () =>
+    requestTicketApi("canal", { method: "GET" });
+
+export const fetchTicketAgencies = async () =>
+    requestTicketApi("agencia", { method: "GET" });
+
+export const fetchTicketProvinces = async () =>
+    requestTicketApi("province", { method: "GET" });
+
+export const fetchTicketCantonsByProvince = async (provinceId = "") =>
+    requestTicketApi(`canton/${encodeURIComponent(String(provinceId || "").trim())}`, {
+        method: "GET",
+    });
+
+export const fetchTicketCurrentUser = async () =>
+    requestTicketApi("validate_token", { method: "GET" });
+
+export const createTicketLocation = async (payload = {}) =>
+    requestTicketApi("ticket_location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
     });

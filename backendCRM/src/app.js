@@ -29,18 +29,34 @@ function resolveDataPath(envValue, relativeName) {
     return existing || candidates[0];
 }
 
+const extraCorsOrigins = String(
+    process.env.EXTERNAL_FORM_ALLOWED_ORIGINS || "",
+)
+    .split(",")
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+
+const allowedCorsOrigins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://172.19.10.61:5173",
+    "http://172.19.10.61:5174",
+    "http://186.5.32.134:8078",
+    ...extraCorsOrigins,
+];
+
 // CORS para el front (Vite)
 app.use(
     cors({
-        origin: [
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "http://172.19.10.61:5173",
-            "http://172.19.10.61:5174",
-            "http://186.5.32.134:8078",
-        ],
+        origin: allowedCorsOrigins,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
+        allowedHeaders: [
+            "Content-Type",
+            "Authorization",
+            "x-access-token",
+            "token",
+            "Bearer",
+        ],
         exposedHeaders: ["Content-Disposition"],
         credentials: true,
     }),

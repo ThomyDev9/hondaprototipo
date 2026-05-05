@@ -12,7 +12,6 @@ BEGIN
             source_channel,
             source_provider,
             source_external_id,
-            source_import_batch,
             source_sheet_name,
             source_row_number,
             fecha_origen_raw,
@@ -36,7 +35,6 @@ BEGIN
             'mail',
             'maquita',
             CONCAT('mail:', NEW.id),
-            NEW.import_batch,
             NEW.source_sheet_name,
             NEW.row_number,
             NULLIF(TRIM(NEW.fecha), ''),
@@ -82,7 +80,6 @@ BEGIN
         )
         ON DUPLICATE KEY UPDATE
             source_external_id = VALUES(source_external_id),
-            source_import_batch = VALUES(source_import_batch),
             source_sheet_name = VALUES(source_sheet_name),
             source_row_number = VALUES(source_row_number),
             fecha_origen_raw = VALUES(fecha_origen_raw),
@@ -110,18 +107,21 @@ FOR EACH ROW
 BEGIN
     IF NULLIF(TRIM(NEW.numero_cedula), '') IS NOT NULL THEN
         INSERT INTO external_leads (
-            source_channel, source_provider, source_external_id, source_import_batch, source_sheet_name, source_row_number,
+            source_channel, source_provider, source_external_id, source_sheet_name, source_row_number,
             fecha_origen_raw, fecha_origen_dt, identification, full_name, celular, city, estado_civil, actividad_economica,
-            monto_solicitado, autoriza_buro, destino_credito, ingreso_neto_recibir, tipo_relacion_laboral, tipo_vivienda,
+            tiempo_actividad_economica_anios,
+            monto_solicitado, autoriza_buro, destino_credito, ingreso_neto_recibir, fuente_ingreso, tipo_relacion_laboral, tipo_vivienda,
             mantiene_hijos, otros_ingresos, producto, observacion_cooperativa,
             proceso_a_realizar,
             workflow_status, workflow_substatus, is_ready_for_promotion, promotion_status, payload_json
         ) VALUES (
-            'rrss', 'maquita', CONCAT('rrss:', NEW.id), NEW.import_batch, NEW.source_sheet_name, NEW.row_number,
+            'rrss', 'maquita', CONCAT('rrss:', NEW.id), NEW.source_sheet_name, NEW.row_number,
             NULLIF(TRIM(NEW.fecha), ''), NULL, TRIM(NEW.numero_cedula), NULLIF(TRIM(NEW.apellidos_nombres_completos), ''),
             NULLIF(TRIM(NEW.celular), ''), NULLIF(TRIM(NEW.ciudad), ''), NULLIF(TRIM(NEW.estado_civil), ''),
-            NULLIF(TRIM(NEW.actividad_economica_tiempo), ''), NULLIF(TRIM(NEW.monto_solicitado), ''),
+            NULLIF(TRIM(NEW.actividad_economica), ''), NULLIF(TRIM(NEW.tiempo_actividad_economica_anios), ''),
+            NULLIF(TRIM(NEW.monto_solicitado), ''),
             NULLIF(TRIM(NEW.autoriza_buro), ''), NULLIF(TRIM(NEW.destino_credito), ''), NULLIF(TRIM(NEW.ingreso_neto_recibir), ''),
+            NULLIF(TRIM(NEW.fuente_ingreso), ''),
             NULLIF(TRIM(NEW.tipo_relacion_laboral), ''), NULLIF(TRIM(NEW.tipo_vivienda), ''), NULLIF(TRIM(NEW.mantiene_hijos), ''),
             NULLIF(TRIM(NEW.otros_ingresos), ''), NULLIF(TRIM(NEW.producto), ''), NULLIF(TRIM(NEW.observacion_agente_maquita), ''),
             NULLIF(TRIM(NEW.proceso_a_realizar), ''),
@@ -150,7 +150,6 @@ BEGIN
         )
         ON DUPLICATE KEY UPDATE
             source_external_id = VALUES(source_external_id),
-            source_import_batch = VALUES(source_import_batch),
             source_sheet_name = VALUES(source_sheet_name),
             source_row_number = VALUES(source_row_number),
             fecha_origen_raw = VALUES(fecha_origen_raw),
@@ -159,10 +158,12 @@ BEGIN
             city = VALUES(city),
             estado_civil = VALUES(estado_civil),
             actividad_economica = VALUES(actividad_economica),
+            tiempo_actividad_economica_anios = VALUES(tiempo_actividad_economica_anios),
             monto_solicitado = VALUES(monto_solicitado),
             autoriza_buro = VALUES(autoriza_buro),
             destino_credito = VALUES(destino_credito),
             ingreso_neto_recibir = VALUES(ingreso_neto_recibir),
+            fuente_ingreso = VALUES(fuente_ingreso),
             tipo_relacion_laboral = VALUES(tipo_relacion_laboral),
             tipo_vivienda = VALUES(tipo_vivienda),
             mantiene_hijos = VALUES(mantiene_hijos),

@@ -10,6 +10,22 @@ const ISABEL_TIMEZONE =
     MYSQL_TIMEZONE;
 const CL_TIMEZONE =
     String(process.env.CL_TIMEZONE || MYSQL_TIMEZONE).trim() || MYSQL_TIMEZONE;
+const MYSQL_POOL_CONNECTION_LIMIT = Number(
+    process.env.MYSQL_POOL_CONNECTION_LIMIT || 25,
+);
+const MYSQL_POOL_QUEUE_LIMIT = Number(process.env.MYSQL_POOL_QUEUE_LIMIT || 0);
+const ISABEL_POOL_CONNECTION_LIMIT = Number(
+    process.env.ISABEL_POOL_CONNECTION_LIMIT || 10,
+);
+const INBOUND_ISABEL_POOL_CONNECTION_LIMIT = Number(
+    process.env.INBOUND_ISABEL_POOL_CONNECTION_LIMIT || 10,
+);
+const CL_POOL_CONNECTION_LIMIT = Number(
+    process.env.CL_POOL_CONNECTION_LIMIT || 10,
+);
+const SHARED_POOL_QUEUE_LIMIT = Number(
+    process.env.SHARED_POOL_QUEUE_LIMIT || 0,
+);
 
 // Pool para la base de datos principal (CRM)
 const pool = mysql.createPool({
@@ -19,8 +35,12 @@ const pool = mysql.createPool({
     password: String(process.env.MYSQL_PASSWORD),
     database: process.env.MYSQL_DB,
     waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
+    connectionLimit: Number.isFinite(MYSQL_POOL_CONNECTION_LIMIT)
+        ? MYSQL_POOL_CONNECTION_LIMIT
+        : 25,
+    queueLimit: Number.isFinite(MYSQL_POOL_QUEUE_LIMIT)
+        ? MYSQL_POOL_QUEUE_LIMIT
+        : 0,
     charset: "utf8",
     dateStrings: true,
     timezone: MYSQL_TIMEZONE,
@@ -34,8 +54,12 @@ const isabelPool = mysql.createPool({
     password: process.env.ISABEL_PASSWORD || "sIst2m1s2020",
     database: process.env.ISABEL_DB || "asteriskcdrdb",
     waitForConnections: true,
-    connectionLimit: 5,
-    queueLimit: 0,
+    connectionLimit: Number.isFinite(ISABEL_POOL_CONNECTION_LIMIT)
+        ? ISABEL_POOL_CONNECTION_LIMIT
+        : 10,
+    queueLimit: Number.isFinite(SHARED_POOL_QUEUE_LIMIT)
+        ? SHARED_POOL_QUEUE_LIMIT
+        : 0,
     charset: "utf8",
     dateStrings: true,
     timezone: ISABEL_TIMEZONE,
@@ -68,8 +92,12 @@ const inboundIsabelPool = mysql.createPool({
         process.env.ISABEL_DB ||
         "asteriskcdrdb",
     waitForConnections: true,
-    connectionLimit: 5,
-    queueLimit: 0,
+    connectionLimit: Number.isFinite(INBOUND_ISABEL_POOL_CONNECTION_LIMIT)
+        ? INBOUND_ISABEL_POOL_CONNECTION_LIMIT
+        : 10,
+    queueLimit: Number.isFinite(SHARED_POOL_QUEUE_LIMIT)
+        ? SHARED_POOL_QUEUE_LIMIT
+        : 0,
     charset: "utf8",
     dateStrings: true,
     timezone: ISABEL_TIMEZONE,
@@ -82,8 +110,12 @@ const callCenterPool = mysql.createPool({
     password: process.env.CL_PASSWORD || "sIst2m1s2020",
     database: process.env.CL_DB || "call_center",
     waitForConnections: true,
-    connectionLimit: 5,
-    queueLimit: 0,
+    connectionLimit: Number.isFinite(CL_POOL_CONNECTION_LIMIT)
+        ? CL_POOL_CONNECTION_LIMIT
+        : 10,
+    queueLimit: Number.isFinite(SHARED_POOL_QUEUE_LIMIT)
+        ? SHARED_POOL_QUEUE_LIMIT
+        : 0,
     charset: "utf8",
     dateStrings: true,
     timezone: CL_TIMEZONE,

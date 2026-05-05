@@ -8,6 +8,7 @@ import AgentScriptTabs from "./AgentScriptTabs";
 import AgentGestionPrimarySection from "./AgentGestionPrimarySection";
 import AgentGestionDynamicSection from "./AgentGestionDynamicSection";
 import AgentGestionSurveySection from "./AgentGestionSurveySection";
+import RedesVisionFundTicketSection from "./RedesVisionFundTicketSection";
 import { buildCrmEmailDraft } from "../crmEmailDraft.helpers";
 import {
     buildDynamicFormRows,
@@ -111,6 +112,14 @@ function normalizeFlowLabel(value) {
         .replace(/[\u0300-\u036f]/g, "")
         .trim()
         .toLowerCase();
+}
+
+function isVisionFundClientLabel(value) {
+    const normalizedValue = normalizeFlowLabel(value);
+    return (
+        normalizedValue.includes("banco") &&
+        normalizedValue.includes("visionfund")
+    );
 }
 
 function requiresInboundClienteRelation(...values) {
@@ -808,6 +817,7 @@ function AgentGestionForm({
     isSaving = false,
 }) {
     const firstRender = useRef(true);
+    const visionFundClientDetectedRef = useRef(false);
     const [activeTab, setActiveTab] = useState("gestion");
     const isInboundManualFlow =
         manualFlow &&
@@ -1089,6 +1099,11 @@ function AgentGestionForm({
     const showDynamicForm =
         Boolean(dynamicFormConfig) && inboundDynamicRows.length > 0;
 
+    useEffect(() => {
+        // Reinicia el latch al cambiar de flujo/campaña para no arrastrar estado.
+        visionFundClientDetectedRef.current = false;
+    }, [menuItemId, campaignId, categoryId, isRedesManualFlow]);
+
     const normalizedLevel1 = String(level1Seleccionado || "")
         .trim()
         .toUpperCase();
@@ -1199,6 +1214,256 @@ function AgentGestionForm({
                                     onChange={onInboundImageDraftChange}
                                 />
                             )}
+                            {isRedesManualFlow &&
+                                (() => {
+                                    const selectedRedesMenuItemId = String(
+                                        dynamicFormAnswers?.__redes_nombre_cliente ||
+                                            "",
+                                    ).trim();
+                                    const selectedRedesClientLabel = String(
+                                        (inboundChildOptions || []).find(
+                                            (item) =>
+                                                String(
+                                                    item?.menuItemId ||
+                                                        item?.value ||
+                                                        "",
+                                                ).trim() ===
+                                                selectedRedesMenuItemId,
+                                        )?.label || "",
+                                    ).trim();
+                                    const isVisionFundClient =
+                                        isVisionFundClientLabel(
+                                            selectedRedesClientLabel,
+                                        );
+                                    if (isVisionFundClient) {
+                                        visionFundClientDetectedRef.current = true;
+                                    }
+                                    if (
+                                        !isVisionFundClient &&
+                                        !visionFundClientDetectedRef.current
+                                    ) {
+                                        return null;
+                                    }
+
+                                    const pickFirstNonEmpty = (...values) =>
+                                        values
+                                            .map((value) => String(value || "").trim())
+                                            .find((value) => value) || "";
+                                    const readFieldRuntimeValue = (field) =>
+                                        pickFirstNonEmpty(
+                                            field?.value,
+                                            field?.answer,
+                                            field?.selectedValue,
+                                            field?.response,
+                                            field?.currentValue,
+                                        );
+                                    const looksLikeInternalCode = (value = "") => {
+                                        const raw = String(value || "").trim();
+                                        if (!raw) return false;
+                                        const isUuidLike =
+                                            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+                                                raw,
+                                            );
+                                        const isOnlyDigits = /^\d{8,}$/.test(raw);
+                                        const isLongToken = /^[a-z0-9_-]{12,}$/i.test(raw);
+                                        return isUuidLike || isOnlyDigits || isLongToken;
+                                    };
+                                    const pickCleanName = (...values) =>
+                                        values
+                                            .map((value) => String(value || "").trim())
+                                            .find((value) => value && !looksLikeInternalCode(value)) ||
+                                        pickFirstNonEmpty(...values);
+                                    const redesFieldsFlat = (inboundDynamicRows || [])
+                                        .flat()
+                                        .filter(Boolean);
+                                    const redesFieldsWithValuesFlat = (
+                                        dynamicFormRowsWithValues || []
+                                    )
+                                        .flat()
+                                        .filter(Boolean);
+                                    const findRedesFieldByOrder = (order) =>
+                                        redesFieldsFlat.find(
+                                            (field) => getRedesFieldOrder(field) === order,
+                                        ) || null;
+                                    const findWritableRedesFieldByOrder = (order) =>
+                                        redesFieldsFlat.find((field) => {
+                                            if (getRedesFieldOrder(field) !== order) return false;
+                                            const key = String(field?.key || "").trim();
+                                            if (!key) return false;
+                                            if (key.startsWith("__redes_")) return false;
+                                            if (key.startsWith("__inbound_")) return false;
+                                            return true;
+                                        }) || null;
+                                    const findRedesFieldWithValueByOrder = (order) =>
+                                        redesFieldsWithValuesFlat.find(
+                                            (field) =>
+                                                getRedesFieldOrder(field) === order &&
+                                                readFieldRuntimeValue(field),
+                                        ) || null;
+                                    const findValueByField = (field) => {
+                                        const key = String(field?.key || "").trim();
+                                        const directValue = readFieldRuntimeValue(field);
+                                        if (directValue) return directValue;
+                                        if (!key) return "";
+                                        return String(dynamicFormAnswers?.[key] || "").trim();
+                                    };
+                                    const findValueFromRowsByLabel = (patterns = []) => {
+                                        const target = redesFieldsWithValuesFlat.find((field) => {
+                                            const label = String(field?.label || "")
+                                                .trim()
+                                                .toLowerCase();
+                                            if (!label) return false;
+                                            return patterns.some((pattern) =>
+                                                label.includes(pattern),
+                                            );
+                                        });
+                                        return readFieldRuntimeValue(target);
+                                    };
+                                    const findValueByLabel = (patterns = []) => {
+                                        const target = redesFieldsFlat.find((field) => {
+                                            const label = String(field?.label || "")
+                                                .trim()
+                                                .toLowerCase();
+                                            if (!label) return false;
+                                            return patterns.some((pattern) =>
+                                                label.includes(pattern),
+                                            );
+                                        });
+                                        return findValueByField(target);
+                                    };
+
+                                    const identificationByOrder = findValueByField(
+                                        findRedesFieldByOrder(1),
+                                    );
+                                    const identificationFieldKey = String(
+                                        findWritableRedesFieldByOrder(1)?.key || "",
+                                    ).trim();
+                                    const identificationByOrderWithValue = String(
+                                        findRedesFieldWithValueByOrder(1)?.value || "",
+                                    ).trim();
+                                    const fullNameByOrder = findValueByField(
+                                        findRedesFieldByOrder(2),
+                                    );
+                                    const fullNameFieldKey = String(
+                                        findWritableRedesFieldByOrder(2)?.key || "",
+                                    ).trim();
+                                    const fullNameByOrderWithValue = String(
+                                        readFieldRuntimeValue(findRedesFieldWithValueByOrder(2)) ||
+                                            "",
+                                    ).trim();
+                                    const phoneByOrder = findValueByField(
+                                        findRedesFieldByOrder(3),
+                                    );
+                                    const phoneFieldKey = String(
+                                        findWritableRedesFieldByOrder(3)?.key || "",
+                                    ).trim();
+                                    const phoneByOrderWithValue = String(
+                                        findRedesFieldWithValueByOrder(3)?.value || "",
+                                    ).trim();
+
+                                    return (
+                                        <RedesVisionFundTicketSection
+                                            identification={pickFirstNonEmpty(
+                                                identificationByOrderWithValue,
+                                                identificationByOrder,
+                                                findValueFromRowsByLabel([
+                                                    "identificacion",
+                                                    "cédula",
+                                                    "cedula",
+                                                ]),
+                                                findValueByLabel(["identificacion", "cédula", "cedula"]),
+                                                dynamicFormAnswers?.IDENTIFICACION,
+                                                dynamicFormAnswers?.identificacion,
+                                                dynamicFormAnswers?.identification,
+                                                dynamicFormAnswers?.cedula,
+                                            )}
+                                            fullName={pickFirstNonEmpty(
+                                                pickCleanName(fullNameByOrderWithValue),
+                                                fullNameByOrder,
+                                                pickCleanName(
+                                                    findValueFromRowsByLabel([
+                                                        "apellidos y nombres",
+                                                        "nombre cliente",
+                                                    ]),
+                                                ),
+                                                pickCleanName(
+                                                    findValueByLabel([
+                                                        "apellidos y nombres",
+                                                        "nombre cliente",
+                                                    ]),
+                                                ),
+                                                pickCleanName(dynamicFormAnswers?.NOMBRE_CLIENTE),
+                                                pickCleanName(dynamicFormAnswers?.nombreCliente),
+                                                pickCleanName(dynamicFormAnswers?.apellidosNombres),
+                                                pickCleanName(
+                                                    dynamicFormAnswers?.__redes_nombre_cliente_label,
+                                                ),
+                                                pickCleanName(
+                                                    dynamicFormAnswers?.__inbound_nombre_cliente_label,
+                                                ),
+                                            )}
+                                            phone={pickFirstNonEmpty(
+                                                phoneByOrderWithValue,
+                                                phoneByOrder,
+                                                findValueFromRowsByLabel(["celular", "telefono"]),
+                                                findValueByLabel(["celular", "telefono"]),
+                                                dynamicFormAnswers?.CAMPO3,
+                                                dynamicFormAnswers?.celular,
+                                                dynamicFormAnswers?.Celular,
+                                                dynamicFormAnswers?.telefono,
+                                                dynamicFormAnswers?.telefonoCliente,
+                                                dynamicFormAnswers?.__inbound_current_call_phone,
+                                            )}
+                                            onSyncRedesClientData={({
+                                                identification: nextIdentification,
+                                                fullName: nextFullName,
+                                                phone: nextPhone,
+                                                clear = false,
+                                            }) => {
+                                                const normalizedIdentification = String(
+                                                    nextIdentification || "",
+                                                ).trim();
+                                                const normalizedFullName = String(
+                                                    nextFullName || "",
+                                                ).trim();
+                                                const normalizedPhone = String(
+                                                    nextPhone || "",
+                                                ).trim();
+                                                const updates = [
+                                                    [identificationFieldKey, normalizedIdentification],
+                                                    [fullNameFieldKey, normalizedFullName],
+                                                    [phoneFieldKey, normalizedPhone],
+                                                ];
+                                                const dedupedUpdates = Array.from(
+                                                    new Map(
+                                                        updates
+                                                            .filter(([key, value]) => {
+                                                                if (!String(key || "").trim()) {
+                                                                    return false;
+                                                                }
+                                                                if (clear) return true;
+                                                                return String(value || "").trim() !== "";
+                                                            })
+                                                            .map(([key, value]) => [
+                                                                String(key).trim(),
+                                                                String(value).trim(),
+                                                            ]),
+                                                    ).entries(),
+                                                );
+                                                dedupedUpdates.forEach(([key, value]) => {
+                                                    if (
+                                                        typeof onDynamicFormFieldChange === "function"
+                                                    ) {
+                                                        onDynamicFormFieldChange(
+                                                            key,
+                                                            value,
+                                                        );
+                                                    }
+                                                });
+                                            }}
+                                        />
+                                    );
+                                })()}
                         </div>
                         <InboundInteractionDetailsSection
                             details={inboundInteractionDetails}

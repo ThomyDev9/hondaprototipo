@@ -10,6 +10,13 @@ export function registerQueueRoutes(
         requireAuth,
     },
 ) {
+    const normalizeTextKey = (value = "") =>
+        String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim()
+            .toLowerCase();
+
     const normalizeMachineIp = (rawIp = "") => {
         const value = String(rawIp || "").trim();
         if (!value) return "";
@@ -501,9 +508,14 @@ export function registerQueueRoutes(
     router.get(
         "/bases-activas-resumen",
         ...agenteMiddlewares,
-        async (_req, res) => {
+        async (req, res) => {
             try {
                 await ensureImportStatsTable(pool);
+                const requestedCampaignId = String(
+                    req.query?.campaignId || "",
+                ).trim();
+                const requestedCampaignKey =
+                    normalizeTextKey(requestedCampaignId);
 
                 const rows = await agenteDAO.getActiveBasesSummary();
                 const data = (rows || [])
@@ -517,7 +529,16 @@ export function registerQueueRoutes(
                             row.pendientes_asignados_sin_gestion || 0,
                         ),
                     }))
-                    .filter((item) => item.campaignId && item.importId);
+                    .filter((item) => item.campaignId && item.importId)
+                    .filter((item) => {
+                        if (!requestedCampaignKey) {
+                            return true;
+                        }
+                        return (
+                            normalizeTextKey(item.campaignId) ===
+                            requestedCampaignKey
+                        );
+                    });
 
                 return res.json({ data });
             } catch (err) {

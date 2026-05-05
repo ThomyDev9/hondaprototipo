@@ -330,11 +330,29 @@ function getRowsFromCSV(filePath) {
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
 
-    return XLSX.utils.sheet_to_json(worksheet, {
+    const rows = XLSX.utils.sheet_to_json(worksheet, {
         header: 1,
         defval: "",
         raw: false,
         blankrows: false,
+    });
+
+    // Algunos CSV con ';' pueden llegar como una sola columna por fila.
+    // Si detectamos ese caso, hacemos split manual para preservar compatibilidad.
+    return rows.map((row) => {
+        if (!Array.isArray(row)) {
+            return row;
+        }
+
+        if (
+            row.length === 1 &&
+            typeof row[0] === "string" &&
+            row[0].includes(";")
+        ) {
+            return row[0].split(";").map((cell) => String(cell || "").trim());
+        }
+
+        return row;
     });
 }
 
@@ -576,6 +594,14 @@ function filterValidRows(rawRows) {
     return lineas;
 }
 
+function summarizeHeaders(rawRows = []) {
+    const headers = Array.isArray(rawRows[0]) ? rawRows[0] : [];
+    return headers
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .slice(0, 30);
+}
+
 /**
  * Helper: Inserts a single contact with its phone numbers
  * @param {Object} context - Context object containing all required data
@@ -710,18 +736,35 @@ export async function procesarCSV(
     }
 
     try {
+        const normalizedCampaignId = String(campaignId || "").trim();
+        const normalizedImportName = String(importName || "").trim();
+
+        if (!normalizedCampaignId) {
+            throw new Error("campaignId vacio al iniciar importacion");
+        }
+        if (!normalizedImportName) {
+            throw new Error("importName vacio al iniciar importacion");
+        }
+
         connCCK = await pool.getConnection();
 
         await connCCK.beginTransaction();
 
         const importNameDuplicado = await validateImportMetadata(
             connCCK,
-            campaignId,
-            importName,
+            normalizedCampaignId,
+            normalizedImportName,
         );
 
         const rawRows = getRowsFromCSV(filePath);
         const lineas = filterValidRows(rawRows);
+
+        if (lineas.length === 0) {
+            const headerPreview = summarizeHeaders(rawRows);
+            throw new Error(
+                `No se encontraron filas válidas para importar. Verifica que el CSV tenga columnas reconocibles como IDENTIFICACION y/o NOMBRE_CLIENTE, o el formato posicional esperado. Encabezados detectados: ${headerPreview.join(" | ") || "(sin encabezados)"}`,
+            );
+        }
 
         for (const value of lineas) {
             const ID = uuidv4();
@@ -743,8 +786,8 @@ export async function procesarCSV(
                 contactId: ID,
                 contactName: Name,
                 identification: Identification,
-                campaignId,
-                importName,
+                campaignId: normalizedCampaignId,
+                importName: normalizedImportName,
                 vcc,
                 lineaData: value,
                 dateNow,
@@ -753,9 +796,18 @@ export async function procesarCSV(
             ingresado++;
         }
 
+        if (ingresado === 0) {
+            const headerPreview = summarizeHeaders(rawRows);
+            const firstParsedRow =
+                lineas.length > 0 ? JSON.stringify(lineas[0]) : "(sin filas)";
+            throw new Error(
+                `Importacion sin inserciones: se procesaron ${lineas.length} filas validas pero ingresado=0. CampaignId='${normalizedCampaignId}', ImportName='${normalizedImportName}', Headers='${headerPreview.join(" | ")}', PrimeraFila='${firstParsedRow}'`,
+            );
+        }
+
         await basesDAO.insertContactImportDetail([
             vcc,
-            importName,
+            normalizedImportName,
             "1",
             dateNow,
             importUser || "system",
@@ -768,16 +820,16 @@ export async function procesarCSV(
 
         await basesDAO.insertContactImport([
             vcc,
-            importName,
-            importName,
+            normalizedImportName,
+            normalizedImportName,
             "1",
             error === 0 ? "COMPLETE" : "INCOMPLETE",
             null,
         ], connCCK);
 
         await recomputeImportStats(
-            campaignId,
-            importName,
+            normalizedCampaignId,
+            normalizedImportName,
             importUser || "system",
             connCCK,
         );
@@ -787,8 +839,8 @@ export async function procesarCSV(
         return {
             success: true,
             importCase,
-            importName,
-            campaignId,
+            importName: normalizedImportName,
+            campaignId: normalizedCampaignId,
             importNameDuplicado,
             resumen: {
                 ingresado,

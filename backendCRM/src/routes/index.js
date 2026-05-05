@@ -74,13 +74,28 @@ export const routeRegistry = [
         module: () => import("./shared/campaign.js"),
         description: "Gestión de campañas",
     },
+    {
+        path: "/external-leads-webhook",
+        module: () => import("./shared/external-leads-webhook.js"),
+        description: "Webhook para carga directa de leads externos",
+    },
 
     {
         path: "/api/menu",
         module: () => import("./menu.routes.js"),
         description: "Menú jerárquico de campañas (outbound)",
     },
-];
+    {
+        path: "/tickets-proxy",
+        module: () => import("./tickets-proxy.js"),
+        description: "BFF proxy para API externa de tickets",
+    },
+    {
+        path: "/public",
+        module: () => import("./public/external-rrss-form.routes.js"),
+        description: "Formulario publico externo RRSS (aislado)",
+    },
+] ;
 
 /**
  * Registrar todas las rutas en la aplicación Express
@@ -126,3 +141,4 @@ export function listRoutes() {
 }
 
 export default routeRegistry;
+

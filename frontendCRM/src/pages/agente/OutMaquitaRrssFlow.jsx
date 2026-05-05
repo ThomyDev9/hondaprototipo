@@ -13,7 +13,7 @@ import {
     OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS,
     OUT_MAQUITA_ENTREGA_DOCUMENTOS_OPTIONS,
     OUT_MAQUITA_RRSS_MOTIVOS,
-    OUT_MAQUITA_RRSS_SUBMOTIVOS,
+    getOutMaquitaSubmotivosByMotivo,
 } from "./outMaquitaConfig";
 import "./OutMaquitaRrssFlow.css";
 
@@ -340,7 +340,9 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                     return {
                         ...field,
                         type: "select",
-                        options: OUT_MAQUITA_RRSS_SUBMOTIVOS.map((item) => ({
+                        options: getOutMaquitaSubmotivosByMotivo(
+                            String(rrssDraft?.motivoInteraccion || ""),
+                        ).map((item) => ({
                             value: item,
                             label: item,
                         })),
@@ -358,7 +360,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
             },
             ...RRSS_EXTRA_FIELDS.slice(1),
         ],
-        [tiposCampania],
+        [rrssDraft?.motivoInteraccion, tiposCampania],
     );
 
     const cargarSiguienteRegistro = React.useCallback(
@@ -462,6 +464,9 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                     setRrssDraft((prev) => ({
                         ...prev,
                         [name]: value,
+                        ...(name === "motivoInteraccion"
+                            ? { submotivoInteraccion: "" }
+                            : {}),
                     }))
                 }
                 onGuardar={async (formData) => {

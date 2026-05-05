@@ -18,6 +18,7 @@ import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
 import ConfiguracionAdmin from "./pages/admin/ConfiguracionAdmin";
 import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
 import ScriptsAdmin from "./pages/admin/ScriptsAdmin";
+import PublicMaquitaRrssForm from "./pages/PublicMaquitaRrssForm";
 import {
     endAgentSession,
     fetchAgentMachineContext,
@@ -64,6 +65,14 @@ const allowsZoiperBypassForUser = (user) => {
 };
 
 function App() {
+    const publicPath =
+        typeof window !== "undefined"
+            ? String(window.location?.pathname || "").trim().toLowerCase()
+            : "";
+    if (publicPath === "/precalificacion-maquita") {
+        return <PublicMaquitaRrssForm />;
+    }
+
     const standaloneMode =
         typeof window !== "undefined"
             ? new URLSearchParams(window.location.search).get("standalone")

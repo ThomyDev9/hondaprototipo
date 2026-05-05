@@ -79,23 +79,50 @@ const CREDIT_STATUS_OPTIONS = [
 
 const RRSS_PRODUCT_OPTIONS = [
     { value: "", label: "Selecciona producto" },
-    { value: "credito", label: "Credito" },
-    { value: "cuenta", label: "Cuenta" },
-    { value: "inversion", label: "Inversion" },
+    { value: "CRÉDITO", label: "Crédito" },
+    { value: "CUENTA", label: "Cuenta" },
+    { value: "INVERSIÓN", label: "Inversión" },
 ];
 
 const RRSS_PROCESS_OPTIONS = [
     { value: "", label: "Selecciona proceso" },
-    { value: "consumo", label: "Consumo" },
-    { value: "microcredito", label: "Microcredito" },
-    { value: "back to back", label: "Back to back" },
-    { value: "crediflash", label: "Crediflash" },
-    { value: "mi mesada", label: "Mi mesada" },
-    { value: "apertura de ahorro", label: "Apertura de ahorro" },
-    { value: "sin cobertura", label: "Sin cobertura" },
-    { value: "agencia", label: "Agencia" },
-    { value: "cedula no existe", label: "Cedula no existe" },
-    { value: "cedula incorrecta", label: "Cedula incorrecta" },
+    { value: "CUENTA DE AHORRO", label: "Cuenta de ahorro" },
+    { value: "CRÉDITO BACK TO BACK", label: "Crédito Back to Back" },
+    { value: "CRÉDITO DE CONSUMO", label: "Crédito de consumo" },
+    { value: "CREDIFLASH", label: "Crediflash" },
+    { value: "CRÉDITO MI MESADA", label: "Crédito Mi Mesada" },
+    { value: "MICROCRÉDITO", label: "Microcrédito" },
+    { value: "PLAZO FIJO", label: "Plazo fijo" },
+    { value: "CUENTA AHORRO BANQUITO", label: "Cuenta ahorro banquito" },
+    { value: "CUENTA AHORRO PROGRAMADO", label: "Cuenta ahorro programado" },
+];
+const CONSULTOR_COMMENT_OPTIONS = [
+    { value: "", label: "Selecciona motivo" },
+    { value: "Sin capacidad de pago", label: "Sin capacidad de pago" },
+    { value: "Sobreendeudamiento", label: "Sobreendeudamiento" },
+    { value: "Score bajo", label: "Score bajo" },
+    {
+        value: "Cartera castigada y morosidad",
+        label: "Cartera castigada y morosidad",
+    },
+    {
+        value: "Vencimientos actuales e históricos",
+        label: "Vencimientos actuales e históricos",
+    },
+    { value: "No aplica por edad", label: "No aplica por edad" },
+    {
+        value: "No aplica por estabilidad (Negocio o afiliación)",
+        label: "No aplica por estabilidad (Negocio o afiliación)",
+    },
+    {
+        value: "Documentación e información incompleta o incorrecta",
+        label: "Documentación e información incompleta o incorrecta",
+    },
+    {
+        value: "No aplica por política de destino de crédito",
+        label: "No aplica por política de destino de crédito",
+    },
+    { value: "Requiere garante", label: "Requiere garante" },
 ];
 
 function emptyForm() {
@@ -263,8 +290,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
     const isDocumentsPage = page === "consultor-documents";
     const isCreditStatusPage = page === "consultor-credit-status";
     const isReassignPage = isAdmin && page === "consultor-reassign";
-    const isAssignmentConfigPage =
-        isAdmin && page === "consultor-assignment";
+    const isAssignmentConfigPage = isAdmin && page === "consultor-assignment";
     const [filters, setFilters] = useState({
         sourceChannel: "",
         workflowStatus: "pendiente_completar",
@@ -323,7 +349,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
     const [summaryLoading, setSummaryLoading] = useState(false);
     const [consultorOptions, setConsultorOptions] = useState([]);
     const [assignmentConfig, setAssignmentConfig] = useState([]);
-    const [assignmentConfigSnapshot, setAssignmentConfigSnapshot] = useState([]);
+    const [assignmentConfigSnapshot, setAssignmentConfigSnapshot] = useState(
+        [],
+    );
     const [assignmentLoading, setAssignmentLoading] = useState(false);
     const [assignmentSaving, setAssignmentSaving] = useState(false);
     const [assignmentTotal, setAssignmentTotal] = useState(0);
@@ -344,7 +372,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         search: "",
     });
     const [documentTracking, setDocumentTracking] = useState([]);
-    const [documentTrackingLoading, setDocumentTrackingLoading] = useState(false);
+    const [documentTrackingLoading, setDocumentTrackingLoading] =
+        useState(false);
     const [documentTrackingStats, setDocumentTrackingStats] = useState({
         total: 0,
         digital: 0,
@@ -401,9 +430,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         selectedReassignIds.length === reassignLeads.length;
     const visibleWorkflowOptions = isAdmin
         ? WORKFLOW_OPTIONS
-        : WORKFLOW_OPTIONS.filter(
-            (option) => option.value !== "por_reasignar",
-        );
+        : WORKFLOW_OPTIONS.filter((option) => option.value !== "por_reasignar");
     const isAssignmentConfigValid =
         Math.abs(Number(assignmentTotal || 0) - 100) < 0.001;
     const hasAssignmentChanges = assignmentConfig.some((item) => {
@@ -443,9 +470,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         setDocumentTrackingLoading(true);
         setError("");
         try {
-            const { ok, json } = await fetchConsultorDocumentTracking(
-                documentFilters,
-            );
+            const { ok, json } =
+                await fetchConsultorDocumentTracking(documentFilters);
 
             if (!ok) {
                 throw new Error(
@@ -485,9 +511,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         setCreditTrackingLoading(true);
         setError("");
         try {
-            const { ok, json } = await fetchConsultorCreditStatusTracking(
-                creditFilters,
-            );
+            const { ok, json } =
+                await fetchConsultorCreditStatusTracking(creditFilters);
 
             if (!ok) {
                 throw new Error(
@@ -700,7 +725,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                 );
             }
 
-            const items = Array.isArray(json?.data?.items) ? json.data.items : [];
+            const items = Array.isArray(json?.data?.items)
+                ? json.data.items
+                : [];
             setAssignmentConfig(
                 items.map((item) => ({
                     user_id: normalize(item.id),
@@ -840,11 +867,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         }, 250);
         return () => window.clearTimeout(timeoutId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        isCreditStatusPage,
-        creditFilters.creditStatus,
-        creditFilters.search,
-    ]);
+    }, [isCreditStatusPage, creditFilters.creditStatus, creditFilters.search]);
 
     useEffect(() => {
         const identification = normalize(selectedLead?.identification);
@@ -959,7 +982,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
             selectedDocumentItem?.document_status,
         );
         setDocumentStatusDraft(
-            normalizedStatus === "Completos" || normalizedStatus === "Incompletos"
+            normalizedStatus === "Completos" ||
+                normalizedStatus === "Incompletos"
                 ? normalizedStatus
                 : "Incompletos",
         );
@@ -1140,18 +1164,16 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
             const next = prev.map((item) =>
                 item.user_id === userId
                     ? {
-                        ...item,
-                        ...changes,
-                    }
+                          ...item,
+                          ...changes,
+                      }
                     : item,
             );
 
-            const total = next
-                .reduce(
-                    (acc, item) =>
-                        acc + Number(item.assignment_percentage || 0),
-                    0,
-                );
+            const total = next.reduce(
+                (acc, item) => acc + Number(item.assignment_percentage || 0),
+                0,
+            );
             setAssignmentTotal(total);
             return next;
         });
@@ -1172,8 +1194,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                 })),
             };
 
-            const { ok, json } =
-                await updateConsultorAssignmentConfig(payload);
+            const { ok, json } = await updateConsultorAssignmentConfig(payload);
             if (!ok) {
                 throw new Error(
                     json?.error ||
@@ -1215,11 +1236,11 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         const next = assignmentConfig.map((item) =>
             item.user_id === userId && original
                 ? {
-                    ...item,
-                    assignment_percentage: Number(
-                        original.assignment_percentage || 0,
-                    ),
-                }
+                      ...item,
+                      assignment_percentage: Number(
+                          original.assignment_percentage || 0,
+                      ),
+                  }
                 : item,
         );
         setAssignmentConfig(next);
@@ -1250,26 +1271,26 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                             ? "Seguimiento Documentos"
                             : isCreditStatusPage
                               ? "Estado Credito"
-                            : isReassignPage
-                            ? "Reasignar Leads"
-                            : isAssignmentConfigPage
-                              ? "Configuracion Asignacion"
-                              : isAdmin
-                                ? "Panel Consultor Admin"
-                                : "Gestion Externa"}
+                              : isReassignPage
+                                ? "Reasignar Leads"
+                                : isAssignmentConfigPage
+                                  ? "Configuracion Asignacion"
+                                  : isAdmin
+                                    ? "Panel Consultor Admin"
+                                    : "Gestion Externa"}
                     </h1>
                     <p>
                         {isDocumentsPage
                             ? "Monitorea los registros de Out Maquita con entrega digital o fisica y su estado documental."
                             : isCreditStatusPage
                               ? "Actualiza el estado de credito para registros con documentos completos."
-                            : isReassignPage
-                            ? "Gestiona los leads vencidos y reasignalos a otro consultor."
-                            : isAssignmentConfigPage
-                              ? "Configura el porcentaje de asignacion automatica para cada consultor."
-                              : isAdmin
-                                ? "Resumen general de asignacion y resultado de todos los consultores."
-                                : "Modulo de trabajo para consultores sobre leads externos."}
+                              : isReassignPage
+                                ? "Gestiona los leads vencidos y reasignalos a otro consultor."
+                                : isAssignmentConfigPage
+                                  ? "Configura el porcentaje de asignacion automatica para cada consultor."
+                                  : isAdmin
+                                    ? "Resumen general de asignacion y resultado de todos los consultores."
+                                    : "Modulo de trabajo para consultores sobre leads externos."}
                     </p>
                 </div>
                 {isDocumentsPage ? (
@@ -1440,10 +1461,14 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                         </tr>
                                     ) : (
                                         documentTracking.map((item) => (
-                                            <tr key={item.id || item.contact_id}>
+                                            <tr
+                                                key={item.id || item.contact_id}
+                                            >
                                                 <td>{item.identification}</td>
                                                 <td>{item.full_name || "-"}</td>
-                                                <td>{item.delivery_mode || "-"}</td>
+                                                <td>
+                                                    {item.delivery_mode || "-"}
+                                                </td>
                                                 <td>{item.agency || "-"}</td>
                                                 <td>
                                                     {item.assigned_to_name ||
@@ -1509,9 +1534,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                         <div>
                             <h2>Estado de credito</h2>
                             <p>
-                                Registros con documentos completos para actualizar:
-                                Negado, Aprobado, Desembolsado o Pendiente
-                                regularizacion.
+                                Registros con documentos completos para
+                                actualizar: Negado, Aprobado, Desembolsado o
+                                Pendiente regularizacion.
                             </p>
                         </div>
                     </div>
@@ -1578,13 +1603,15 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                 colSpan="8"
                                                 className="consultor-table-empty"
                                             >
-                                                No hay registros para los filtros
-                                                actuales.
+                                                No hay registros para los
+                                                filtros actuales.
                                             </td>
                                         </tr>
                                     ) : (
                                         creditTracking.map((item) => (
-                                            <tr key={item.id || item.contact_id}>
+                                            <tr
+                                                key={item.id || item.contact_id}
+                                            >
                                                 <td>{item.identification}</td>
                                                 <td>{item.full_name || "-"}</td>
                                                 <td>{item.celular || "-"}</td>
@@ -1736,8 +1763,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                         </div>
 
                         <p className="consultor-reassign-copy">
-                            Seleccionados: <strong>{selectedReassignCount}</strong>.
-                            Si no seleccionas ninguno, se reasignan por cantidad.
+                            Seleccionados:{" "}
+                            <strong>{selectedReassignCount}</strong>. Si no
+                            seleccionas ninguno, se reasignan por cantidad.
                         </p>
 
                         {reassignLeadsLoading ? (
@@ -1752,7 +1780,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                             <th className="consultor-table-check-col">
                                                 <input
                                                     type="checkbox"
-                                                    checked={isAllReassignSelected}
+                                                    checked={
+                                                        isAllReassignSelected
+                                                    }
                                                     onChange={(e) =>
                                                         toggleAllReassignLeads(
                                                             e.target.checked,
@@ -1922,9 +1952,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                                 value={
                                                                     item.assignment_percentage
                                                                 }
-                                                                onChange={(
-                                                                    e,
-                                                                ) =>
+                                                                onChange={(e) =>
                                                                     handleAssignmentRowChange(
                                                                         item.user_id,
                                                                         {
@@ -2186,11 +2214,11 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
             {!isDocumentsPage &&
             !isCreditStatusPage &&
             (!isAdmin ||
-            (isAdmin &&
-                !isDocumentsPage &&
-                !isCreditStatusPage &&
-                !isReassignPage &&
-                !isAssignmentConfigPage)) ? (
+                (isAdmin &&
+                    !isDocumentsPage &&
+                    !isCreditStatusPage &&
+                    !isReassignPage &&
+                    !isAssignmentConfigPage)) ? (
                 <section className="consultor-panel">
                     <div className="consultor-panel-head">
                         <div>
@@ -2350,7 +2378,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                     {selectedDocumentItem.full_name ||
                                         "Detalle documental"}
                                 </h2>
-                                <span>{selectedDocumentItem.identification}</span>
+                                <span>
+                                    {selectedDocumentItem.identification}
+                                </span>
                                 <span>
                                     {selectedDocumentItem.source_channel || "-"}
                                 </span>
@@ -2374,7 +2404,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 Cedula
                                 <input
                                     value={
-                                        selectedDocumentItem.identification || ""
+                                        selectedDocumentItem.identification ||
+                                        ""
                                     }
                                     readOnly
                                 />
@@ -2425,8 +2456,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                             </label>
                             <label>
                                 Estado documental
-                                {normalize(selectedDocumentItem.delivery_mode) ===
-                                "Entrega fisica" ? (
+                                {normalize(
+                                    selectedDocumentItem.delivery_mode,
+                                ) === "Entrega fisica" ? (
                                     <select
                                         value={documentStatusDraft}
                                         onChange={(event) =>
@@ -2449,7 +2481,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 ) : (
                                     <input
                                         value={
-                                            selectedDocumentItem.document_status || ""
+                                            selectedDocumentItem.document_status ||
+                                            ""
                                         }
                                         readOnly
                                     />
@@ -2590,9 +2623,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                 <select
                                     value={creditStatusDraft}
                                     onChange={(event) =>
-                                        setCreditStatusDraft(
-                                            event.target.value,
-                                        )
+                                        setCreditStatusDraft(event.target.value)
                                     }
                                 >
                                     <option value="">
@@ -2775,7 +2806,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                 Mantiene hijos
                                                 <input
                                                     value={
-                                                        form.mantiene_hijos || ""
+                                                        form.mantiene_hijos ||
+                                                        ""
                                                     }
                                                     readOnly
                                                 />
@@ -2784,7 +2816,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                 Otros ingresos
                                                 <input
                                                     value={
-                                                        form.otros_ingresos || ""
+                                                        form.otros_ingresos ||
+                                                        ""
                                                     }
                                                     readOnly
                                                 />
@@ -2837,7 +2870,7 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                         </label>
                                         <label>
                                             Observacion cooperativa
-                                            <textarea
+                                            <select
                                                 value={
                                                     form.observacion_cooperativa ||
                                                     ""
@@ -2849,7 +2882,18 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                             e.target.value,
                                                     }))
                                                 }
-                                            />
+                                            >
+                                                {CONSULTOR_COMMENT_OPTIONS.map(
+                                                    (option) => (
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                        >
+                                                            {option.label}
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </select>
                                         </label>
                                     </div>
                                 ) : (
@@ -2934,16 +2978,9 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                 )}
                                             </select>
                                         </label>
-                                    </div>
-                                )}
-
-                                {selectedChannel === "rrss" ? (
-                                    <div
-                                        className={`consultor-form-grid consultor-form-grid--wide consultor-form-grid--${selectedChannel || "general"}`}
-                                    >
-                                        <label className="consultor-field-full">
+                                        <label>
                                             Comentario consultor
-                                            <textarea
+                                            <select
                                                 value={
                                                     form.observacion_cooperativa ||
                                                     ""
@@ -2955,10 +2992,21 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                             e.target.value,
                                                     }))
                                                 }
-                                            />
+                                            >
+                                                {CONSULTOR_COMMENT_OPTIONS.map(
+                                                    (option) => (
+                                                        <option
+                                                            key={option.value}
+                                                            value={option.value}
+                                                        >
+                                                            {option.label}
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </select>
                                         </label>
                                     </div>
-                                ) : null}
+                                )}
 
                                 <div className="consultor-actions">
                                     <button
@@ -3000,4 +3048,3 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
         </div>
     );
 }
-

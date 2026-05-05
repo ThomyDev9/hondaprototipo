@@ -40,60 +40,47 @@ export const OUT_MAQUITA_AGENCIA_ASISTIR_OPTIONS = [
     "PORTOVIEJO",
 ];
 
-export const OUT_MAQUITA_MAIL_MOTIVOS = [
-    "Contactado",
-    "No contactado",
-    "Volver a llamar",
-    "Numero equivocado",
-    "Grabadora",
-    "Contesta tercero",
-    "Cuelga llamada",
-    "Seguimiento",
-    "Inubicable",
-    "No aplica",
-    "Duplicado",
-];
+export const OUT_MAQUITA_SHARED_MOTIVO_SUBMOTIVOS = {
+    "Contactado efectivo": [
+        "Cierre de venta",
+        "Cliente indeciso",
+        "No interesado",
+        "Solicita información adicional",
+        "Se direcciona a agencia",
+        "Información enviada por canales digitales",
+    ],
+    "No contactado": [
+        "No contesta",
+        "Línea ocupada",
+        "Buzón de voz / grabadora",
+        "Número equivocado",
+        "Tercero informa / contesta tercero",
+        "Sin cobertura",
+        "Inubicable",
+    ],
+    Seguimiento: [
+        "Volver a llamar",
+        "Cliente solicita contacto posterior",
+        "Gestión en proceso",
+    ],
+    "Gestión no aplicable": ["No aplica"],
+};
 
-export const OUT_MAQUITA_MAIL_SUBMOTIVOS = [
-    "No se encuentra interesada",
-    "Se acercara a la agencia",
-    "Contesta tercero",
-    "Volver a llamar",
-    "Proces de venta",
-    "Sin cobertura",
-    "Equivocado",
-    "Inubicable",
-    "Desembolsado",
-    "Telefono imcompleto",
-    "Duplicado",
-    "No acepta producto sugerido",
-    "Rechazado",
-];
+export const OUT_MAQUITA_MAIL_MOTIVOS = Object.keys(
+    OUT_MAQUITA_SHARED_MOTIVO_SUBMOTIVOS,
+);
+export const OUT_MAQUITA_RRSS_MOTIVOS = OUT_MAQUITA_MAIL_MOTIVOS;
 
-export const OUT_MAQUITA_RRSS_MOTIVOS = [
-    "No contesta",
-    "Contactado",
-    "Volver a llamar",
-    "Inubicable",
-    "Seguimiento",
-    "No aplica",
-];
+export const OUT_MAQUITA_MAIL_SUBMOTIVOS = Object.values(
+    OUT_MAQUITA_SHARED_MOTIVO_SUBMOTIVOS,
+).flat();
+export const OUT_MAQUITA_RRSS_SUBMOTIVOS = OUT_MAQUITA_MAIL_SUBMOTIVOS;
 
-export const OUT_MAQUITA_RRSS_SUBMOTIVOS = [
-    "No se encuentra interesada",
-    "Se acercara a la agencia",
-    "Contesta tercero",
-    "Volver a llamar",
-    "Proces de venta",
-    "Sin cobertura",
-    "Equivocado",
-    "cliente indeciso",
-    "Informacion incorrecta",
-    "Grabadora",
-    "Se entrega informacion por redes",
-    "No acepta producto sugerido",
-    "Duplicado",
-];
+export function getOutMaquitaSubmotivosByMotivo(motivo = "") {
+    const key = String(motivo || "").trim();
+    if (!key) return [];
+    return OUT_MAQUITA_SHARED_MOTIVO_SUBMOTIVOS[key] || [];
+}
 
 export function getFirstNonEmptyValue(source, keys = []) {
     for (const key of keys) {
