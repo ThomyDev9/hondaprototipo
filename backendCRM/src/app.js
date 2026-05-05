@@ -29,9 +29,7 @@ function resolveDataPath(envValue, relativeName) {
     return existing || candidates[0];
 }
 
-const extraCorsOrigins = String(
-    process.env.EXTERNAL_FORM_ALLOWED_ORIGINS || "",
-)
+const extraCorsOrigins = String(process.env.EXTERNAL_FORM_ALLOWED_ORIGINS || "")
     .split(",")
     .map((item) => String(item || "").trim())
     .filter(Boolean);
@@ -41,6 +39,7 @@ const allowedCorsOrigins = [
     "http://localhost:5174",
     "http://172.19.10.61:5173",
     "http://172.19.10.61:5174",
+    "http://172.19.10.61:5175",
     "http://186.5.32.134:8078",
     ...extraCorsOrigins,
 ];
