@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     checkPublicRrssLeadByCedula,
     submitPublicRrssLead,
@@ -125,6 +125,14 @@ export default function PublicMaquitaRrssForm() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
+    useEffect(() => {
+        const previousTitle = document.title;
+        document.title = "Solicitud de Credito | Maquita";
+        return () => {
+            document.title = previousTitle;
+        };
+    }, []);
+
     const actividadEconomicaTiempo = useMemo(
         () =>
             `${form.actividad_economica || ""}${
@@ -226,222 +234,254 @@ export default function PublicMaquitaRrssForm() {
     return (
         <main className="public-rrss-shell">
             <section className="public-rrss-card">
-                <h1>Formulario de Precalificacion de Credito</h1>
+                <div className="public-rrss-header">
+                    <div>
+                        <h1>Formulario de Precalificacion de Credito</h1>
+                    </div>
+                    <img
+                        className="public-rrss-logo"
+                        src="/MAQUITA_CUSHUNCHIC.png"
+                        alt="Maquita Cushunchic"
+                    />
+                </div>
                 <form className="public-rrss-form" onSubmit={onSubmit}>
-                    <label>
-                        Autoriza Buro *
-                        <select
-                            value={form.autoriza_buro}
-                            onChange={onChange("autoriza_buro")}
-                            required
-                        >
-                            <option value="Si">Si</option>
-                            <option value="No">No</option>
-                        </select>
-                    </label>
+                    <div className="public-rrss-section">
+                        <h2>Informacion personal</h2>
+                        <div className="public-rrss-grid">
+                            <label>
+                                Autoriza Buro *
+                                <select
+                                    value={form.autoriza_buro}
+                                    onChange={onChange("autoriza_buro")}
+                                    required
+                                >
+                                    <option value="Si">Si</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </label>
 
-                    <label>
-                        Numero de cedula *
-                        <input
-                            value={form.numero_cedula}
-                            onChange={onChangeDigitsOnly("numero_cedula", 13)}
-                            onBlur={onCedulaBlur}
-                            required
-                            pattern="[0-9]{10,13}"
-                            maxLength={13}
-                            inputMode="numeric"
-                            title="Ingrese entre 10 y 13 digitos"
-                            placeholder="1000000000"
-                        />
-                    </label>
+                            <label>
+                                Numero de cedula *
+                                <input
+                                    value={form.numero_cedula}
+                                    onChange={onChangeDigitsOnly(
+                                        "numero_cedula",
+                                        13,
+                                    )}
+                                    onBlur={onCedulaBlur}
+                                    required
+                                    pattern="[0-9]{10,13}"
+                                    maxLength={13}
+                                    inputMode="numeric"
+                                    title="Ingrese entre 10 y 13 digitos"
+                                    placeholder="1000000000"
+                                />
+                            </label>
 
-                    <label>
-                        Apellidos y Nombres Completos *
-                        <input
-                            value={form.apellidos_nombres_completos}
-                            onChange={onChange("apellidos_nombres_completos")}
-                            required
-                            maxLength={255}
-                        />
-                    </label>
+                            <label>
+                                Apellidos y Nombres Completos *
+                                <input
+                                    value={form.apellidos_nombres_completos}
+                                    onChange={onChange(
+                                        "apellidos_nombres_completos",
+                                    )}
+                                    required
+                                    maxLength={255}
+                                />
+                            </label>
 
-                    <label>
-                        Estado Civil *
-                        <select
-                            value={form.estado_civil}
-                            onChange={onChange("estado_civil")}
-                            required
-                        >
-                            <option value="">Selecciona</option>
-                            {ESTADOS_CIVILES.map((item) => (
-                                <option key={item} value={item}>
-                                    {item}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                            <label>
+                                Estado Civil *
+                                <select
+                                    value={form.estado_civil}
+                                    onChange={onChange("estado_civil")}
+                                    required
+                                >
+                                    <option value="">Selecciona</option>
+                                    {ESTADOS_CIVILES.map((item) => (
+                                        <option key={item} value={item}>
+                                            {item}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
 
-                    <label>
-                        Ciudad *
-                        <select
-                            value={form.ciudad}
-                            onChange={onChange("ciudad")}
-                            required
-                        >
-                            <option value="">Selecciona</option>
-                            {CIUDADES.map((item) => (
-                                <option key={item} value={item}>
-                                    {item}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                            <label>
+                                Ciudad *
+                                <select
+                                    value={form.ciudad}
+                                    onChange={onChange("ciudad")}
+                                    required
+                                >
+                                    <option value="">Selecciona</option>
+                                    {CIUDADES.map((item) => (
+                                        <option key={item} value={item}>
+                                            {item}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
 
-                    <label>
-                        Celular *
-                        <input
-                            value={form.celular}
-                            onChange={onChangeDigitsOnly("celular", 15)}
-                            required
-                            pattern="[0-9]{7,15}"
-                            maxLength={15}
-                            inputMode="numeric"
-                            title="Ingrese entre 7 y 15 digitos"
-                            placeholder="0999999999"
-                        />
-                    </label>
+                            <label>
+                                Celular *
+                                <input
+                                    value={form.celular}
+                                    onChange={onChangeDigitsOnly("celular", 15)}
+                                    required
+                                    pattern="[0-9]{7,15}"
+                                    maxLength={15}
+                                    inputMode="numeric"
+                                    title="Ingrese entre 7 y 15 digitos"
+                                    placeholder="0999999999"
+                                />
+                            </label>
+                        </div>
+                    </div>
 
-                    <label>
-                        Monto solicitado *
-                        <input
-                            value={form.monto_solicitado}
-                            onChange={onChangeDigitsOnly(
-                                "monto_solicitado",
-                                12,
-                            )}
-                            required
-                            maxLength={64}
-                            inputMode="numeric"
-                            pattern="[0-9]+"
-                            placeholder="1000"
-                        />
-                    </label>
+                    <div className="public-rrss-section">
+                        <h2>Detalles de credito</h2>
+                        <div className="public-rrss-grid">
+                            <label>
+                                Monto solicitado *
+                                <input
+                                    value={form.monto_solicitado}
+                                    onChange={onChangeDigitsOnly(
+                                        "monto_solicitado",
+                                        12,
+                                    )}
+                                    required
+                                    maxLength={64}
+                                    inputMode="numeric"
+                                    pattern="[0-9]+"
+                                    placeholder="1000"
+                                />
+                            </label>
 
-                    <label>
-                        Destino del credito *
-                        <select
-                            value={form.destino_credito}
-                            onChange={onChange("destino_credito")}
-                            required
-                        >
-                            <option value="">Selecciona</option>
-                            {DESTINOS_CREDITO.map((item) => (
-                                <option key={item} value={item}>
-                                    {item}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                            <label>
+                                Destino del credito *
+                                <select
+                                    value={form.destino_credito}
+                                    onChange={onChange("destino_credito")}
+                                    required
+                                >
+                                    <option value="">Selecciona</option>
+                                    {DESTINOS_CREDITO.map((item) => (
+                                        <option key={item} value={item}>
+                                            {item}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
 
-                    <label>
-                        Ingresos mensuales aproximados *
-                        <input
-                            value={form.ingreso_neto_recibir}
-                            onChange={onChangeDigitsOnly(
-                                "ingreso_neto_recibir",
-                                12,
-                            )}
-                            required
-                            maxLength={64}
-                            inputMode="numeric"
-                            pattern="[0-9]+"
-                            placeholder="450"
-                        />
-                    </label>
+                            <label>
+                                Ingresos mensuales aproximados *
+                                <input
+                                    value={form.ingreso_neto_recibir}
+                                    onChange={onChangeDigitsOnly(
+                                        "ingreso_neto_recibir",
+                                        12,
+                                    )}
+                                    required
+                                    maxLength={64}
+                                    inputMode="numeric"
+                                    pattern="[0-9]+"
+                                    placeholder="450"
+                                />
+                            </label>
 
-                    <label>
-                        Fuente de ingreso *
-                        <select
-                            value={form.fuente_ingreso}
-                            onChange={onChange("fuente_ingreso")}
-                            required
-                        >
-                            <option value="">Selecciona</option>
-                            {FUENTES_INGRESO.map((item) => (
-                                <option key={item} value={item}>
-                                    {item}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                            <label>
+                                Fuente de ingreso *
+                                <select
+                                    value={form.fuente_ingreso}
+                                    onChange={onChange("fuente_ingreso")}
+                                    required
+                                >
+                                    <option value="">Selecciona</option>
+                                    {FUENTES_INGRESO.map((item) => (
+                                        <option key={item} value={item}>
+                                            {item}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
 
-                    <label>
-                        Actividad economica *
-                        <select
-                            value={form.actividad_economica}
-                            onChange={onChange("actividad_economica")}
-                            required
-                        >
-                            <option value="">Selecciona</option>
-                            {ACTIVIDADES.map((item) => (
-                                <option key={item} value={item}>
-                                    {item}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                            <label>
+                                Actividad economica *
+                                <select
+                                    value={form.actividad_economica}
+                                    onChange={onChange("actividad_economica")}
+                                    required
+                                >
+                                    <option value="">Selecciona</option>
+                                    {ACTIVIDADES.map((item) => (
+                                        <option key={item} value={item}>
+                                            {item}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
 
-                    <label>
-                        Tiempo de actividad economica (a�os) *
-                        <input
-                            value={form.tiempo_actividad_anios}
-                            onChange={onChange("tiempo_actividad_anios")}
-                            required
-                            maxLength={32}
-                        />
-                    </label>
+                            <label>
+                                Tiempo de actividad economica (años) *
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={form.tiempo_actividad_anios}
+                                    onChange={onChangeDigitsOnly(
+                                        "tiempo_actividad_anios",
+                                        2,
+                                    )}
+                                    required
+                                    maxLength={2}
+                                    inputMode="numeric"
+                                    placeholder="2"
+                                />
+                            </label>
 
-                    <label>
-                        Tipo de Vivienda *
-                        <select
-                            value={form.tipo_vivienda}
-                            onChange={onChange("tipo_vivienda")}
-                            required
-                        >
-                            <option value="">Selecciona</option>
-                            {TIPOS_VIVIENDA.map((item) => (
-                                <option key={item} value={item}>
-                                    {item}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                            <label>
+                                Tipo de Vivienda *
+                                <select
+                                    value={form.tipo_vivienda}
+                                    onChange={onChange("tipo_vivienda")}
+                                    required
+                                >
+                                    <option value="">Selecciona</option>
+                                    {TIPOS_VIVIENDA.map((item) => (
+                                        <option key={item} value={item}>
+                                            {item}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
 
-                    <label>
-                        Hijos que dependen *
-                        <select
-                            value={form.mantiene_hijos}
-                            onChange={onChange("mantiene_hijos")}
-                            required
-                        >
-                            <option value="">Selecciona</option>
-                            {HIJOS_OPTIONS.map((item) => (
-                                <option key={item} value={item}>
-                                    {item}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
+                            <label>
+                                Hijos que dependen *
+                                <select
+                                    value={form.mantiene_hijos}
+                                    onChange={onChange("mantiene_hijos")}
+                                    required
+                                >
+                                    <option value="">Selecciona</option>
+                                    {HIJOS_OPTIONS.map((item) => (
+                                        <option key={item} value={item}>
+                                            {item}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
 
-                    <label>
-                        Otros ingresos *
-                        <input
-                            value={form.otros_ingresos}
-                            onChange={onChange("otros_ingresos")}
-                            required
-                            maxLength={500}
-                        />
-                    </label>
+                            <label>
+                                Otros ingresos *
+                                <input
+                                    value={form.otros_ingresos}
+                                    onChange={onChange("otros_ingresos")}
+                                    required
+                                    maxLength={500}
+                                />
+                            </label>
+                        </div>
+                    </div>
 
                     {error ? (
                         <p className="public-rrss-error">{error}</p>

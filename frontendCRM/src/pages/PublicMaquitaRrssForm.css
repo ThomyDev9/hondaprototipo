@@ -1,116 +1,163 @@
 .public-rrss-shell {
     min-height: 100vh;
     background:
-        radial-gradient(circle at 10% 10%, rgba(0, 118, 255, 0.14), transparent 40%),
-        radial-gradient(circle at 90% 0%, rgba(0, 155, 87, 0.14), transparent 35%),
-        linear-gradient(160deg, #f3f8ff 0%, #eef9f2 100%);
-    padding: 28px 32px;
+        radial-gradient(circle at 0% 0%, rgba(11, 87, 164, 0.2), transparent 40%),
+        radial-gradient(circle at 100% 0%, rgba(14, 127, 70, 0.16), transparent 38%),
+        linear-gradient(165deg, #e8f0fb 0%, #edf6ef 65%, #f4f7fb 100%);
+    padding: 8px;
     font-family: "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
 .public-rrss-card {
-    max-width: 1320px;
     width: 100%;
-    margin: 0 auto;
-    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-    border: 1px solid #d4e2f2;
-    border-radius: 20px;
-    padding: 30px;
-    box-shadow:
-        0 20px 40px rgba(10, 31, 68, 0.12),
-        0 4px 10px rgba(10, 31, 68, 0.06);
+    max-width: 100%;
+    margin: 0;
+    background: #ffffff;
+    border: 1px solid #b8d2eb;
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 12px 28px rgba(9, 36, 66, 0.14);
 }
 
 .public-rrss-card h1 {
-    margin: 0 0 10px;
+    margin: 0;
     color: #092442;
-    font-size: clamp(1.45rem, 2vw, 2rem);
-    line-height: 1.2;
-    letter-spacing: 0.2px;
+    font-size: clamp(1.05rem, 1.4vw, 1.35rem);
+    line-height: 1.25;
 }
 
 .public-rrss-card p {
-    margin: 0 0 22px;
-    color: #4a6078;
-    font-size: 0.98rem;
+    margin: 4px 0 10px;
+    color: #3f5872;
+    font-size: 0.95rem;
+}
+
+.public-rrss-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: linear-gradient(120deg, #0b4f8a 0%, #0f6b48 100%);
+    margin-bottom: 10px;
+}
+
+.public-rrss-header > div {
+    flex: 1;
+    min-width: 0;
+}
+
+.public-rrss-header h1 {
+    color: #ffffff;
+    margin: 0;
+}
+
+.public-rrss-header p {
+    color: rgba(255, 255, 255, 0.92);
+    margin: 4px 0 0;
+}
+
+.public-rrss-logo {
+    width: clamp(92px, 9vw, 128px);
+    height: auto;
+    object-fit: contain;
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 6px 8px;
 }
 
 .public-rrss-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.public-rrss-section {
+    border: 1px solid #c5d9ee;
+    border-radius: 10px;
+    padding: 9px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.public-rrss-section h2 {
+    margin: 0 0 8px;
+    color: #0a3f68;
+    font-size: 0.92rem;
+    border-left: 4px solid #0f6b48;
+    padding-left: 8px;
+}
+
+.public-rrss-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px 18px;
+    gap: 9px;
 }
 
 .public-rrss-form label {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    color: #1a3655;
-    font-size: 14px;
-    font-weight: 600;
+    gap: 5px;
+    color: #153654;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 .public-rrss-form input,
 .public-rrss-form select {
-    border: 1px solid #bfd3e8;
-    border-radius: 12px;
-    padding: 11px 12px;
-    font-size: 14px;
-    color: #12304f;
+    border: 1px solid #9cb9d7;
+    border-radius: 8px;
+    padding: 7px 9px;
+    font-size: 13px;
+    color: #0f2f4b;
     background: #ffffff;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .public-rrss-form input:focus,
 .public-rrss-form select:focus {
     outline: none;
-    border-color: #1677d9;
-    box-shadow: 0 0 0 3px rgba(22, 119, 217, 0.16);
-    transform: translateY(-1px);
+    border-color: #0b6ecf;
+    box-shadow: 0 0 0 3px rgba(11, 110, 207, 0.22);
+    background: #f3f9ff;
 }
 
 .public-rrss-form button {
-    grid-column: 1 / -1;
     border: 0;
-    border-radius: 14px;
-    background: linear-gradient(90deg, #0a8f4d 0%, #0b6ecf 100%);
+    border-radius: 10px;
+    background: linear-gradient(90deg, #0e6f49 0%, #0b5ea7 100%);
     color: #fff;
-    padding: 10px 14px;
+    padding: 9px 18px;
     font-weight: 700;
-    letter-spacing: 0.2px;
     cursor: pointer;
-    box-shadow: 0 12px 24px rgba(11, 110, 207, 0.22);
-    transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
-    max-width: 280px;
-    justify-self: start;
+    width: auto;
+    min-width: 180px;
+    align-self: flex-end;
+    margin-top: 2px;
 }
 
 .public-rrss-form button:hover {
-    transform: translateY(-1px);
-    filter: saturate(1.05);
-    box-shadow: 0 14px 26px rgba(11, 110, 207, 0.25);
+    filter: brightness(1.07);
 }
 
 .public-rrss-form button:disabled {
     opacity: 0.65;
     cursor: wait;
-    transform: none;
-    box-shadow: none;
 }
 
 .public-rrss-error,
 .public-rrss-success {
-    grid-column: 1 / -1;
-    padding: 11px 12px;
-    border-radius: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
     margin: 0;
-    font-weight: 600;
+    font-size: 0.85rem;
+    font-weight: 700;
 }
 
 .public-rrss-error {
     background: #ffe7e7;
-    color: #8c1d1d;
-    border: 1px solid #ffc9c9;
+    color: #8b1f1f;
+    border: 1px solid #ffc8c8;
 }
 
 .public-rrss-success {
@@ -119,22 +166,44 @@
     border: 1px solid #b8efcf;
 }
 
-@media (max-width: 768px) {
-    .public-rrss-shell {
-        padding: 14px;
-    }
-
-    .public-rrss-card {
-        padding: 16px;
-    }
-
-    .public-rrss-form {
-        grid-template-columns: 1fr;
+@media (max-width: 1200px) {
+    .public-rrss-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
-@media (min-width: 769px) and (max-width: 1100px) {
-    .public-rrss-form {
+@media (max-width: 900px) {
+    .public-rrss-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .public-rrss-header {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px;
+    }
+
+    .public-rrss-logo {
+        width: 120px;
+    }
+
+    .public-rrss-shell {
+        padding: 10px;
+    }
+
+    .public-rrss-card {
+        padding: 14px;
+    }
+
+    .public-rrss-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .public-rrss-form button {
+        width: 100%;
+        align-self: stretch;
+        min-width: 0;
     }
 }
