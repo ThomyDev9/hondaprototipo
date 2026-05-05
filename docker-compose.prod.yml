@@ -1,25 +1,38 @@
 services:
   backend:
-    container_name: backendCRM
+    build:
+      context: ./backendCRM
+      dockerfile: Dockerfile
+    container_name: backendCRM_prod
+    restart: always
     env_file:
-      - .env.docker
+      - .env.docker.pruebas
     environment:
       UPLOADS_PATH: /app/uploads
-      ENTREGA_DOCUMENTOS_PATH: /app/entrega_documentos
       INBOUND_IMAGES_PATH: /app/storage/inbound-images
       INBOUND_FILES_PATH: /app/storage/inbound-archivos
+      ENTREGA_DOCUMENTOS_PATH: /app/entrega_documentos
     ports:
-      - "4004:4004"
+      - "4006:4004"
     volumes:
       - ./backendCRM/uploads:/app/uploads
-      - ./backend-storage/entrega_documentos:/app/entrega_documentos
-      - ./backend-storage/inbound-images:/app/storage/inbound-images
-      - ./backend-storage/inbound-archivos:/app/storage/inbound-archivos
+      - ./backend-storage-pruebas/inbound-images:/app/storage/inbound-images
+      - ./backend-storage-pruebas/inbound-archivos:/app/storage/inbound-archivos
+      - ./backend-storage-pruebas/entrega_documentos:/app/entrega_documentos
 
   frontend:
-    container_name: frontendCRM
     build:
+      context: ./frontendCRM
+      dockerfile: Dockerfile
       args:
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:4004}
+        VITE_API_BASE: ${VITE_API_BASE_PRUEBAS:-http://172.19.10.61:4006}
+        VITE_TICKET_API_URL: ${VITE_TICKET_API_URL_PRUEBAS:-http://172.19.10.61:4006/tickets-proxy}
+        VITE_MACHINE_CONTEXT_DIRECT_BASE: ${VITE_MACHINE_CONTEXT_DIRECT_BASE_PRUEBAS:-http://172.19.10.61:4006}
+        VITE_MACHINE_CONTEXT_DIRECT_PORT: ${VITE_MACHINE_CONTEXT_DIRECT_PORT_PRUEBAS:-4006}
+        VITE_INBOUND_ZOIPER_BYPASS_USERS: ${VITE_INBOUND_ZOIPER_BYPASS_USERS_PRUEBAS:-}
+    container_name: frontendCRM_prod
+    restart: always
     ports:
-      - "5173:80"
+      - "5175:80"
+    depends_on:
+      - backend

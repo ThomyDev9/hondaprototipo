@@ -8,7 +8,7 @@ import "./PublicMaquitaRrssForm.css";
 const ESTADOS_CIVILES = [
     "Soltero",
     "Casado",
-    "Uni�n libre",
+    "Unión libre",
     "Divorciado",
     "Viudo",
 ];
@@ -53,7 +53,7 @@ const CIUDADES = [
     "CAYAMBE",
     "MEJIA",
     "PEDRO MONCAYO",
-    "RUMI�AHUI",
+    "RUMIÑAHUI",
     "SAN MIGUEL DE LOS BANCOS",
     "PEDRO VICENTE MALDONADO",
     "PUERTO QUITO",
@@ -61,20 +61,20 @@ const CIUDADES = [
 
 const DESTINOS_CREDITO = [
     "Consumo personal y familiar",
-    "Pago, consolidaci�n y refinanciamiento de deudas",
-    "Vivienda (compra, construcci�n, ampliaci�n, remodelaci�n y mantenimiento)",
-    "Compra de veh�culo",
-    "Reparaci�n de veh�culo",
-    "Educaci�n y formaci�n acad�mica",
-    "Salud, tratamientos m�dicos y emergencias",
-    "Agricultura, ganader�a y actividades rurales",
+    "Pago, consolidación y refinanciamiento de deudas",
+    "Vivienda (compra, construcción, ampliación, remodelación y mantenimiento)",
+    "Compra de vehículo",
+    "Reparación de vehículo",
+    "Educación y formación académica",
+    "Salud, tratamientos médicos y emergencias",
+    "Agricultura, ganadería y actividades rurales",
     "Compra de bienes, equipos, maquinaria e insumos",
     "Capital de trabajo",
     "Compra de inmueble",
 ];
 
 const FUENTES_INGRESO = [
-    "Jubilaci�n",
+    "Jubilación",
     "Arriendos",
     "Sueldo fijo",
     "Negocio propio",
@@ -82,18 +82,18 @@ const FUENTES_INGRESO = [
 ];
 
 const ACTIVIDADES = [
-    "Agricultura, ganader�a y pesca",
+    "Agricultura, ganadería y pesca",
     "Comercio",
     "Industria y manufactura",
     "Servicios",
-    "Transporte y log�stica",
-    "Construcci�n y vivienda",
+    "Transporte y logística",
+    "Construcción y vivienda",
     "Actividades financieras y administrativas",
-    "Educaci�n",
+    "Educación",
     "Salud",
     "Actividades independientes / autoempleo",
     "Turismo y entretenimiento",
-    "Tecnolog�a y digital",
+    "Tecnología y digital",
 ];
 
 const TIPOS_VIVIENDA = ["Familiar", "Propia", "Arrendada"];
@@ -445,11 +445,6 @@ export default function PublicMaquitaRrssForm() {
 
                     {error ? (
                         <p className="public-rrss-error">{error}</p>
-                    ) : null}
-                    {isCheckingCedula ? (
-                        <p className="public-rrss-success">
-                            Validando c�dula...
-                        </p>
                     ) : null}
                     {success ? (
                         <p className="public-rrss-success">{success}</p>
