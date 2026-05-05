@@ -226,6 +226,30 @@ function getRemainingDisplay(lead) {
     return `${hours}h ${minutes}m`;
 }
 
+function getRemainingSemaphoreClass(lead) {
+    const status = normalize(lead?.workflow_status).toLowerCase();
+    if (!["pendiente_completar", "por_reasignar"].includes(status)) {
+        return "";
+    }
+
+    const assignedAt = lead?.assigned_at ? new Date(lead.assigned_at) : null;
+    if (!assignedAt || Number.isNaN(assignedAt.getTime())) {
+        return "";
+    }
+
+    const deadline = assignedAt.getTime() + 24 * 60 * 60 * 1000;
+    const diff = deadline - Date.now();
+
+    if (diff <= 0) return "consultor-time--red";
+
+    const twelveHoursMs = 12 * 60 * 60 * 1000;
+    const twoHoursMs = 2 * 60 * 60 * 1000;
+
+    if (diff > twelveHoursMs) return "consultor-time--green";
+    if (diff > twoHoursMs) return "consultor-time--yellow";
+    return "consultor-time--red";
+}
+
 function getMissingFields(lead) {
     const channel = normalize(lead?.source_channel).toLowerCase();
     const missing = [];
@@ -1863,9 +1887,13 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                                 "-"}
                                                         </td>
                                                         <td>
-                                                            {getRemainingDisplay(
-                                                                lead,
-                                                            )}
+                                                            <span
+                                                                className={`consultor-time ${getRemainingSemaphoreClass(lead)}`.trim()}
+                                                            >
+                                                                {getRemainingDisplay(
+                                                                    lead,
+                                                                )}
+                                                            </span>
                                                         </td>
                                                     </tr>
                                                 );
@@ -2329,7 +2357,13 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                                         "-"}
                                                 </td>
                                                 <td>
-                                                    {getRemainingDisplay(lead)}
+                                                    <span
+                                                        className={`consultor-time ${getRemainingSemaphoreClass(lead)}`.trim()}
+                                                    >
+                                                        {getRemainingDisplay(
+                                                            lead,
+                                                        )}
+                                                    </span>
                                                 </td>
                                                 <td>
                                                     <span className="consultor-badge">

@@ -431,6 +431,37 @@
     color: #64748b;
 }
 
+.consultor-time {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    border: 2px solid transparent;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.consultor-time--green {
+    color: #052e16;
+    background: #86efac;
+    border-color: #16a34a;
+}
+
+.consultor-time--yellow {
+    color: #5b3000;
+    background: #fcd34d;
+    border-color: #d97706;
+}
+
+.consultor-time--red {
+    color: #450a0a;
+    background: #fca5a5;
+    border-color: #dc2626;
+}
+
 .consultor-detail-head {
     display: flex;
     justify-content: space-between;
