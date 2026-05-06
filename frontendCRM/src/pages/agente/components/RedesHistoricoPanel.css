@@ -1,0 +1,18 @@
+.redes-historico-table-compact .table-wrapper {
+    max-height: none;
+    overflow-y: hidden;
+}
+
+.redes-historico-table-compact .data-table {
+    font-size: 0.78rem;
+}
+
+.redes-historico-table-compact .data-table th,
+.redes-historico-table-compact .data-table td {
+    padding: 0.38rem 0.5rem;
+    line-height: 1.15;
+}
+
+.redes-historico-table-compact .data-table th {
+    font-size: 0.68rem;
+}

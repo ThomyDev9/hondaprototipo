@@ -487,15 +487,19 @@ export const fetchInboundCurrentCall = ({ agentNumber }) =>
         )}`,
     );
 
-export const fetchInboundHistoricoClientes = ({ campaignId }) =>
+export const fetchInboundHistoricoClientes = ({
+    campaignId,
+    historyType = "inbound",
+}) =>
     request(
         `agente/inbound-historico-clientes?campaignId=${encodeURIComponent(
             String(campaignId || "").trim(),
-        )}`,
+        )}&historyType=${encodeURIComponent(String(historyType || "inbound").trim())}`,
     );
 
 export const fetchInboundHistorico = ({
     campaignId,
+    historyType = "inbound",
     advisor = "",
     clientName = "",
     searchText = "",
@@ -505,6 +509,8 @@ export const fetchInboundHistorico = ({
     request(
         `agente/inbound-historico?campaignId=${encodeURIComponent(
             String(campaignId || "").trim(),
+        )}&historyType=${encodeURIComponent(
+            String(historyType || "inbound").trim(),
         )}&advisor=${encodeURIComponent(
             String(advisor || "").trim(),
         )}&clientName=${encodeURIComponent(
@@ -781,6 +787,35 @@ export const fetchTicketClientByIdentification = async (identification = "") => 
         { method: "GET" },
     );
 };
+
+export const fetchRedesHistoricoClientes = ({ campaignId }) =>
+    request(
+        `agente/redes-historico-clientes?campaignId=${encodeURIComponent(
+            String(campaignId || "").trim(),
+        )}`,
+    );
+
+export const fetchRedesHistorico = ({
+    campaignId,
+    advisor = "",
+    clientName = "",
+    searchText = "",
+    startDate = "",
+    endDate = "",
+}) =>
+    request(
+        `agente/redes-historico?campaignId=${encodeURIComponent(
+            String(campaignId || "").trim(),
+        )}&advisor=${encodeURIComponent(
+            String(advisor || "").trim(),
+        )}&clientName=${encodeURIComponent(
+            String(clientName || "").trim(),
+        )}&searchText=${encodeURIComponent(
+            String(searchText || "").trim(),
+        )}&startDate=${encodeURIComponent(
+            String(startDate || "").trim(),
+        )}&endDate=${encodeURIComponent(String(endDate || "").trim())}`,
+    );
 
 export const createTicketClient = async (payload = {}) =>
     requestTicketApi("client", {

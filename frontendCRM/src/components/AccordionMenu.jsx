@@ -13,6 +13,8 @@ const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
 const REDES_SHARED_LABEL = "gestion redes";
 export const INBOUND_HISTORICO_MENU_ITEM_ID = "__inbound_historico__";
 export const INBOUND_HISTORICO_CAMPAIGN_ID = "__inbound_historico__";
+export const REDES_HISTORICO_MENU_ITEM_ID = "__redes_historico__";
+export const REDES_HISTORICO_CAMPAIGN_ID = "__redes_historico__";
 const INBOUND_QUICK_ACCESS_LABELS = [
     "gestion inbound",
     "kullki wasi",
@@ -344,6 +346,13 @@ function AccordionMenu({
     const secureInboundManualEntry = inboundQuickAccessNodes.find(
         (entry) => entry.normalizedLabel === "gestion inbound",
     );
+    const redesQuickAccessEntry = flattenMenuNodes(data).find((entry) => {
+        const menuItemId = String(entry?.node?.id || "").trim();
+        return (
+            menuItemId === REDES_PARENT_MENU_ITEM_ID ||
+            entry.normalizedLabel === REDES_SHARED_LABEL
+        );
+    });
     function renderTree(nodes, level = 0, parentKey = "", pathLabels = []) {
         const visibleNodes = (Array.isArray(nodes) ? nodes : []).filter((node) => {
             const label = getNodeLabel(node);
@@ -978,6 +987,55 @@ function AccordionMenu({
                                             </button>
                                         </div>
                                     )}
+                                {redesQuickAccessEntry && (
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: "0.35rem",
+                                            marginBottom: "0.5rem",
+                                        }}
+                                    >
+                                        <button
+                                            key="redes-quick-historico"
+                                            type="button"
+                                            style={{
+                                                ...styles.menuItem,
+                                                paddingLeft: 12,
+                                                paddingRight: 12,
+                                                paddingTop: 9,
+                                                paddingBottom: 9,
+                                                border:
+                                                    "1px solid rgba(167, 243, 208, 0.45)",
+                                                backgroundColor:
+                                                    "rgba(6, 78, 59, 0.35)",
+                                                width: "100%",
+                                            }}
+                                            onClick={() =>
+                                                onLeafSelect?.({
+                                                    campaignId:
+                                                        REDES_HISTORICO_CAMPAIGN_ID,
+                                                    menuItemId:
+                                                        REDES_HISTORICO_MENU_ITEM_ID,
+                                                    categoryId: String(
+                                                        redesQuickAccessEntry.node
+                                                            ?.categoryId ||
+                                                            selectedCategoryId ||
+                                                            "",
+                                                    ).trim(),
+                                                    leafLabel: "Historico Redes",
+                                                    parentLabel:
+                                                        redesQuickAccessEntry.label ||
+                                                        "Campanias Redes",
+                                                    manualFlow: false,
+                                                })
+                                            }
+                                            title="Historico Redes"
+                                        >
+                                            Historico Redes
+                                        </button>
+                                    </div>
+                                )}
                                 {renderTree(data)}
                             </div>
                         )}

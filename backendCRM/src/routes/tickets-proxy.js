@@ -8,8 +8,6 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const TICKET_API = String(process.env.TICKET_API_URL || "").trim();
-const TICKET_USER = String(process.env.TICKET_API_USER || "").trim();
-const TICKET_PASSWORD = String(process.env.TICKET_API_PASSWORD || "").trim();
 const TICKET_STATIC_TOKEN = String(process.env.TICKET_API_TOKEN || "").trim();
 
 function getBearerTokenFromHeader(authorization = "") {
@@ -162,8 +160,15 @@ async function loginTicketApi(credentials = {}) {
         };
     }
 
-    const username = String(credentials?.username || TICKET_USER).trim();
-    const password = String(credentials?.password || TICKET_PASSWORD).trim();
+    const username = String(credentials?.username || "").trim();
+    const password = String(credentials?.password || "").trim();
+    if (!username || !password) {
+        return {
+            ok: false,
+            status: 401,
+            json: { detail: "El usuario no tiene credenciales de tickets configuradas en la tabla user." },
+        };
+    }
     const payload = { username, password };
     const resp = await fetch(`${TICKET_API}/api/login`, {
         method: "POST",
@@ -214,11 +219,16 @@ router.post("/login", async (req, res) => {
     try {
         const fallbackCredentials = await resolveTicketCredentialsFromCrmToken(req);
         const username = String(
-            req.body?.username || fallbackCredentials.username || TICKET_USER,
+            req.body?.username || fallbackCredentials.username,
         ).trim();
         const password = String(
-            req.body?.password || fallbackCredentials.password || TICKET_PASSWORD,
+            req.body?.password || fallbackCredentials.password,
         ).trim();
+        if (!username || !password) {
+            return res.status(401).json({
+                detail: "El usuario no tiene credenciales de tickets configuradas en la tabla user.",
+            });
+        }
 
         const r = await fetch(`${TICKET_API}/api/login`, {
             method: "POST",

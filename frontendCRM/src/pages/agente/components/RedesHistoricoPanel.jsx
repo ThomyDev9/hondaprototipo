@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import {
-    fetchInboundHistorico,
-    fetchInboundHistoricoClientes,
+    fetchRedesHistorico,
+    fetchRedesHistoricoClientes,
 } from "../../../services/dashboard.service";
 import Button from "../../../components/common/Button";
 import Table from "../../../components/common/Table";
+import "./RedesHistoricoPanel.css";
 
 function formatDateTime(value) {
     const raw = String(value || "").trim();
@@ -13,16 +14,22 @@ function formatDateTime(value) {
     return raw.replace("T", " ").slice(0, 19);
 }
 
-export default function InboundHistoricoPanelV2({
-    campaignId,
-    historyType = "inbound",
-}) {
+function getTodayLocalDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+export default function RedesHistoricoPanel({ campaignId }) {
+    const today = useMemo(() => getTodayLocalDate(), []);
     const [clientOptions, setClientOptions] = useState([]);
     const [advisor, setAdvisor] = useState("");
     const [clientName, setClientName] = useState("");
     const [searchText, setSearchText] = useState("");
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
+    const [startDate, setStartDate] = useState(today);
+    const [endDate, setEndDate] = useState(today);
     const [rows, setRows] = useState([]);
     const [loadingClients, setLoadingClients] = useState(false);
     const [loadingRows, setLoadingRows] = useState(false);
@@ -73,28 +80,30 @@ export default function InboundHistoricoPanelV2({
         setLoadingRows(true);
         setError("");
 
-        try {
-            const { ok, json } = await fetchInboundHistorico({
-                campaignId: normalizedCampaignId,
-                historyType,
-                advisor: nextAdvisor,
-                clientName: nextClientName,
-                searchText: nextSearchText,
-                startDate: nextStartDate,
-                endDate: nextEndDate,
-            });
+        const payload = {
+            campaignId: normalizedCampaignId,
+            advisor: nextAdvisor,
+            clientName: nextClientName,
+            searchText: nextSearchText,
+            startDate: nextStartDate,
+            endDate: nextEndDate,
+        };
+        console.debug("[DEBUG][REDES_HIST][FE] search", payload);
 
+        try {
+            const { ok, json } = await fetchRedesHistorico(payload);
             if (!ok) {
                 setRows([]);
                 setError(
                     json?.detail ||
                         json?.error ||
-                        "No se pudo consultar el historico inbound.",
+                        "No se pudo consultar el historico de redes.",
                 );
                 return;
             }
-
-            setRows(Array.isArray(json?.data) ? json.data : []);
+            const data = Array.isArray(json?.data) ? json.data : [];
+            console.debug("[DEBUG][REDES_HIST][FE] rows", data.length);
+            setRows(data);
         } finally {
             setLoadingRows(false);
         }
@@ -102,27 +111,20 @@ export default function InboundHistoricoPanelV2({
 
     useEffect(() => {
         let cancelled = false;
-
         const loadClientOptions = async () => {
             setLoadingClients(true);
             try {
-                const { ok, json } = await fetchInboundHistoricoClientes({
+                const { ok, json } = await fetchRedesHistoricoClientes({
                     campaignId: normalizedCampaignId,
-                    historyType,
                 });
-
                 if (cancelled) return;
-
                 if (!ok) {
                     setClientOptions([]);
                     return;
                 }
-
                 setClientOptions(Array.isArray(json?.data) ? json.data : []);
             } finally {
-                if (!cancelled) {
-                    setLoadingClients(false);
-                }
+                if (!cancelled) setLoadingClients(false);
             }
         };
 
@@ -131,46 +133,19 @@ export default function InboundHistoricoPanelV2({
             advisor: "",
             clientName: "",
             searchText: "",
-            startDate: "",
-            endDate: "",
+            startDate: today,
+            endDate: today,
         });
-
         return () => {
             cancelled = true;
         };
-    }, [normalizedCampaignId, historyType]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            handleSearch({
-                searchText,
-            });
-        }, 350);
-
-        return () => clearTimeout(timeoutId);
-    }, [searchText]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const handleClearFilters = () => {
-        setClientName("");
-        setAdvisor("");
-        setSearchText("");
-        setStartDate("");
-        setEndDate("");
-        handleSearch({
-            advisor: "",
-            clientName: "",
-            searchText: "",
-            startDate: "",
-            endDate: "",
-        });
-    };
+    }, [normalizedCampaignId, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <section className="agent-form-card agent-form-card--secondary">
             <div className="agent-form-header-row">
-                <p className="agent-form-card__title">Historico</p>
+                <p className="agent-form-card__title">Historico Redes</p>
             </div>
-
             <div className="agent-dynamic-section agent-dynamic-section--standard">
                 <div className="agent-dynamic-row agent-dynamic-row--standard">
                     <div className="agent-form-field agent-form-field--standard">
@@ -183,15 +158,12 @@ export default function InboundHistoricoPanelV2({
                             onChange={(event) => setAdvisor(event.target.value)}
                         />
                     </div>
-
                     <div className="agent-form-field agent-form-field--standard">
                         <span className="agent-dynamic-label">Cliente</span>
                         <select
                             className="agent-input agent-survey-input"
                             value={clientName}
-                            onChange={(event) =>
-                                setClientName(event.target.value)
-                            }
+                            onChange={(event) => setClientName(event.target.value)}
                             disabled={loadingClients}
                         >
                             <option value="">Todos</option>
@@ -202,19 +174,15 @@ export default function InboundHistoricoPanelV2({
                             ))}
                         </select>
                     </div>
-
                     <div className="agent-form-field agent-form-field--standard">
                         <span className="agent-dynamic-label">Fecha inicio</span>
                         <input
                             type="date"
                             className="agent-input agent-survey-input"
                             value={startDate}
-                            onChange={(event) =>
-                                setStartDate(event.target.value)
-                            }
+                            onChange={(event) => setStartDate(event.target.value)}
                         />
                     </div>
-
                     <div className="agent-form-field agent-form-field--standard">
                         <span className="agent-dynamic-label">Fecha fin</span>
                         <input
@@ -224,27 +192,18 @@ export default function InboundHistoricoPanelV2({
                             onChange={(event) => setEndDate(event.target.value)}
                         />
                     </div>
-
                     <div
                         className="agent-form-field agent-form-field--standard"
                         style={{ minWidth: "340px" }}
                     >
                         <span className="agent-dynamic-label">Busqueda</span>
-                        <div
-                            style={{
-                                display: "flex",
-                                gap: "0.5rem",
-                                alignItems: "center",
-                            }}
-                        >
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                             <input
                                 type="text"
                                 className="agent-input agent-survey-input"
                                 value={searchText}
                                 placeholder="Identificacion o nombre"
-                                onChange={(event) =>
-                                    setSearchText(event.target.value)
-                                }
+                                onChange={(event) => setSearchText(event.target.value)}
                             />
                             <Button
                                 variant="primary"
@@ -254,30 +213,20 @@ export default function InboundHistoricoPanelV2({
                             >
                                 {loadingRows ? "Consultando..." : "Buscar"}
                             </Button>
-                            <Button
-                                variant="secondary"
-                                type="button"
-                                onClick={handleClearFilters}
-                                disabled={loadingRows}
-                            >
-                                Limpiar
-                            </Button>
                         </div>
                     </div>
                 </div>
             </div>
-
             {error ? (
                 <p className="agent-error" style={{ marginTop: "1rem" }}>
                     {error}
                 </p>
             ) : null}
-
-            <div style={{ marginTop: "1rem" }}>
+            <div className="redes-historico-table-compact" style={{ marginTop: "1rem" }}>
                 <Table
                     columns={tableColumns}
                     data={rows}
-                    keyField="tmstmp"
+                    keyField="id"
                     loading={loadingRows}
                     noDataMessage="No hay registros para los filtros seleccionados."
                 />
@@ -286,7 +235,6 @@ export default function InboundHistoricoPanelV2({
     );
 }
 
-InboundHistoricoPanelV2.propTypes = {
+RedesHistoricoPanel.propTypes = {
     campaignId: PropTypes.string,
-    historyType: PropTypes.oneOf(["inbound", "redes"]),
 };

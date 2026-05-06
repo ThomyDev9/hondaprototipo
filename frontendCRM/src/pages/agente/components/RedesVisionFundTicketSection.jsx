@@ -15,7 +15,6 @@ import {
     fetchTicketAgencies,
     fetchTicketProvinces,
     fetchTicketCantonsByProvince,
-    sendTicketCreateMail,
     fetchTicketCurrentUser,
     createTicketLocation,
 } from "../../../services/dashboard.service";
@@ -64,11 +63,28 @@ const STAGE_ONE_FIELDS = [
     { key: "house_number", label: "Nro Casa *", type: "text" },
 ];
 
+function looksLikeInternalCode(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) return false;
+    const isUuidLike =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            raw,
+        );
+    const isLongToken = /^[a-z0-9_-]{12,}$/i.test(raw);
+    return isUuidLike || isLongToken;
+}
+
+function sanitizeClientName(value = "") {
+    const normalized = String(value || "").trim();
+    return normalized && !looksLikeInternalCode(normalized) ? normalized : "";
+}
+
 export default function RedesVisionFundTicketSection({
     identification,
     fullName,
     phone,
     onSyncRedesClientData,
+    pqrsFlowMode = "",
 }) {
     const [stage, setStage] = useState(1);
     const [submitting, setSubmitting] = useState(false);
@@ -90,7 +106,7 @@ export default function RedesVisionFundTicketSection({
     const [form, setForm] = useState({
         id_type: "C",
         id_number: String(identification || "").trim(),
-        client_name: String(fullName || "").trim(),
+        client_name: sanitizeClientName(fullName),
         email: "",
         phone: String(phone || "").trim(),
         gender: "",
@@ -126,17 +142,6 @@ export default function RedesVisionFundTicketSection({
         return "";
     };
 
-    const looksLikeInternalCode = (value = "") => {
-        const raw = String(value || "").trim();
-        if (!raw) return false;
-        const isUuidLike =
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-                raw,
-            );
-        const isLongToken = /^[a-z0-9_-]{12,}$/i.test(raw);
-        return isUuidLike || isLongToken;
-    };
-
     useEffect(() => {
         setForm((prev) => ({
             ...prev,
@@ -147,12 +152,13 @@ export default function RedesVisionFundTicketSection({
 
     useEffect(() => {
         const incomingName = String(fullName || "").trim();
-        const safeName =
-            incomingName && !looksLikeInternalCode(incomingName) ? incomingName : "";
+        const safeName = sanitizeClientName(incomingName);
         setForm((prev) => ({
             ...prev,
             // Evita reemplazar un nombre válido por códigos internos del flujo padre.
-            client_name: prev.client_name || safeName,
+            client_name: looksLikeInternalCode(prev.client_name)
+                ? safeName
+                : prev.client_name || safeName,
         }));
     }, [fullName]);
 
@@ -163,6 +169,62 @@ export default function RedesVisionFundTicketSection({
             phone: prev.phone || String(phone || "").trim(),
         }));
     }, [phone]);
+
+    useEffect(() => {
+        if (typeof onSyncRedesClientData !== "function") return;
+        const cantonLabel =
+            cantonOptions
+                .map((item) => ({
+                    value:
+                        findFirstValue(item, ["canton_id", "id", "uuid"]) ||
+                        findFirstValue(item, [
+                            "canton_code",
+                            "canton_name",
+                            "name",
+                        ]),
+                    label: findFirstValue(item, ["canton_name", "name"]),
+                }))
+                .find(
+                    (item) =>
+                        String(item?.value || "").trim() ===
+                        String(form.canton || "").trim(),
+                )?.label || "";
+        const agencyLabel =
+            agencyOptions
+                .map((item) => ({
+                    value: findFirstValue(item, [
+                        "agency_id",
+                        "agencia_id",
+                        "id",
+                        "uuid",
+                    ]),
+                    label: findFirstValue(item, [
+                        "agency_name",
+                        "agencia_name",
+                        "name",
+                        "description",
+                    ]),
+                }))
+                .find(
+                    (item) =>
+                        String(item?.value || "").trim() ===
+                        String(form.agency || "").trim(),
+                )?.label || "";
+        onSyncRedesClientData({
+            email: String(form.email || "").trim(),
+            city: String(cantonLabel || form.canton || "").trim(),
+            agency: String(agencyLabel || form.agency || "").trim(),
+            pqrsFlowMode: String(pqrsFlowMode || "").trim(),
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        form.email,
+        form.canton,
+        form.agency,
+        pqrsFlowMode,
+        cantonOptions,
+        agencyOptions,
+    ]);
 
     useEffect(() => {
         const load = async () => {
@@ -938,13 +1000,6 @@ export default function RedesVisionFundTicketSection({
                 isMainOldNumericId: isMainOldTicketId(createdTicketId),
                 candidates: ticketIdCandidates,
             });
-            const validMailCandidates = Array.from(
-                new Set(
-                    ticketIdCandidates.filter(
-                        (value) => isUuidLike(value) || isMainOldTicketId(value),
-                    ),
-                ),
-            );
             let locationWarning = "";
             if (createdTicketId) {
                 const happenedInEcuador =
@@ -974,42 +1029,6 @@ export default function RedesVisionFundTicketSection({
                         text: locationResp?.text,
                     });
                 }
-            }
-            if (validMailCandidates.length > 0) {
-                let lastMailError = "";
-                let mailSent = false;
-                for (const mailTicketId of validMailCandidates) {
-                    // eslint-disable-next-line no-console
-                    console.log("[VisionFund Debug] trying mail with ticket id:", mailTicketId);
-                    const mailResp = await sendTicketCreateMail(mailTicketId);
-                    if (mailResp.ok) {
-                        mailSent = true;
-                        break;
-                    }
-                    lastMailError = getApiErrorMessage(mailResp, "Correo no enviado.");
-                    // eslint-disable-next-line no-console
-                    console.log("[VisionFund Debug] mail send failed:", {
-                        ticketId: mailTicketId,
-                        status: mailResp?.status,
-                        json: mailResp?.json,
-                    });
-                }
-                if (!mailSent) {
-                    setMessage(
-                        `Ticket creado: ${ticketRef}.${locationWarning ? ` Ubicacion no registrada (${locationWarning}).` : ""} Correo no enviado${lastMailError ? ` (${lastMailError})` : ""}.`,
-                    );
-                    return;
-                }
-            }
-            if (
-                createdTicketId &&
-                !isUuidLike(createdTicketId) &&
-                !isMainOldTicketId(createdTicketId)
-            ) {
-                setMessage(
-                    `Ticket creado: ${ticketRef}. Correo no enviado (ticket_id invalido).`,
-                );
-                return;
             }
             setMessage(
                 `Ticket creado: ${ticketRef}${locationWarning ? `. Ubicacion no registrada (${locationWarning})` : ""}`,
@@ -1729,4 +1748,5 @@ RedesVisionFundTicketSection.propTypes = {
     fullName: PropTypes.string,
     phone: PropTypes.string,
     onSyncRedesClientData: PropTypes.func,
+    pqrsFlowMode: PropTypes.string,
 };

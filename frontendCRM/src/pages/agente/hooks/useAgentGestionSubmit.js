@@ -17,6 +17,12 @@ const INBOUND_SPECIAL_FIELDS_META = [
     { name: "__redes_fecha_gestion", label: "Fecha gestión" },
     { name: "__redes_estado_conversacion", label: "Estado conversación" },
     { name: "__redes_tipo_red_social", label: "Tipo red social" },
+    { name: "__redes_pqrs_flow", label: "Requiere PQRS" },
+    { name: "__redes_actividad_economica", label: "Actividad economica" },
+    { name: "__redes_destino_credito", label: "Destino del credito" },
+    { name: "__redes_vf_ciudad", label: "Ciudad" },
+    { name: "__redes_vf_correo", label: "Correo" },
+    { name: "__redes_vf_agencia", label: "Agencia" },
 ];
 const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
 const REDES_SHARED_LABEL = "gestion redes";
@@ -57,6 +63,15 @@ function isGestionRedesFlow({ menuItemId = "", campaignId = "" }) {
     );
 }
 
+function isVisionFundClientLabel(value = "") {
+    const normalized = normalizeFlowLabel(value);
+    const compact = normalized.replace(/\s+/g, "");
+    return (
+        compact.includes("visionfund") ||
+        (normalized.includes("vision") && normalized.includes("fund"))
+    );
+}
+
 function normalizeLookupKey(value) {
     return String(value || "")
         .normalize("NFD")
@@ -64,6 +79,51 @@ function normalizeLookupKey(value) {
         .replace(/[^a-zA-Z0-9]/g, "")
         .toLowerCase()
         .trim();
+}
+
+function normalizeIdentificationType(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function resolveIdentificationValidationRule(rawType = "") {
+    const normalizedType = normalizeIdentificationType(rawType);
+    if (normalizedType === "cedula" || normalizedType === "cédula") {
+        return { type: "cedula", exactLength: 10, numericOnly: true };
+    }
+    if (normalizedType === "ruc") {
+        return { type: "ruc", exactLength: 13, numericOnly: true };
+    }
+    if (normalizedType === "pasaporte") {
+        return { type: "pasaporte", maxLength: 20, numericOnly: false };
+    }
+    return null;
+}
+
+function validateIdentificationByType({
+    identification = "",
+    identificationType = "",
+}) {
+    const value = String(identification || "").trim();
+    const rule = resolveIdentificationValidationRule(identificationType);
+    if (!rule) return "";
+
+    if (rule.numericOnly && !/^\d+$/.test(value)) {
+        return `La identificación para ${rule.type.toUpperCase()} debe contener solo dígitos.`;
+    }
+
+    if (rule.exactLength && value.length !== rule.exactLength) {
+        return `La identificación para ${rule.type.toUpperCase()} debe tener exactamente ${rule.exactLength} dígitos.`;
+    }
+
+    if (rule.maxLength && value.length > rule.maxLength) {
+        return `La identificación para PASAPORTE no puede superar ${rule.maxLength} caracteres.`;
+    }
+
+    return "";
 }
 
 function getFirstFormValueByKeys(source = {}, candidateKeys = []) {
@@ -295,6 +355,14 @@ export default function useAgentGestionSubmit({
                             dynamicFormAnswers?.__redes_estado_conversacion || "",
                         tipoRedSocial:
                             dynamicFormAnswers?.__redes_tipo_red_social || "",
+                        pqrsFlow: dynamicFormAnswers?.__redes_pqrs_flow || "",
+                        actividadEconomica:
+                            dynamicFormAnswers?.__redes_actividad_economica || "",
+                        destinoCredito:
+                            dynamicFormAnswers?.__redes_destino_credito || "",
+                        ciudadBvf: dynamicFormAnswers?.__redes_vf_ciudad || "",
+                        correoBvf: dynamicFormAnswers?.__redes_vf_correo || "",
+                        agenciaBvf: dynamicFormAnswers?.__redes_vf_agencia || "",
                         categorizacion:
                             latestInteractionDetail.categorizacion || "",
                         motivoInteraccion: latestInteractionDetail.motivo || "",
@@ -314,6 +382,63 @@ export default function useAgentGestionSubmit({
                     }
 
                     if (isRedesManualFlow) {
+                        const cantidadMensajes =
+                            getFirstFormValueByKeys(inboundFormData, [
+                                "cantidadMensajes",
+                                "cantidad_mensajes",
+                                "CantidadMensajes",
+                                "campo2",
+                                "CAMPO2",
+                            ]) ||
+                            findDynamicFieldValueByLabel(
+                                dynamicRows,
+                                dynamicFormAnswers,
+                                ["cantidad de mensajes", "cantidad mensajes"],
+                            );
+                        if (!String(cantidadMensajes || "").trim()) {
+                            setError(
+                                "Cantidad de mensajes es obligatoria para guardar la gestión de redes.",
+                            );
+                            return;
+                        }
+
+                        const selectedRedesLabel = String(
+                            selectedInboundOption?.label ||
+                                selectedInboundOption?.campaignId ||
+                                "",
+                        ).trim();
+                        const isVisionFundFlow =
+                            isVisionFundClientLabel(selectedRedesLabel) ||
+                            isVisionFundClientLabel(campaignIdSeleccionada) ||
+                            isVisionFundClientLabel(menuItemIdSeleccionado) ||
+                            isVisionFundClientLabel(
+                                dynamicFormAnswers?.__redes_nombre_cliente_label ||
+                                    dynamicFormAnswers?.__redes_nombre_cliente ||
+                                    "",
+                            );
+                        const pqrsFlow = String(
+                            dynamicFormAnswers?.__redes_pqrs_flow || "",
+                        )
+                            .trim()
+                            .toLowerCase();
+                        const isCreditoInversion =
+                            pqrsFlow === "credito/inversion";
+                        if (isVisionFundFlow && isCreditoInversion) {
+                            const actividadEconomica = String(
+                                dynamicFormAnswers?.__redes_actividad_economica ||
+                                    "",
+                            ).trim();
+                            const destinoCredito = String(
+                                dynamicFormAnswers?.__redes_destino_credito || "",
+                            ).trim();
+                            if (!actividadEconomica || !destinoCredito) {
+                                setError(
+                                    "Actividad economica y destino del credito son obligatorios para Credito/Inversion.",
+                                );
+                                return;
+                            }
+                        }
+
                         const normalizedFullName =
                             getFirstFormValueByKeys(inboundFormData, [
                                 "apellidosNombres",
@@ -379,11 +504,32 @@ export default function useAgentGestionSubmit({
                             "cedula",
                         ],
                     );
+                    const identificationTypeToUse =
+                        String(
+                            inboundFormData?.tipoIdentificacion ||
+                                inboundFormData?.__inbound_tipo_identificacion ||
+                                "",
+                        ).trim() ||
+                        findDynamicFieldValueByLabel(
+                            dynamicRows,
+                            dynamicFormAnswers,
+                            ["tipo de identificacion", "tipo identificacion"],
+                        );
 
                     if (!campaignIdToUse || !identificationToUse) {
                         setError(
                             "Nombre Cliente e Identificación son requeridos para guardar.",
                         );
+                        return;
+                    }
+
+                    const identificationValidationError =
+                        validateIdentificationByType({
+                            identification: identificationToUse,
+                            identificationType: identificationTypeToUse,
+                        });
+                    if (identificationValidationError) {
+                        setError(identificationValidationError);
                         return;
                     }
 
@@ -587,6 +733,26 @@ export default function useAgentGestionSubmit({
                                     : "No se pudo guardar la gestion inbound"),
                         );
                         return;
+                    }
+
+                    if (isRedesManualFlow) {
+                        const webhookDebug = json?.bvfRrssWebhook || null;
+                        // Temporal: trazas visibles para depurar envío a Drive (Apps Script).
+                        // eslint-disable-next-line no-console
+                        console.log(
+                            "[TEMP][RedesWebhook][guardar-gestion-redes] respuesta:",
+                            webhookDebug,
+                        );
+                        if (webhookDebug && webhookDebug.sent !== true) {
+                            const webhookReason = String(
+                                webhookDebug?.reason ||
+                                    webhookDebug?.detail ||
+                                    "sin_detalle",
+                            ).trim();
+                            setError(
+                                `[TEMP][Drive] Gestion guardada, pero webhook no enviado. reason=${webhookReason}`,
+                            );
+                        }
                     }
 
                     if (imagesToUpload.length > 0) {

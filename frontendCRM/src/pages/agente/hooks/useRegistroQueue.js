@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { obtenerPlantillasDinamicas } from "../../../services/formTemplate.service";
 import { obtenerCampaniasDetalladasDesdeMenu } from "../../../services/campaign.service";
 import { esGestionOutbound } from "../../../utils/gestionOutbound";
-import { INBOUND_HISTORICO_MENU_ITEM_ID } from "../../../components/AccordionMenu";
+import {
+    INBOUND_HISTORICO_MENU_ITEM_ID,
+    REDES_HISTORICO_MENU_ITEM_ID,
+} from "../../../components/AccordionMenu";
 import {
     buildInitialSurveyAnswers,
     getOrCreateTabSessionId,
@@ -625,7 +628,9 @@ export default function useRegistroQueue({
         const isOutbound = esGestionOutbound(selectedCampaignId);
         const isInboundHistoricoView =
             String(selectedMenuItemId || "").trim() ===
-            INBOUND_HISTORICO_MENU_ITEM_ID;
+                INBOUND_HISTORICO_MENU_ITEM_ID ||
+            String(selectedMenuItemId || "").trim() ===
+                REDES_HISTORICO_MENU_ITEM_ID;
         const isRedesManualFlow =
             Boolean(selectedManualFlow) &&
             isGestionRedesFlow({
@@ -679,6 +684,9 @@ export default function useRegistroQueue({
                     const today = getTodayLocalDate();
                     setDynamicFormAnswers((prev) => ({
                         ...prev,
+                        __redes_pqrs_flow:
+                            String(prev?.__redes_pqrs_flow || "").trim() ||
+                            "Credito/Inversion",
                         __redes_tipo_cliente:
                             String(prev?.__redes_tipo_cliente || "").trim() ||
                             "Asesor",

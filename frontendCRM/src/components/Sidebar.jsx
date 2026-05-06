@@ -3,6 +3,8 @@ import PropTypes from "prop-types";
 import AccordionMenu, {
     INBOUND_HISTORICO_CAMPAIGN_ID,
     INBOUND_HISTORICO_MENU_ITEM_ID,
+    REDES_HISTORICO_CAMPAIGN_ID,
+    REDES_HISTORICO_MENU_ITEM_ID,
 } from "./AccordionMenu";
 import {
     fetchAgentStatusOptions,
@@ -59,7 +61,9 @@ function allowsInboundOpenWithoutCall(...values) {
 function isInboundHistoricoAction({ campaignId = "", menuItemId = "" }) {
     return (
         String(campaignId || "").trim() === INBOUND_HISTORICO_CAMPAIGN_ID ||
-        String(menuItemId || "").trim() === INBOUND_HISTORICO_MENU_ITEM_ID
+        String(menuItemId || "").trim() === INBOUND_HISTORICO_MENU_ITEM_ID ||
+        String(campaignId || "").trim() === REDES_HISTORICO_CAMPAIGN_ID ||
+        String(menuItemId || "").trim() === REDES_HISTORICO_MENU_ITEM_ID
     );
 }
 

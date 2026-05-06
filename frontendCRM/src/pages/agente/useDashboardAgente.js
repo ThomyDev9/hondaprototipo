@@ -61,6 +61,14 @@ export default function useDashboardAgenteState({
             normalizedValues.includes("atm oscus")
         );
     };
+    const buildManualInboundTicketId = () => {
+        const timestampBase36 = Date.now().toString(36).toUpperCase();
+        const randomSuffix = Math.floor(Math.random() * 1679616)
+            .toString(36)
+            .toUpperCase()
+            .padStart(4, "0");
+        return `INB-${timestampBase36}-${randomSuffix}`;
+    };
     const isGestionRedesFlow = ({ menuItemId = "", campaignId = "" }) =>
         String(menuItemId || "").trim() === REDES_PARENT_MENU_ITEM_ID ||
         normalizeFlowLabel(campaignId) === REDES_SHARED_LABEL;
@@ -733,9 +741,50 @@ export default function useDashboardAgenteState({
             }
 
             const nextValue = String(value ?? "");
+            const isInboundIdentificationFieldForValidation =
+                manualFlowActivo &&
+                String(categoryIdSeleccionada || "").trim() ===
+                    INBOUND_MENU_CATEGORY_ID &&
+                fieldKey === "IDENTIFICACION" &&
+                !isRedesManualFlow;
+            const selectedIdentificationType = String(
+                dynamicFormAnswers?.__inbound_tipo_identificacion || "",
+            )
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim()
+                .toLowerCase();
+            const normalizedInboundIdentificationValue = nextValue.replace(
+                /\s+/g,
+                "",
+            );
+            let identificationValueToStore = nextValue;
+
+            if (isInboundIdentificationFieldForValidation) {
+                if (
+                    selectedIdentificationType === "cedula" ||
+                    selectedIdentificationType === "cédula" ||
+                    selectedIdentificationType === "ruc"
+                ) {
+                    identificationValueToStore =
+                        normalizedInboundIdentificationValue.replace(/\D/g, "");
+                    if (selectedIdentificationType === "cedula") {
+                        identificationValueToStore =
+                            identificationValueToStore.slice(0, 10);
+                    }
+                    if (selectedIdentificationType === "ruc") {
+                        identificationValueToStore =
+                            identificationValueToStore.slice(0, 13);
+                    }
+                } else if (selectedIdentificationType === "pasaporte") {
+                    identificationValueToStore =
+                        normalizedInboundIdentificationValue.slice(0, 20);
+                }
+            }
+
             setDynamicFormAnswers((prev) => ({
                 ...prev,
-                [fieldKey]: nextValue,
+                [fieldKey]: identificationValueToStore,
             }));
 
             const isRedesIdentificationField =
@@ -755,7 +804,7 @@ export default function useDashboardAgenteState({
                 return;
             }
 
-            const identification = nextValue.trim();
+            const identification = identificationValueToStore.trim();
             if (identification.length < 5) {
                 return;
             }
@@ -790,41 +839,47 @@ export default function useDashboardAgenteState({
             }
 
             const client = json.data;
-            setDynamicFormAnswers((prev) => ({
-                ...prev,
-                IDENTIFICACION: identification,
-                NOMBRE_CLIENTE: String(client.fullName || "").trim(),
-                CAMPO1: String(client.city || "").trim(),
-                CAMPO2: String(client.email || "").trim(),
-                CAMPO3: String(client.celular || "").trim(),
-                CAMPO4: String(client.convencional || "").trim(),
-                CAMPO5: allowsManualInboundClientSelection
-                    ? String(prev.CAMPO5 || "").trim()
-                    : String(prev.CAMPO5 || "").trim() ||
-                      String(client.ticketId || "").trim(),
-                ticketId: allowsManualInboundClientSelection
-                    ? String(prev.ticketId || "").trim()
-                    : String(prev.ticketId || "").trim() ||
-                      String(client.ticketId || "").trim(),
-                __inbound_tipo_identificacion:
-                    String(client.tipoIdentificacion || "").trim() ||
-                    prev.__inbound_tipo_identificacion ||
-                    "",
-                __inbound_tipo_cliente:
-                    String(client.tipoCliente || "").trim() ||
-                    prev.__inbound_tipo_cliente ||
-                    "",
-                __inbound_tipo_canal:
-                    String(client.tipoCanal || "").trim() ||
-                    prev.__inbound_tipo_canal ||
-                    "",
-                __inbound_relacion:
-                    shouldForceClienteRelationByChild
-                        ? "Cliente"
-                        : String(client.relacion || "").trim() ||
-                          prev.__inbound_relacion ||
-                          "",
-            }));
+            setDynamicFormAnswers((prev) => {
+                const currentTicket = String(
+                    prev.CAMPO5 ||
+                        prev.ticketId ||
+                        prev.idLlamada ||
+                        prev.__inbound_current_call_id ||
+                        "",
+                ).trim();
+                const nextTicketId = currentTicket || buildManualInboundTicketId();
+
+                return {
+                    ...prev,
+                    IDENTIFICACION: identification,
+                    NOMBRE_CLIENTE: String(client.fullName || "").trim(),
+                    CAMPO1: String(client.city || "").trim(),
+                    CAMPO2: String(client.email || "").trim(),
+                    CAMPO3: String(client.celular || "").trim(),
+                    CAMPO4: String(client.convencional || "").trim(),
+                    CAMPO5: nextTicketId,
+                    ticketId: nextTicketId,
+                    idLlamada: nextTicketId,
+                    __inbound_tipo_identificacion:
+                        String(client.tipoIdentificacion || "").trim() ||
+                        prev.__inbound_tipo_identificacion ||
+                        "",
+                    __inbound_tipo_cliente:
+                        String(client.tipoCliente || "").trim() ||
+                        prev.__inbound_tipo_cliente ||
+                        "",
+                    __inbound_tipo_canal:
+                        String(client.tipoCanal || "").trim() ||
+                        prev.__inbound_tipo_canal ||
+                        "",
+                    __inbound_relacion:
+                        shouldForceClienteRelationByChild
+                            ? "Cliente"
+                            : String(client.relacion || "").trim() ||
+                              prev.__inbound_relacion ||
+                              "",
+                };
+            });
 
             const currentCall = await hydrateInboundCurrentCall();
             const queueMatchedChild = resolveInboundChildByQueue(
@@ -886,6 +941,9 @@ export default function useDashboardAgenteState({
         const today = getTodayLocalDate();
         setDynamicFormAnswers((prev) => ({
             ...prev,
+            __redes_pqrs_flow:
+                String(prev?.__redes_pqrs_flow || "").trim() ||
+                "Credito/Inversion",
             __redes_tipo_cliente:
                 String(prev?.__redes_tipo_cliente || "").trim() || "Asesor",
             __redes_tipo_red_social:

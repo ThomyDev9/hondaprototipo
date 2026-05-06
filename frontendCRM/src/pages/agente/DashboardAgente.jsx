@@ -2,13 +2,17 @@ import PropTypes from "prop-types";
 import { PageContainer } from "../../components/common";
 import AgentGestionForm from "./components/AgentGestionForm";
 import InboundHistoricoPanel from "./components/InboundHistoricoPanelV2";
+import RedesHistoricoPanel from "./components/RedesHistoricoPanel";
 import GestionOutboundDemo from "./GestionOutboundDemo";
 import OutMaquitaPage from "./OutMaquitaPage";
 import OutHondaPage from "./OutHondaPage";
 import useDashboardAgenteState from "./useDashboardAgente";
 import BaseCardSection from "./components/BaseCardSection";
 import "./DashboardAgente.css";
-import { INBOUND_HISTORICO_MENU_ITEM_ID } from "../../components/AccordionMenu";
+import {
+    INBOUND_HISTORICO_MENU_ITEM_ID,
+    REDES_HISTORICO_MENU_ITEM_ID,
+} from "../../components/AccordionMenu";
 import InboundNoRegistradasPage from "../supervisor/InboundNoRegistradasPage";
 import CorreccionesInboundPage from "../supervisor/CorreccionesInboundPage";
 
@@ -174,8 +178,11 @@ export default function DashboardAgente({
         String(categoryIdSeleccionada || "").trim() === INBOUND_MENU_CATEGORY_ID &&
         String(error || "").toLowerCase().includes("formulario 2 activo");
     const isInboundHistoricoView =
-        String(selectedMenuItemId || "").trim() ===
-            INBOUND_HISTORICO_MENU_ITEM_ID && !isHomeView;
+        (String(selectedMenuItemId || "").trim() ===
+            INBOUND_HISTORICO_MENU_ITEM_ID ||
+            String(selectedMenuItemId || "").trim() ===
+                REDES_HISTORICO_MENU_ITEM_ID) &&
+        !isHomeView;
 
     if (!isAgente) {
         return (
@@ -262,7 +269,12 @@ export default function DashboardAgente({
                         )}
 
                     {isInboundHistoricoView && (
-                        <InboundHistoricoPanel campaignId="" />
+                        String(selectedMenuItemId || "").trim() ===
+                        REDES_HISTORICO_MENU_ITEM_ID ? (
+                            <RedesHistoricoPanel campaignId="" />
+                        ) : (
+                            <InboundHistoricoPanel campaignId="" />
+                        )
                     )}
 
                     {(registro || manualFlowActivo) &&

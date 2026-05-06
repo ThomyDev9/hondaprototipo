@@ -95,6 +95,12 @@ const REDES_FIXED_FIELDS_SECONDARY_ROW = [
     },
 ];
 
+const REDES_PQRS_FLOW_OPTIONS = [
+    "Credito/Inversion",
+    "Otros",
+    "No requiere PQRS",
+];
+
 function buildUniqueOptions(values = []) {
     return [
         ...new Set(
@@ -116,10 +122,12 @@ function normalizeFlowLabel(value) {
 
 function isVisionFundClientLabel(value) {
     const normalizedValue = normalizeFlowLabel(value);
-    return (
-        normalizedValue.includes("banco") &&
-        normalizedValue.includes("visionfund")
-    );
+    const compact = normalizedValue.replace(/\s+/g, "");
+    const hasVisionFundToken =
+        compact.includes("visionfund") ||
+        (normalizedValue.includes("vision") &&
+            normalizedValue.includes("fund"));
+    return hasVisionFundToken;
 }
 
 function requiresInboundClienteRelation(...values) {
@@ -817,7 +825,6 @@ function AgentGestionForm({
     isSaving = false,
 }) {
     const firstRender = useRef(true);
-    const visionFundClientDetectedRef = useRef(false);
     const [activeTab, setActiveTab] = useState("gestion");
     const isInboundManualFlow =
         manualFlow &&
@@ -962,7 +969,10 @@ function AgentGestionForm({
             const identificationField = takeRedesFieldByOrder(1);
             const fullNameField = takeRedesFieldByOrder(2);
             const celularField = takeRedesFieldByOrder(3);
-            const cantidadMensajesField = takeRedesFieldByOrder(4);
+            const cantidadMensajesFieldRaw = takeRedesFieldByOrder(4);
+            const cantidadMensajesField = cantidadMensajesFieldRaw
+                ? { ...cantidadMensajesFieldRaw, required: true }
+                : null;
             const redesRows = [
                 redesReadOnlyFields,
                 [
@@ -1099,10 +1109,31 @@ function AgentGestionForm({
     const showDynamicForm =
         Boolean(dynamicFormConfig) && inboundDynamicRows.length > 0;
 
-    useEffect(() => {
-        // Reinicia el latch al cambiar de flujo/campaña para no arrastrar estado.
-        visionFundClientDetectedRef.current = false;
-    }, [menuItemId, campaignId, categoryId, isRedesManualFlow]);
+    const selectedRedesMenuItemId = String(
+        dynamicFormAnswers?.__redes_nombre_cliente || "",
+    ).trim();
+    const selectedRedesClientLabel = String(
+        (inboundChildOptions || []).find(
+            (item) =>
+                String(item?.menuItemId || item?.value || "").trim() ===
+                selectedRedesMenuItemId,
+        )?.label ||
+            dynamicFormAnswers?.__redes_nombre_cliente_label ||
+            dynamicFormAnswers?.__redes_nombre_cliente ||
+            "",
+    ).trim();
+    const isVisionFundRedesFlow =
+        isRedesManualFlow &&
+        (isVisionFundClientLabel(selectedRedesClientLabel) ||
+            isVisionFundClientLabel(campaignId) ||
+            isVisionFundClientLabel(menuItemId));
+    const pqrsFlowMode = String(dynamicFormAnswers?.__redes_pqrs_flow || "")
+        .trim()
+        .toLowerCase();
+    const shouldShowVisionFundTicket =
+        isVisionFundRedesFlow && pqrsFlowMode !== "no requiere pqrs";
+    const shouldShowVisionFundExtraFields =
+        isVisionFundRedesFlow && pqrsFlowMode === "credito/inversion";
 
     const normalizedLevel1 = String(level1Seleccionado || "")
         .trim()
@@ -1206,6 +1237,96 @@ function AgentGestionForm({
                     <div className="agent-inbound-shell__content">
                         <div className="agent-inbound-shell__column">
                             {inboundPrimaryContent}
+                            {isVisionFundRedesFlow && (
+                                <section className="agent-form-card agent-form-card--tertiary">
+                                    <div className="agent-form-header-row">
+                                        <p className="agent-form-card__title">
+                                            VisionFund PQRS
+                                        </p>
+                                    </div>
+                                    <div className="agent-dynamic-section agent-dynamic-section--redes">
+                                        <div className="agent-dynamic-row agent-dynamic-row--redes">
+                                            <div className="agent-form-field">
+                                                <span className="agent-dynamic-label">
+                                                    Requiere PQRS
+                                                    <span style={{ color: "red" }}> *</span>
+                                                </span>
+                                                <div className="agent-radio-group">
+                                                    {REDES_PQRS_FLOW_OPTIONS.map((option) => (
+                                                        <label
+                                                            key={option}
+                                                            className="agent-radio-option"
+                                                        >
+                                                            <input
+                                                                type="radio"
+                                                                name="__redes_pqrs_flow"
+                                                                value={option}
+                                                                checked={
+                                                                    String(
+                                                                        dynamicFormAnswers?.__redes_pqrs_flow ||
+                                                                            "",
+                                                                    ).trim() === option
+                                                                }
+                                                                onChange={(event) =>
+                                                                    onDynamicFormFieldChange?.(
+                                                                        "__redes_pqrs_flow",
+                                                                        event.target.value,
+                                                                    )
+                                                                }
+                                                            />
+                                                            <span>{option}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {shouldShowVisionFundExtraFields && (
+                                            <div className="agent-dynamic-row agent-dynamic-row--redes">
+                                                <div className="agent-form-field">
+                                                    <span className="agent-dynamic-label">
+                                                        Actividad economica
+                                                        <span style={{ color: "red" }}> *</span>
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        className="agent-input agent-survey-input"
+                                                        value={
+                                                            dynamicFormAnswers?.__redes_actividad_economica ||
+                                                            ""
+                                                        }
+                                                        onChange={(event) =>
+                                                            onDynamicFormFieldChange?.(
+                                                                "__redes_actividad_economica",
+                                                                event.target.value,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="agent-form-field">
+                                                    <span className="agent-dynamic-label">
+                                                        Destino del credito
+                                                        <span style={{ color: "red" }}> *</span>
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        className="agent-input agent-survey-input"
+                                                        value={
+                                                            dynamicFormAnswers?.__redes_destino_credito ||
+                                                            ""
+                                                        }
+                                                        onChange={(event) =>
+                                                            onDynamicFormFieldChange?.(
+                                                                "__redes_destino_credito",
+                                                                event.target.value,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </section>
+                            )}
                             {isInboundManualFlow && (
                                 <InboundImagesSection
                                     items={inboundImageDrafts}
@@ -1216,32 +1337,7 @@ function AgentGestionForm({
                             )}
                             {isRedesManualFlow &&
                                 (() => {
-                                    const selectedRedesMenuItemId = String(
-                                        dynamicFormAnswers?.__redes_nombre_cliente ||
-                                            "",
-                                    ).trim();
-                                    const selectedRedesClientLabel = String(
-                                        (inboundChildOptions || []).find(
-                                            (item) =>
-                                                String(
-                                                    item?.menuItemId ||
-                                                        item?.value ||
-                                                        "",
-                                                ).trim() ===
-                                                selectedRedesMenuItemId,
-                                        )?.label || "",
-                                    ).trim();
-                                    const isVisionFundClient =
-                                        isVisionFundClientLabel(
-                                            selectedRedesClientLabel,
-                                        );
-                                    if (isVisionFundClient) {
-                                        visionFundClientDetectedRef.current = true;
-                                    }
-                                    if (
-                                        !isVisionFundClient &&
-                                        !visionFundClientDetectedRef.current
-                                    ) {
+                                    if (!shouldShowVisionFundTicket) {
                                         return null;
                                     }
 
@@ -1418,6 +1514,9 @@ function AgentGestionForm({
                                                 identification: nextIdentification,
                                                 fullName: nextFullName,
                                                 phone: nextPhone,
+                                                email: nextEmail,
+                                                city: nextCity,
+                                                agency: nextAgency,
                                                 clear = false,
                                             }) => {
                                                 const normalizedIdentification = String(
@@ -1429,10 +1528,22 @@ function AgentGestionForm({
                                                 const normalizedPhone = String(
                                                     nextPhone || "",
                                                 ).trim();
+                                                const normalizedEmail = String(
+                                                    nextEmail || "",
+                                                ).trim();
+                                                const normalizedCity = String(
+                                                    nextCity || "",
+                                                ).trim();
+                                                const normalizedAgency = String(
+                                                    nextAgency || "",
+                                                ).trim();
                                                 const updates = [
                                                     [identificationFieldKey, normalizedIdentification],
                                                     [fullNameFieldKey, normalizedFullName],
                                                     [phoneFieldKey, normalizedPhone],
+                                                    ["__redes_vf_correo", normalizedEmail],
+                                                    ["__redes_vf_ciudad", normalizedCity],
+                                                    ["__redes_vf_agencia", normalizedAgency],
                                                 ];
                                                 const dedupedUpdates = Array.from(
                                                     new Map(
@@ -1461,6 +1572,7 @@ function AgentGestionForm({
                                                     }
                                                 });
                                             }}
+                                            pqrsFlowMode={pqrsFlowMode}
                                         />
                                     );
                                 })()}

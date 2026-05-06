@@ -227,6 +227,47 @@ function parseOptionalManagementDate(value) {
     return parsed;
 }
 
+function normalizeIdentificationType(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+}
+
+function validateIdentificationByType({
+    identification = "",
+    identificationType = "",
+}) {
+    const value = String(identification || "").trim();
+    const normalizedType = normalizeIdentificationType(identificationType);
+
+    if (!value || !normalizedType) return "";
+
+    if (normalizedType === "cedula") {
+        if (!/^\d{10}$/.test(value)) {
+            return "Para tipo Cédula, la identificación debe tener exactamente 10 dígitos.";
+        }
+        return "";
+    }
+
+    if (normalizedType === "ruc") {
+        if (!/^\d{13}$/.test(value)) {
+            return "Para tipo RUC, la identificación debe tener exactamente 13 dígitos.";
+        }
+        return "";
+    }
+
+    if (normalizedType === "pasaporte") {
+        if (value.length > 20) {
+            return "Para tipo Pasaporte, la identificación no puede superar 20 caracteres.";
+        }
+        return "";
+    }
+
+    return "";
+}
+
 function isRedesFormFlow({
     campaignId = "",
     menuItemId = "",
@@ -355,11 +396,8 @@ export function registerInboundRoutes(
         async (req, res) => {
             try {
                 const campaignId = String(req.query?.campaignId || "").trim();
-
                 const rows =
-                    await agenteDAO.listInboundHistoricoClientOptions(
-                        campaignId,
-                    );
+                    await agenteDAO.listInboundHistoricoClientOptions(campaignId);
 
                 return res.json({
                     success: true,
@@ -375,6 +413,39 @@ export function registerInboundRoutes(
                 );
                 return res.status(500).json({
                     error: "Error obteniendo clientes del historico inbound",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.get(
+        "/redes-historico-clientes",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const campaignId = String(req.query?.campaignId || "").trim();
+                console.log("[DEBUG][REDES_HIST][BE] clientes filtros", {
+                    campaignId,
+                    user: req.user?.username || req.user?.email || req.user?.id,
+                });
+                const rows =
+                    await agenteDAO.listRedesHistoricoClientOptions(campaignId);
+                console.log(
+                    "[DEBUG][REDES_HIST][BE] clientes total",
+                    Array.isArray(rows) ? rows.length : 0,
+                );
+                return res.json({
+                    success: true,
+                    data: rows.map((row) => ({
+                        value: String(row?.value || "").trim(),
+                        label: String(row?.value || "").trim(),
+                    })),
+                });
+            } catch (err) {
+                console.error("Error en /agente/redes-historico-clientes:", err);
+                return res.status(500).json({
+                    error: "Error obteniendo clientes del historico de redes",
                     detail: err?.sqlMessage || err?.message || "",
                 });
             }
@@ -413,6 +484,57 @@ export function registerInboundRoutes(
                 console.error("Error en /agente/inbound-historico:", err);
                 return res.status(500).json({
                     error: "Error obteniendo historico inbound",
+                    detail: err?.sqlMessage || err?.message || "",
+                });
+            }
+        },
+    );
+
+    router.get(
+        "/redes-historico",
+        ...agenteMiddlewares,
+        async (req, res) => {
+            try {
+                const campaignId = String(req.query?.campaignId || "").trim();
+                const advisor = String(req.query?.advisor || "").trim();
+                const clientName = String(req.query?.clientName || "").trim();
+                const searchText = String(req.query?.searchText || "").trim();
+                const startDate = String(req.query?.startDate || "").trim();
+                const endDate = String(req.query?.endDate || "").trim();
+
+                const filters = {
+                    campaignId,
+                    advisor,
+                    clientName,
+                    searchText,
+                    startDate,
+                    endDate,
+                    user: req.user?.username || req.user?.email || req.user?.id,
+                    roles: Array.isArray(req.user?.roles) ? req.user.roles : [],
+                };
+                console.log("[DEBUG][REDES_HIST][BE] rows filtros", filters);
+
+                const rows = await agenteDAO.listRedesHistoricoRows({
+                    campaignId,
+                    advisor,
+                    clientName,
+                    searchText,
+                    startDate,
+                    endDate,
+                });
+
+                console.log(
+                    "[DEBUG][REDES_HIST][BE] rows total",
+                    Array.isArray(rows) ? rows.length : 0,
+                );
+                return res.json({
+                    success: true,
+                    data: rows,
+                });
+            } catch (err) {
+                console.error("Error en /agente/redes-historico:", err);
+                return res.status(500).json({
+                    error: "Error obteniendo historico de redes",
                     detail: err?.sqlMessage || err?.message || "",
                 });
             }
@@ -1312,6 +1434,16 @@ export function registerInboundRoutes(
                 const normalizedCampaignId = String(campaignId || "").trim();
                 const isFollowupTicket =
                     normalizedTicketId.toUpperCase().startsWith("SEG-");
+                const identificationValidationError = validateIdentificationByType({
+                    identification,
+                    identificationType: tipoIdentificacion,
+                });
+
+                if (identificationValidationError) {
+                    return res.status(400).json({
+                        error: identificationValidationError,
+                    });
+                }
 
                 if (isRedesFlow) {
                     const existingClientByCampaign =

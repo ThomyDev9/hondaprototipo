@@ -474,6 +474,19 @@ function extractInboundQueueFromRecordingFile(recordingfile = "") {
     return String(match?.[1] || "").trim();
 }
 
+function buildInboundCallInstanceKey(candidate = {}) {
+    const uniqueid = String(candidate?.uniqueid || "").trim();
+    if (uniqueid) return `uid:${uniqueid}`;
+
+    const calldate = String(candidate?.calldate || "").trim();
+    const src = String(candidate?.src || "").trim();
+    const dst = String(candidate?.dst || "").trim();
+    const recording = normalizeRecordingValue(
+        candidate?.recordingfileNormalized || candidate?.recordingfile,
+    );
+    return `rec:${recording}|dt:${calldate}|s:${src}|d:${dst}`;
+}
+
 function normalizeQueueToken(value = "") {
     return String(value || "")
         .trim()
@@ -721,7 +734,9 @@ async function buildInboundMissingCallsDataset({
         .flatMap((result) => result.value || []);
 
     const unifiedByRecording = new Map();
+    const inboundCallInstanceKeys = new Set();
     const ingestCandidate = (candidate) => {
+        inboundCallInstanceKeys.add(buildInboundCallInstanceKey(candidate));
         const normalized = String(candidate?.recordingfileNormalized || "").trim();
         if (!normalized) return;
         const existing = unifiedByRecording.get(normalized);
@@ -990,7 +1005,7 @@ async function buildInboundMissingCallsDataset({
             limit,
         },
         totals: {
-            total: unifiedRows.length,
+            total: inboundCallInstanceKeys.size,
             missing: data.length,
         },
         catalog,

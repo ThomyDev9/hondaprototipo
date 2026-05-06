@@ -1,5 +1,15 @@
 import { formatLocalDateTime } from "../../utils/dateTime.js";
 
+const BVF_RRSS_WEBHOOK_URL = String(
+    process.env.BVF_RRSS_WEBHOOK_URL || "",
+).trim();
+const BVF_RRSS_WEBHOOK_TOKEN = String(
+    process.env.BVF_RRSS_WEBHOOK_TOKEN || "",
+).trim();
+const BVF_RRSS_WEBHOOK_TIMEOUT_MS = Number(
+    process.env.BVF_RRSS_WEBHOOK_TIMEOUT_MS || 8000,
+);
+
 function normalizeLookupKey(value) {
     return String(value || "")
         .normalize("NFD")
@@ -40,6 +50,87 @@ function getFirstFormValueByKeys(source = {}, candidateKeys = []) {
     }
 
     return "";
+}
+
+function splitApellidosNombres(fullName = "") {
+    const normalized = String(fullName || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    if (normalized.length <= 1) {
+        return { apellidos: String(fullName || "").trim(), nombres: "" };
+    }
+
+    if (normalized.length >= 4) {
+        return {
+            apellidos: normalized.slice(0, 2).join(" "),
+            nombres: normalized.slice(2).join(" "),
+        };
+    }
+
+    const half = Math.ceil(normalized.length / 2);
+    return {
+        apellidos: normalized.slice(0, half).join(" "),
+        nombres: normalized.slice(half).join(" "),
+    };
+}
+
+async function syncBvfRrssWebhook(payload = {}) {
+    if (!BVF_RRSS_WEBHOOK_URL || !BVF_RRSS_WEBHOOK_TOKEN) {
+        return {
+            sent: false,
+            reason: "missing_webhook_config",
+        };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(
+        () => controller.abort(),
+        BVF_RRSS_WEBHOOK_TIMEOUT_MS,
+    );
+
+    try {
+        const response = await fetch(BVF_RRSS_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                token: BVF_RRSS_WEBHOOK_TOKEN,
+                ...payload,
+            }),
+            signal: controller.signal,
+        });
+
+        let json = null;
+        try {
+            json = await response.json();
+        } catch {
+            json = null;
+        }
+
+        if (!response.ok) {
+            return {
+                sent: false,
+                reason: "http_error",
+                status: response.status,
+                detail: json,
+            };
+        }
+
+        return {
+            sent: true,
+            status: response.status,
+            response: json,
+        };
+    } catch (error) {
+        return {
+            sent: false,
+            reason: "request_failed",
+            detail: error?.message || String(error || ""),
+        };
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
 export function registerRedesRoutes(
@@ -287,6 +378,11 @@ export function registerRedesRoutes(
                         formData?.categorizacion ||
                         "",
                 ).trim();
+                const pqrsFlow = String(
+                    formData?.pqrsFlow ||
+                        formData?.__redes_pqrs_flow ||
+                        "Credito/Inversion",
+                ).trim();
 
                 const existingClientByCampaign =
                     await agenteDAO.getRedesClientByIdentificationAndCampaign(
@@ -432,6 +528,90 @@ export function registerRedesRoutes(
                         },
                     });
                 }
+                const correo = getFirstFormValueByKeys(formData, [
+                    "__redes_vf_correo",
+                    "correoBvf",
+                    "correo",
+                    "email",
+                    "mail",
+                    "correoElectronico",
+                    "correo_cliente",
+                ]);
+                const ciudad = getFirstFormValueByKeys(formData, [
+                    "__redes_vf_ciudad",
+                    "ciudadBvf",
+                    "canton",
+                    "ciudad",
+                    "city",
+                ]);
+                const actividadEconomica = getFirstFormValueByKeys(formData, [
+                    "__redes_actividad_economica",
+                    "actividadEconomica",
+                    "actividadEconomica",
+                    "actividad_economica",
+                    "ocupacion",
+                ]);
+                const agencia = getFirstFormValueByKeys(formData, [
+                    "__redes_vf_agencia",
+                    "agenciaBvf",
+                    "agencia",
+                    "agency",
+                ]);
+                const destinoCredito = getFirstFormValueByKeys(formData, [
+                    "__redes_destino_credito",
+                    "destinoCredito",
+                    "destinoCredito",
+                    "destino_credito",
+                ]);
+                const canal = String(
+                    tipoRedSocial ||
+                        getFirstFormValueByKeys(formData, [
+                            "canal",
+                            "tipoCanal",
+                            "tipo_red_social",
+                        ]) ||
+                        "WHATSAPP",
+                ).trim();
+                const { apellidos, nombres } = splitApellidosNombres(fullName);
+                const normalizedPqrsFlow = normalizeLookupKey(pqrsFlow);
+                const visionFundFlowHint = [
+                    nombreClienteRef,
+                    campaignId,
+                    menuItemId,
+                    formData?.__redes_nombre_cliente_label,
+                    formData?.__redes_nombre_cliente,
+                ]
+                    .map((value) => normalizeLookupKey(value))
+                    .join(" ");
+                const isVisionFundFlow =
+                    visionFundFlowHint.includes("visionfund") ||
+                    (visionFundFlowHint.includes("vision") &&
+                        visionFundFlowHint.includes("fund"));
+                const shouldSyncBvfWebhook =
+                    isVisionFundFlow &&
+                    normalizedPqrsFlow === "creditoinversion";
+                const webhookSync = shouldSyncBvfWebhook
+                    ? await syncBvfRrssWebhook({
+                          asesor_user: String(agenteActor || "SIN_USUARIO").trim(),
+                          canal,
+                          fecha: fechaGestion || startedManagement,
+                          apellidos,
+                          nombres,
+                          cedula: identification,
+                          ciudad,
+                          actividad_economica: actividadEconomica,
+                          celular,
+                          agencia,
+                          correo,
+                          destino_credito: destinoCredito,
+                          observaciones,
+                      })
+                    : {
+                          sent: false,
+                          reason: "pqrs_flow_without_webhook",
+                          pqrsFlow,
+                          isVisionFundFlow,
+                      };
 
                 return res.json({
                     success: true,
@@ -444,6 +624,7 @@ export function registerRedesRoutes(
                         form2: form2SaveResult,
                         form3: form3SaveResult,
                     },
+                    bvfRrssWebhook: webhookSync,
                 });
             } catch (err) {
                 console.error("Error en /agente/guardar-gestion-redes:", err);

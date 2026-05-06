@@ -914,10 +914,16 @@ const INSERT_INBOUND_GESTION_IMAGEN = `
 
 const LIST_INBOUND_HISTORICO_CLIENT_OPTIONS = `
   SELECT DISTINCT
-    TRIM(nombre_cliente_ref) AS value
-  FROM gestionfinal_inbound
+    TRIM(src.nombre_cliente_ref) AS value
+  FROM (
+    SELECT nombre_cliente_ref, campaign_id
+    FROM gestionfinal_inbound
+    UNION ALL
+    SELECT nombre_cliente_ref, campaign_id
+    FROM gestionhistorica_redes
+  ) src
   WHERE (? = '' OR campaign_id = ?)
-    AND COALESCE(TRIM(nombre_cliente_ref), '') <> ''
+    AND COALESCE(TRIM(src.nombre_cliente_ref), '') <> ''
   ORDER BY value ASC
 `;
 
@@ -942,9 +948,53 @@ const LIST_INBOUND_HISTORICO_ROWS = `
     observaciones,
     DATE_FORMAT(tmstmp, '%Y-%m-%d %H:%i:%s') AS tmstmp,
     nombre_cliente_ref
-  FROM gestionfinal_inbound
+  FROM (
+    SELECT
+      id,
+      interaction_id,
+      ticket_id,
+      action_order,
+      contact_id,
+      cliente_inbound_id,
+      category_id,
+      menu_item_id,
+      campaign_id,
+      agent,
+      identification,
+      full_name,
+      celular,
+      categorizacion,
+      result_level1,
+      result_level2,
+      observaciones,
+      tmstmp,
+      nombre_cliente_ref
+    FROM gestionfinal_inbound
+    UNION ALL
+    SELECT
+      id,
+      interaction_id,
+      NULL AS ticket_id,
+      action_order,
+      contact_id,
+      cliente_redes_id AS cliente_inbound_id,
+      category_id,
+      menu_item_id,
+      campaign_id,
+      agent,
+      identification,
+      full_name,
+      celular,
+      categorizacion,
+      result_level1,
+      result_level2,
+      observaciones,
+      tmstmp,
+      nombre_cliente_ref
+    FROM gestionhistorica_redes
+  ) unified_historico
   WHERE (? = '' OR campaign_id = ?)
-    AND (? = '' OR TRIM(agent) = ?)
+    AND (? = '' OR LOWER(COALESCE(TRIM(agent), '')) LIKE CONCAT('%', LOWER(?), '%'))
     AND (? = '' OR TRIM(nombre_cliente_ref) = ?)
     AND (
       ? = ''
@@ -958,6 +1008,59 @@ const LIST_INBOUND_HISTORICO_ROWS = `
       OR LOWER(COALESCE(TRIM(observaciones), '')) LIKE CONCAT('%', LOWER(?), '%')
       OR LOWER(COALESCE(TRIM(campaign_id), '')) LIKE CONCAT('%', LOWER(?), '%')
       OR LOWER(COALESCE(TRIM(ticket_id), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(celular), '')) LIKE CONCAT('%', LOWER(?), '%')
+    )
+    AND (? = '' OR DATE(tmstmp) >= DATE(?))
+    AND (? = '' OR DATE(tmstmp) <= DATE(?))
+  ORDER BY tmstmp DESC, id DESC
+  LIMIT 500
+`;
+
+const LIST_REDES_HISTORICO_CLIENT_OPTIONS = `
+  SELECT DISTINCT
+    TRIM(nombre_cliente_ref) AS value
+  FROM gestion_redes
+  WHERE (? = '' OR campaign_id = ?)
+    AND COALESCE(TRIM(nombre_cliente_ref), '') <> ''
+  ORDER BY value ASC
+`;
+
+const LIST_REDES_HISTORICO_ROWS = `
+  SELECT
+    id,
+    interaction_id,
+    NULL AS ticket_id,
+    action_order,
+    contact_id,
+    cliente_redes_id AS cliente_inbound_id,
+    category_id,
+    menu_item_id,
+    campaign_id,
+    agent,
+    identification,
+    full_name,
+    celular,
+    categorizacion,
+    result_level1,
+    result_level2,
+    observaciones,
+    DATE_FORMAT(tmstmp, '%Y-%m-%d %H:%i:%s') AS tmstmp,
+    nombre_cliente_ref
+  FROM gestion_redes
+  WHERE (? = '' OR campaign_id = ?)
+    AND (? = '' OR LOWER(COALESCE(TRIM(agent), '')) LIKE CONCAT('%', LOWER(?), '%'))
+    AND (? = '' OR TRIM(nombre_cliente_ref) = ?)
+    AND (
+      ? = ''
+      OR LOWER(COALESCE(TRIM(agent), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR TRIM(identification) = ?
+      OR LOWER(COALESCE(TRIM(full_name), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(nombre_cliente_ref), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(categorizacion), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(result_level1), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(result_level2), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(observaciones), '')) LIKE CONCAT('%', LOWER(?), '%')
+      OR LOWER(COALESCE(TRIM(campaign_id), '')) LIKE CONCAT('%', LOWER(?), '%')
       OR LOWER(COALESCE(TRIM(celular), '')) LIKE CONCAT('%', LOWER(?), '%')
     )
     AND (? = '' OR DATE(tmstmp) >= DATE(?))
@@ -1993,6 +2096,14 @@ export class AgenteDAO {
         return rows;
     }
 
+    async listRedesHistoricoClientOptions(campaignId, executor = this.pool) {
+        const [rows] = await executor.query(LIST_REDES_HISTORICO_CLIENT_OPTIONS, [
+            campaignId,
+            campaignId,
+        ]);
+        return rows;
+    }
+
     async listInboundHistoricoRows(
         {
             campaignId,
@@ -2013,6 +2124,44 @@ export class AgenteDAO {
             clientName,
             clientName,
             normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            normalizedSearchText,
+            startDate,
+            startDate,
+            endDate,
+            endDate,
+        ]);
+        return rows;
+    }
+
+    async listRedesHistoricoRows(
+        {
+            campaignId,
+            advisor = "",
+            clientName = "",
+            searchText = "",
+            startDate = "",
+            endDate = "",
+        },
+        executor = this.pool,
+    ) {
+        const normalizedSearchText = String(searchText || "").trim();
+        const [rows] = await executor.query(LIST_REDES_HISTORICO_ROWS, [
+            campaignId,
+            campaignId,
+            advisor,
+            advisor,
+            clientName,
+            clientName,
             normalizedSearchText,
             normalizedSearchText,
             normalizedSearchText,
