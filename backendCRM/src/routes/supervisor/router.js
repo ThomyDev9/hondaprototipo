@@ -9,6 +9,7 @@ import recordingSftpRouter from "./recording.sftp.js";
 import {
     getOutboundRecordingFilterOptions,
     getRecordingsByPhone,
+    runOutboundRecordingDepuration,
 } from "./recordings-linked.controller.js";
 import {
     getInboundRecordingFilterOptions,
@@ -1488,6 +1489,7 @@ router.get("/asesores-activos", async (_req, res) => {
 
 router.get("/grabaciones", getRecordingsByPhone);
 router.get("/grabaciones/filtros", getOutboundRecordingFilterOptions);
+router.post("/depuracion-outbound-grabaciones/run", runOutboundRecordingDepuration);
 router.get("/grabaciones-inbound", getInboundRecordings);
 router.get("/grabaciones-inbound/filtros", getInboundRecordingFilterOptions);
 router.post("/depuracion-inbound-fantasma/run", async (req, res) => {

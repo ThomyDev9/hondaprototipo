@@ -14,20 +14,24 @@ function getRecordingFilename(recordingfile) {
 }
 function toLocalDateString(value) {
     if (!value) return "";
-    const date = new Date(value);
+    const raw = String(value).trim();
+
+    // MySQL datetime often comes as "YYYY-MM-DD HH:mm:ss".
+    // Normalize to a JS-parsable local datetime first.
+    const normalized = raw.includes(" ") ? raw.replace(" ", "T") : raw;
+    let date = new Date(normalized);
+
+    // Fallback for edge cases where parsing still fails.
+    if (Number.isNaN(date.getTime()) && raw.includes(" ")) {
+        const onlyDate = raw.split(" ")[0];
+        date = new Date(`${onlyDate}T00:00:00`);
+    }
+
     if (Number.isNaN(date.getTime())) return "";
 
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
-
-function getTodayLocalDate() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
 }
 
@@ -41,6 +45,10 @@ function getRowKey(recording = {}, idx = 0) {
         .filter(Boolean)
         .join("|");
     return composite || `row-${idx}`;
+}
+
+function normalizeText(value) {
+    return String(value ?? "").trim();
 }
 
 export default function GrabacionesOutboundPage() {
@@ -62,9 +70,8 @@ export default function GrabacionesOutboundPage() {
     const [filtroResultado, setFiltroResultado] = useState("");
     const [filtroAgente, setFiltroAgente] = useState("");
     const [filtroTelefono, setFiltroTelefono] = useState("");
-    const [filtroFechaInicio, setFiltroFechaInicio] =
-        useState(getTodayLocalDate);
-    const [filtroFechaFin, setFiltroFechaFin] = useState(getTodayLocalDate);
+    const [filtroFechaInicio, setFiltroFechaInicio] = useState("");
+    const [filtroFechaFin, setFiltroFechaFin] = useState("");
 
     useEffect(() => {
         const API_BASE = import.meta.env.VITE_API_BASE;
@@ -77,6 +84,7 @@ export default function GrabacionesOutboundPage() {
         fetch(
             `${API_BASE}/supervisor/grabaciones/filtros${queryString ? `?${queryString}` : ""}`,
             {
+                cache: "no-store",
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -129,18 +137,27 @@ export default function GrabacionesOutboundPage() {
         const queryParams = new URLSearchParams();
         if (filtroFechaInicio) queryParams.set("startDate", filtroFechaInicio);
         if (filtroFechaFin) queryParams.set("endDate", filtroFechaFin);
-        if (filtroCampania) queryParams.set("campaignId", filtroCampania);
-        if (filtroBase) queryParams.set("importId", filtroBase);
+        if (normalizeText(filtroCampania)) {
+            queryParams.set("campaignId", normalizeText(filtroCampania));
+        }
+        const normalizedBase = normalizeText(filtroBase);
+        if (normalizedBase && normalizedBase.toUpperCase() !== "OUTBOUND") {
+            queryParams.set("importId", normalizedBase);
+        }
         const queryString = queryParams.toString();
 
         setLoadingGrabaciones(true);
         setError(null);
         setHasSearched(true);
         try {
+            const requestUrl = `${API_BASE}/supervisor/grabaciones${queryString ? `?${queryString}` : ""}`;
             const res = await fetch(
-                `${API_BASE}/supervisor/grabaciones${queryString ? `?${queryString}` : ""}`,
+                requestUrl,
                 {
-                    headers: { Authorization: `Bearer ${token}` },
+                    cache: "no-store",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
                 },
             );
             if (!res.ok) {
@@ -242,38 +259,47 @@ export default function GrabacionesOutboundPage() {
     );
 
     // Filtro aplicado
-    const grabacionesFiltradas = grabaciones.filter((g) => {
-        const fechaGrabacion =
-            g.calldateLocal || toLocalDateString(g.calldate || g.TmStmp);
-        const fechaOk =
-            (!filtroFechaInicio || fechaGrabacion >= filtroFechaInicio) &&
-            (!filtroFechaFin || fechaGrabacion <= filtroFechaFin);
-        const campaniaOk = !filtroCampania || g.CampaignId === filtroCampania;
-        const baseOk =
-            !filtroBase ||
-            (g.ImportId || g.Importid || g.ImportID) === filtroBase;
-        const resultadoOk =
-            !filtroResultado || g.ResultLevel1 === filtroResultado;
-        const agenteOk =
-            !filtroAgente || (g.AgentName || g.Agent) === filtroAgente;
-        const filtroBusqueda = String(filtroTelefono || null).trim();
-        const valorCedula = String(
-            g.Cedula || g.IDENTIFICACION || g.ContactId || null,
-        ).trim();
-        const valorTelefono = String(g.dst || g.ContactAddress || null).trim();
-        const telefonoOk =
-            !filtroBusqueda ||
-            valorTelefono.includes(filtroBusqueda) ||
-            valorCedula.includes(filtroBusqueda);
-        return (
-            fechaOk &&
-            campaniaOk &&
-            baseOk &&
-            resultadoOk &&
-            agenteOk &&
-            telefonoOk
-        );
-    });
+    const hasResultadoFilter = normalizeText(filtroResultado) !== "";
+    const hasAgenteFilter = normalizeText(filtroAgente) !== "";
+    const hasTelefonoFilter = normalizeText(filtroTelefono) !== "";
+    const filtroBusqueda = normalizeText(filtroTelefono);
+
+    const grabacionesFiltradas = useMemo(() => {
+        // Si no hay filtros locales activos, no filtrar nada.
+        if (!hasResultadoFilter && !hasAgenteFilter && !hasTelefonoFilter) {
+            return grabaciones;
+        }
+
+        return grabaciones.filter((g) => {
+            const resultadoOk =
+                !hasResultadoFilter ||
+                normalizeText(g.ResultLevel1).toLowerCase() ===
+                    normalizeText(filtroResultado).toLowerCase();
+            const agenteOk =
+                !hasAgenteFilter ||
+                normalizeText(g.AgentName || g.Agent).toLowerCase() ===
+                    normalizeText(filtroAgente).toLowerCase();
+            const valorCedula = normalizeText(
+                g.Cedula || g.IDENTIFICACION || g.ContactId,
+            );
+            const valorTelefono = normalizeText(g.dst || g.ContactAddress);
+            const telefonoOk =
+                !hasTelefonoFilter ||
+                valorTelefono.includes(filtroBusqueda) ||
+                valorCedula.includes(filtroBusqueda);
+
+            return resultadoOk && agenteOk && telefonoOk;
+        });
+    }, [
+        grabaciones,
+        hasResultadoFilter,
+        hasAgenteFilter,
+        hasTelefonoFilter,
+        filtroResultado,
+        filtroAgente,
+        filtroBusqueda,
+    ]);
+
     const totalFiltradas = grabacionesFiltradas.length;
     const totalFiltradasConAudio = grabacionesFiltradas.filter(
         (g) => g.recordingfile,
@@ -293,6 +319,20 @@ export default function GrabacionesOutboundPage() {
             setFiltroBase("");
         }
     }, [bases, filtroBase]);
+
+    useEffect(() => {
+        if (!filtroResultado) return;
+        if (!resultados.includes(filtroResultado)) {
+            setFiltroResultado("");
+        }
+    }, [filtroResultado, resultados]);
+
+    useEffect(() => {
+        if (!filtroAgente) return;
+        if (!agentes.includes(filtroAgente)) {
+            setFiltroAgente("");
+        }
+    }, [agentes, filtroAgente]);
     // Descarga en bloque
     const handleDescargarTodas = async () => {
         const seleccionadas = grabacionesFiltradas.filter((g, idx) =>
@@ -356,8 +396,8 @@ export default function GrabacionesOutboundPage() {
         setFiltroResultado("");
         setFiltroAgente("");
         setFiltroTelefono("");
-        setFiltroFechaInicio(getTodayLocalDate());
-        setFiltroFechaFin(getTodayLocalDate());
+        setFiltroFechaInicio("");
+        setFiltroFechaFin("");
         setGrabaciones([]);
         setSelectedRows({});
         setHasSearched(false);

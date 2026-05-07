@@ -2,6 +2,7 @@ import { pool, isabelPool } from "../../services/db.multi.js";
 import {
     buildRecordingPath,
     getLinkedRecordingsForManagements,
+    linkManagementToRecording,
 } from "../../services/recording-link.service.js";
 import * as userService from "../../services/user.service.js";
 import { desencriptar } from "../../utils/crypto.js";
@@ -149,7 +150,11 @@ async function fetchCdrRowsByPhonesInBatches({
     const dedupedPhones = Array.from(
         new Set(
             phones
-                .map((value) => String(value || "").trim())
+                .map((value) => {
+                    const digits = normalizePhone(value);
+                    if (!digits) return "";
+                    return digits.length > 10 ? digits.slice(-10) : digits;
+                })
                 .filter(Boolean),
         ),
     );
@@ -169,9 +174,15 @@ async function fetchCdrRowsByPhonesInBatches({
               AND calldate >= ?
               AND calldate < ?
               AND (
-                (dst IN (${placeholders}) AND dst != '' AND dst != 'null')
+                (
+                    RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(dst, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', ''), 10)
+                    IN (${placeholders})
+                )
                 OR
-                (src IN (${placeholders}) AND src != '' AND src != 'null')
+                (
+                    RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(src, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', ''), 10)
+                    IN (${placeholders})
+                )
               )
             ORDER BY calldate DESC
         `;
@@ -271,11 +282,11 @@ export async function getRecordingsByPhone(req, res) {
             params1.push(phone);
         }
         if (String(campaignId || "").trim()) {
-            query1 += ` AND CampaignId = ?`;
+            query1 += ` AND TRIM(CampaignId) = TRIM(?)`;
             params1.push(String(campaignId).trim());
         }
         if (String(importId || "").trim()) {
-            query1 += ` AND (ImportId = ? OR Importid = ? OR ImportID = ?)`;
+            query1 += ` AND (TRIM(COALESCE(ImportId, '')) = TRIM(?) OR TRIM(COALESCE(Importid, '')) = TRIM(?) OR TRIM(COALESCE(ImportID, '')) = TRIM(?))`;
             params1.push(
                 String(importId).trim(),
                 String(importId).trim(),
@@ -364,10 +375,9 @@ export async function getRecordingsByPhone(req, res) {
                         (isFallbackAmbiguous
                             ? g.ContactId
                             : fallbackClient?.IDENTIFICACION || g.ContactId),
-                    CampaignId:
-                        isFallbackAmbiguous
-                            ? g.CampaignId
-                            : fallbackClient?.CampaignId || g.CampaignId,
+                    // Keep original management campaign to avoid cross-campaign
+                    // contamination when fallback client lookup matches by phone.
+                    CampaignId: g.CampaignId,
                     AgentName:
                         agentNameMap.get(String(g.Agent || "").trim()) ||
                         String(g.Agent || "").trim(),
@@ -393,11 +403,15 @@ export async function getRecordingsByPhone(req, res) {
                         ) || null,
                 };
             })
-            .filter(
-                (recording) =>
-                    recording.recordingfile &&
-                    isFromTargetYear(recording.calldate),
-            );
+            .filter((recording) => {
+                // Keep managements visible even when there is no linked recording yet.
+                // If calldate is present but invalid (e.g. "0000-00-00 00:00:00"),
+                // fall back to management timestamp.
+                if (isFromTargetYear(recording.calldate)) {
+                    return true;
+                }
+                return isFromTargetYear(recording.TmStmp);
+            });
 
         return res.json(recordings);
     } catch (err) {
@@ -459,6 +473,108 @@ export async function getOutboundRecordingFilterOptions(req, res) {
         console.error("Error al obtener filtros de grabaciones outbound:", err);
         return res.status(500).json({
             error: "Error al obtener filtros de grabaciones outbound",
+        });
+    }
+}
+
+export async function runOutboundRecordingDepuration(req, res) {
+    try {
+        const startDate = String(req.body?.startDate || req.query?.startDate || "").trim();
+        const endDate = String(req.body?.endDate || req.query?.endDate || "").trim();
+        const campaignId = String(req.body?.campaignId || req.query?.campaignId || "").trim();
+        const limitRaw = Number(req.body?.limit ?? req.query?.limit ?? 3000);
+        const limit = Number.isFinite(limitRaw)
+            ? Math.max(1, Math.min(10000, Math.floor(limitRaw)))
+            : 3000;
+        const onlyMissing = String(
+            req.body?.onlyMissing ?? req.query?.onlyMissing ?? "1",
+        ).trim() !== "0";
+        const { start, end } = resolveDateRange(startDate, endDate, "");
+
+        const params = [start, end];
+        let sql = `
+            SELECT
+                Id, ContactId, InteractionId, CampaignId, Agent, ContactAddress, TmStmp
+            FROM ${OUTBOUND_SCHEMA}.gestionfinal_outbound g
+            WHERE g.ContactAddress IS NOT NULL
+              AND g.ContactAddress <> ''
+              AND g.TmStmp >= ?
+              AND g.TmStmp < ?
+        `;
+
+        if (campaignId) {
+            sql += " AND TRIM(g.CampaignId) = TRIM(?)";
+            params.push(campaignId);
+        }
+
+        if (onlyMissing) {
+            sql += `
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM management_recording_link m
+                  WHERE m.schema_name = ?
+                    AND TRIM(COALESCE(m.gestion_contact_id, '')) = TRIM(COALESCE(g.ContactId, ''))
+                    AND (
+                        TRIM(COALESCE(m.interaction_id, '')) = TRIM(COALESCE(g.InteractionId, ''))
+                        OR TRIM(COALESCE(m.interaction_id, '')) = ''
+                    )
+              )
+            `;
+            params.push(OUTBOUND_SCHEMA);
+        }
+
+        sql += " ORDER BY g.TmStmp DESC, g.Id DESC LIMIT ?";
+        params.push(limit);
+
+        const [rows] = await pool.query(sql, params);
+        let processed = 0;
+        let linked = 0;
+        let noMatch = 0;
+        let errors = 0;
+
+        for (const row of rows || []) {
+            processed += 1;
+            try {
+                const match = await linkManagementToRecording({
+                    schemaName: OUTBOUND_SCHEMA,
+                    contactId: String(row?.ContactId || "").trim(),
+                    gestionRowId: String(row?.Id || "").trim(),
+                    interactionId: String(row?.InteractionId || "").trim(),
+                    campaignId: String(row?.CampaignId || "").trim(),
+                    agent: String(row?.Agent || "").trim(),
+                    contactAddress: String(row?.ContactAddress || "").trim(),
+                    managementTimestamp: row?.TmStmp || null,
+                });
+                if (match?.recordingfile) {
+                    linked += 1;
+                } else {
+                    noMatch += 1;
+                }
+            } catch {
+                errors += 1;
+            }
+        }
+
+        return res.json({
+            ok: true,
+            message: "Depuracion outbound ejecutada",
+            data: {
+                start,
+                end,
+                campaignId: campaignId || null,
+                onlyMissing,
+                limit,
+                processed,
+                linked,
+                noMatch,
+                errors,
+            },
+        });
+    } catch (err) {
+        console.error("Error en depuracion outbound manual:", err);
+        return res.status(500).json({
+            error: "Error ejecutando depuracion outbound",
+            detail: err?.sqlMessage || err?.message || "",
         });
     }
 }
