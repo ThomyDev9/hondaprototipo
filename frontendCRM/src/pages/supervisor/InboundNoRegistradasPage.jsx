@@ -104,7 +104,7 @@ function AudioActions({
             <audio
                 id={rowId}
                 style={{ display: "none" }}
-                src={audioUrls[resolveRecordingPath(row)] || ""}
+                src={audioUrls[resolveRecordingPath(row)] || null}
                 onEnded={() => {
                     if (playingAudioId === rowId) {
                         setPlayingAudioId("");

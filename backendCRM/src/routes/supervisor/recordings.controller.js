@@ -32,6 +32,43 @@ function normalizePhone(value) {
     return String(value || "").replace(/\D/g, "");
 }
 
+function resolveDateRange(startDateValue = "", endDateValue = "", dateValue = "") {
+    const normalizedStart = String(startDateValue || "").trim();
+    const normalizedEnd = String(endDateValue || "").trim();
+    const normalizedSingle = String(dateValue || "").trim();
+    const normalized =
+        normalizedStart || normalizedEnd || normalizedSingle || "";
+
+    if (!normalizedStart && !normalizedEnd && !normalizedSingle) {
+        return {
+            start: TARGET_YEAR_START,
+            end: TARGET_YEAR_END,
+        };
+    }
+    const toSqlDate = (date) =>
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+            date.getDate(),
+        ).padStart(2, "0")} 00:00:00`;
+
+    const parsedStart = new Date(`${(normalizedStart || normalized)}T00:00:00`);
+    const parsedEndBase = new Date(`${(normalizedEnd || normalizedStart || normalized)}T00:00:00`);
+
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEndBase.getTime())) {
+        return {
+            start: TARGET_YEAR_START,
+            end: TARGET_YEAR_END,
+        };
+    }
+
+    const parsedEndExclusive = new Date(parsedEndBase);
+    parsedEndExclusive.setDate(parsedEndExclusive.getDate() + 1);
+
+    return {
+        start: toSqlDate(parsedStart),
+        end: toSqlDate(parsedEndExclusive),
+    };
+}
+
 async function buildAgentNameMap() {
     const users = await userService.obtenerUsuarios();
     const agentNameMap = new Map();
@@ -67,7 +104,7 @@ async function buildClientByPhoneMap(phones = []) {
     const placeholders = normalizedPhones.map(() => "?").join(",");
     const [rows] = await pool.query(
         `
-        SELECT ContactAddress, ContactName, NOMBRE_CLIENTE, ContactId, CampaignId, TmStmp
+        SELECT ContactAddress, ContactName, NOMBRE_CLIENTE, ContactId, CampaignId, TmStmp, IDENTIFICACION
         FROM ${OUTBOUND_SCHEMA}.clientes_outbound
         WHERE REPLACE(REPLACE(REPLACE(REPLACE(ContactAddress, ' ', ''), '-', ''), '(', ''), ')', '') IN (${placeholders})
         ORDER BY TmStmp DESC, Id DESC
@@ -88,14 +125,15 @@ async function buildClientByPhoneMap(phones = []) {
 // Obtener grabaciones por número de teléfono (panel supervisor)
 export async function getRecordingsByPhone(req, res) {
     try {
-        const { phone } = req.query;
+        const { phone, date, startDate, endDate } = req.query;
+        const { start, end } = resolveDateRange(startDate, endDate, date);
         // --- Consulta 1: Base principal (pool)
-        let query1 = `SELECT '${OUTBOUND_SCHEMA}' AS schema_name, Id, ContactId, InteractionId, TmStmp, CampaignId, ContactName, ContactAddress, ImportId, Agent, ResultLevel1
+        let query1 = `SELECT '${OUTBOUND_SCHEMA}' AS schema_name, Id, ContactId, InteractionId, TmStmp, CampaignId, ContactName, ContactAddress, ImportId, Agent, ResultLevel1, IDENTIFICACION
                         FROM ${OUTBOUND_SCHEMA}.gestionfinal_outbound
                         WHERE ContactAddress IS NOT null and ContactAddress !=''
                         and TmStmp >= ? and TmStmp < ?
                         and ResultLevel1 !='' `;
-        let params1 = [TARGET_YEAR_START, TARGET_YEAR_END];
+        let params1 = [start, end];
         if (phone) {
             query1 += ` AND ContactAddress = ?`;
             params1.push(phone);
@@ -126,8 +164,8 @@ export async function getRecordingsByPhone(req, res) {
         ORDER BY calldate DESC
       `;
             const [cdrRows] = await isabelPool.query(cdrQuery, [
-                TARGET_YEAR_START,
-                TARGET_YEAR_END,
+                start,
+                end,
                 ...phones,
             ]);
             const clientByPhoneMap = await buildClientByPhoneMap(
@@ -140,10 +178,22 @@ export async function getRecordingsByPhone(req, res) {
                     ) ||
                     linkedRecordings.get(buildLinkKey(g.schema_name, g.ContactId)) ||
                     null;
-                const linked = isFromTargetYear(linkedCandidate?.cdr_calldate)
+                const linkedHasRecordingData = Boolean(
+                    linkedCandidate?.recording_path ||
+                        linkedCandidate?.recordingfile,
+                );
+                const linked = isFromTargetYear(linkedCandidate?.cdr_calldate) ||
+                    linkedHasRecordingData
                     ? linkedCandidate
                     : null;
                 const cdr = cdrRows.find((c) => c.dst === g.ContactAddress);
+                const linkedRecordingfileFromCdr =
+                    linked?.recordingfile && linked?.cdr_calldate
+                        ? buildRecordingPath(
+                              linked.recordingfile,
+                              linked.cdr_calldate,
+                          )
+                        : null;
                 const fallbackClient =
                     !linked && cdr
                         ? clientByPhoneMap.get(normalizePhone(cdr?.dst)) ||
@@ -156,6 +206,8 @@ export async function getRecordingsByPhone(req, res) {
                     !linked && Boolean(cdr) && fallbackPhone !== basePhone;
                 const recordingfile =
                     linked?.recording_path ||
+                    linkedRecordingfileFromCdr ||
+                    linked?.recordingfile ||
                     (cdr?.recordingfile && cdr?.calldate
                         ? buildRecordingPath(cdr.recordingfile, cdr.calldate)
                         : null);
@@ -171,6 +223,11 @@ export async function getRecordingsByPhone(req, res) {
                         isFallbackAmbiguous
                             ? g.ContactId
                             : fallbackClient?.ContactId || g.ContactId,
+                    Cedula:
+                        g.IDENTIFICACION ||
+                        (isFallbackAmbiguous
+                            ? g.ContactId
+                            : fallbackClient?.IDENTIFICACION || g.ContactId),
                     CampaignId:
                         isFallbackAmbiguous
                             ? g.CampaignId
@@ -184,7 +241,9 @@ export async function getRecordingsByPhone(req, res) {
                     disposition: linked?.cdr_disposition || cdr?.disposition || null,
                     duration: linked?.cdr_duration || cdr?.duration || null,
                     recordingfile,
-                    recordingLinked: Boolean(linked?.recording_path),
+                    recordingLinked: Boolean(
+                        linked?.recording_path || linked?.recordingfile,
+                    ),
                     fallbackAmbiguous: isFallbackAmbiguous,
                 };
             }).filter(

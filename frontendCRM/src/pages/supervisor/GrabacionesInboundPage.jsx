@@ -71,7 +71,7 @@ function AudioActions({
             <audio
                 id={rowId}
                 style={{ display: "none" }}
-                src={audioUrls[row.recordingfile] || ""}
+                src={audioUrls[row.recordingfile] || null}
                 onEnded={() => {
                     if (playingAudioId === rowId) {
                         setPlayingAudioId("");
@@ -169,16 +169,27 @@ function AudioActions({
 export default function GrabacionesInboundPage() {
     const [grabaciones, setGrabaciones] = useState([]);
     const [loadingGrabaciones, setLoadingGrabaciones] = useState(false);
+    const [loadingFiltros, setLoadingFiltros] = useState(false);
     const [audioUrls, setAudioUrls] = useState({});
     const [error, setError] = useState(null);
+    const [filtrosError, setFiltrosError] = useState(null);
     const [playingAudioId, setPlayingAudioId] = useState("");
+    const [selectedRows, setSelectedRows] = useState({});
+    const [hasSearched, setHasSearched] = useState(false);
+    const [campaignOptions, setCampaignOptions] = useState([]);
+    const [categorizacionOptions, setCategorizacionOptions] = useState([]);
+    const [agenteOptions, setAgenteOptions] = useState([]);
     const currentAudioRef = useRef(null);
     const [filtroCampania, setFiltroCampania] = useState("");
     const [filtroCategorizacion, setFiltroCategorizacion] = useState("");
     const [filtroAgente, setFiltroAgente] = useState("");
-    const [filtroTelefono, setFiltroTelefono] = useState("");
-    const [filtroIdentificacion, setFiltroIdentificacion] = useState("");
-    const [filtroFecha, setFiltroFecha] = useState("");
+    const [filtroBusqueda, setFiltroBusqueda] = useState("");
+    const [filtroFechaInicio, setFiltroFechaInicio] = useState(
+        toLocalDateString(new Date()),
+    );
+    const [filtroFechaFin, setFiltroFechaFin] = useState(
+        toLocalDateString(new Date()),
+    );
 
     const grabacionesVista = useMemo(() => {
         const rows = Array.isArray(grabaciones) ? grabaciones : [];
@@ -217,21 +228,71 @@ export default function GrabacionesInboundPage() {
     useEffect(() => {
         const API_BASE = import.meta.env.VITE_API_BASE;
         const token = getAuthToken();
-        setLoadingGrabaciones(true);
-        fetch(`${API_BASE}/supervisor/grabaciones-inbound`, {
+        const queryParams = new URLSearchParams();
+        if (filtroFechaInicio) queryParams.set("startDate", filtroFechaInicio);
+        if (filtroFechaFin) queryParams.set("endDate", filtroFechaFin);
+        const queryString = queryParams.toString();
+        setLoadingFiltros(true);
+        fetch(`${API_BASE}/supervisor/grabaciones-inbound/filtros${queryString ? `?${queryString}` : ""}`, {
             headers: { Authorization: `Bearer ${token}` },
         })
             .then((res) => {
                 if (!res.ok) throw new Error("No autorizado");
                 return res.json();
             })
-            .then((data) => setGrabaciones(Array.isArray(data) ? data : []))
-            .catch(() => {
-                setError("No se pudo cargar las grabaciones inbound");
-                setGrabaciones([]);
+            .then((data) => {
+                setCampaignOptions(Array.isArray(data?.campaigns) ? data.campaigns : []);
+                setCategorizacionOptions(
+                    Array.isArray(data?.categorizaciones)
+                        ? data.categorizaciones
+                        : [],
+                );
+                setAgenteOptions(Array.isArray(data?.agentes) ? data.agentes : []);
+                setFiltrosError(null);
             })
-            .finally(() => setLoadingGrabaciones(false));
-    }, []);
+            .catch(() => {
+                setFiltrosError("No se pudo cargar filtros inbound");
+                setCampaignOptions([]);
+                setCategorizacionOptions([]);
+                setAgenteOptions([]);
+            })
+            .finally(() => setLoadingFiltros(false));
+    }, [filtroFechaInicio, filtroFechaFin]);
+
+    const cargarGrabaciones = async () => {
+        if (!String(filtroCampania || "").trim()) {
+            setError("Selecciona una campaña para buscar grabaciones.");
+            return;
+        }
+        const API_BASE = import.meta.env.VITE_API_BASE;
+        const token = getAuthToken();
+        const queryParams = new URLSearchParams();
+        if (filtroFechaInicio) queryParams.set("startDate", filtroFechaInicio);
+        if (filtroFechaFin) queryParams.set("endDate", filtroFechaFin);
+        if (filtroCampania) queryParams.set("campaignId", filtroCampania);
+        if (filtroBusqueda) queryParams.set("search", filtroBusqueda);
+        const queryString = queryParams.toString();
+
+        setLoadingGrabaciones(true);
+        setError(null);
+        setHasSearched(true);
+        try {
+            const res = await fetch(
+                `${API_BASE}/supervisor/grabaciones-inbound${queryString ? `?${queryString}` : ""}`,
+                { headers: { Authorization: `Bearer ${token}` } },
+            );
+            if (!res.ok) throw new Error("No se pudo cargar las grabaciones inbound");
+            const data = await res.json();
+            setGrabaciones(Array.isArray(data) ? data : []);
+            setSelectedRows({});
+        } catch {
+            setError("No se pudo cargar las grabaciones inbound");
+            setGrabaciones([]);
+            setSelectedRows({});
+        } finally {
+            setLoadingGrabaciones(false);
+        }
+    };
 
     useEffect(() => {
         return () => {
@@ -281,40 +342,58 @@ export default function GrabacionesInboundPage() {
         }
     };
 
-    const campanias = Array.from(
-        new Set(grabacionesVista.map((g) => g.CampaignId).filter(Boolean)),
-    );
-    const categorizaciones = Array.from(
-        new Set(grabacionesVista.map((g) => g.Categorizacion).filter(Boolean)),
-    );
-    const agentes = Array.from(
-        new Set(grabacionesVista.map((g) => g.AgentName || g.Agent).filter(Boolean)),
-    );
+    const campanias = campaignOptions;
+    const categorizaciones = categorizacionOptions;
+    const agentes = agenteOptions;
 
     const grabacionesFiltradas = grabacionesVista.filter((g) => {
         const fechaGrabacion =
             g.calldateLocal || toLocalDateString(g.calldate || g.TmStmp);
         const telefono = String(g.dst || g.ContactAddress || "");
         const identificacion = String(g.Identification || "");
+        const busqueda = String(filtroBusqueda || "").trim();
         return (
-            (!filtroFecha || fechaGrabacion === filtroFecha) &&
+            (!filtroFechaInicio || fechaGrabacion >= filtroFechaInicio) &&
+            (!filtroFechaFin || fechaGrabacion <= filtroFechaFin) &&
             (!filtroCampania || g.CampaignId === filtroCampania) &&
             (!filtroCategorizacion ||
                 g.Categorizacion === filtroCategorizacion) &&
             (!filtroAgente || (g.AgentName || g.Agent) === filtroAgente) &&
-            (!filtroTelefono || telefono.includes(filtroTelefono)) &&
-            (!filtroIdentificacion ||
-                identificacion.includes(filtroIdentificacion))
+            (!busqueda ||
+                telefono.includes(busqueda) ||
+                identificacion.includes(busqueda))
         );
     });
 
+    const totalFiltradas = grabacionesFiltradas.length;
+    const totalFiltradasConAudio = grabacionesFiltradas.filter(
+        (g) => g.recordingfile,
+    ).length;
+    const selectedFilteredCount = grabacionesFiltradas.filter((g, idx) => {
+        const key = `${g.ContactId || ""}|${g.InteractionId || ""}|${idx}`;
+        return Boolean(selectedRows[key]);
+    }).length;
+    const allFilteredSelected =
+        totalFiltradas > 0 &&
+        grabacionesFiltradas.every((g, idx) => {
+            const key = `${g.ContactId || ""}|${g.InteractionId || ""}|${idx}`;
+            return Boolean(selectedRows[key]);
+        });
+
     const handleDescargarTodas = async () => {
-        if (grabacionesFiltradas.length === 0) {
+        const seleccionadas = grabacionesFiltradas.filter((g, idx) => {
+            const key = `${g.ContactId || ""}|${g.InteractionId || ""}|${idx}`;
+            return Boolean(selectedRows[key]);
+        });
+        const targetRows =
+            seleccionadas.length > 0 ? seleccionadas : grabacionesFiltradas;
+
+        if (targetRows.length === 0) {
             alert("No hay grabaciones para descargar.");
             return;
         }
         let descargadas = 0;
-        for (const g of grabacionesFiltradas) {
+        for (const g of targetRows) {
             if (!g.recordingfile) continue;
             try {
                 const url = await fetchAudioUrl(g.recordingfile);
@@ -337,9 +416,33 @@ export default function GrabacionesInboundPage() {
         setFiltroCampania("");
         setFiltroCategorizacion("");
         setFiltroAgente("");
-        setFiltroTelefono("");
-        setFiltroIdentificacion("");
-        setFiltroFecha("");
+        setFiltroBusqueda("");
+        setFiltroFechaInicio(toLocalDateString(new Date()));
+        setFiltroFechaFin(toLocalDateString(new Date()));
+        setSelectedRows({});
+        setHasSearched(false);
+        setGrabaciones([]);
+    };
+
+    const toggleSelectAllFiltered = () => {
+        if (allFilteredSelected) {
+            const next = { ...selectedRows };
+            for (let i = 0; i < grabacionesFiltradas.length; i += 1) {
+                const g = grabacionesFiltradas[i];
+                const key = `${g.ContactId || ""}|${g.InteractionId || ""}|${i}`;
+                delete next[key];
+            }
+            setSelectedRows(next);
+            return;
+        }
+
+        const next = { ...selectedRows };
+        for (let i = 0; i < grabacionesFiltradas.length; i += 1) {
+            const g = grabacionesFiltradas[i];
+            const key = `${g.ContactId || ""}|${g.InteractionId || ""}|${i}`;
+            next[key] = true;
+        }
+        setSelectedRows(next);
     };
 
     return (
@@ -360,21 +463,41 @@ export default function GrabacionesInboundPage() {
                                 Filtros de búsqueda
                             </h3>
                         </div>
-                        <div className="grabaciones-filters-actions">
-                            <button
-                                type="button"
-                                className="grabaciones-primary-btn"
-                                onClick={handleDescargarTodas}
-                            >
-                                Descargar todas
-                            </button>
-                            <button
-                                type="button"
-                                className="grabaciones-chip-btn"
-                                onClick={limpiarFiltros}
-                            >
-                                Reiniciar
-                            </button>
+                        <div className="grabaciones-head-right">
+                            <div className="grabaciones-head-summary">
+                                <span className="grabaciones-summary-pill">
+                                    Total filtradas: <strong>{totalFiltradas}</strong>
+                                </span>
+                                <span className="grabaciones-summary-pill">
+                                    Con audio: <strong>{totalFiltradasConAudio}</strong>
+                                </span>
+                                <span className="grabaciones-summary-pill">
+                                    Seleccionadas: <strong>{selectedFilteredCount}</strong>
+                                </span>
+                            </div>
+                            <div className="grabaciones-filters-actions">
+                                <button
+                                    type="button"
+                                    className="grabaciones-primary-btn"
+                                    onClick={cargarGrabaciones}
+                                >
+                                    Buscar grabaciones
+                                </button>
+                                <button
+                                    type="button"
+                                    className="grabaciones-secondary-btn"
+                                    onClick={handleDescargarTodas}
+                                >
+                                    Descargar selección/filtradas
+                                </button>
+                                <button
+                                    type="button"
+                                    className="grabaciones-chip-btn"
+                                    onClick={limpiarFiltros}
+                                >
+                                    Reiniciar filtros
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -390,7 +513,7 @@ export default function GrabacionesInboundPage() {
                                     setFiltroCampania(e.target.value)
                                 }
                             >
-                                <option value="">Todas las campañas</option>
+                                <option value="">Selecciona campaña</option>
                                 {campanias.map((item) => (
                                     <option key={item} value={item}>
                                         {item}
@@ -439,61 +562,77 @@ export default function GrabacionesInboundPage() {
 
                         <div className="grabaciones-field">
                             <span className="grabaciones-field-label">
-                                Fecha
+                                Fecha inicio
                             </span>
                             <input
                                 className="grabaciones-input"
                                 type="date"
-                                value={filtroFecha}
-                                onChange={(e) => setFiltroFecha(e.target.value)}
+                                value={filtroFechaInicio}
+                                onChange={(e) =>
+                                    setFiltroFechaInicio(e.target.value)
+                                }
                             />
                         </div>
 
                         <div className="grabaciones-field">
                             <span className="grabaciones-field-label">
-                                Teléfono
+                                Fecha fin
                             </span>
                             <input
                                 className="grabaciones-input"
-                                type="text"
-                                value={filtroTelefono}
+                                type="date"
+                                value={filtroFechaFin}
                                 onChange={(e) =>
-                                    setFiltroTelefono(e.target.value)
+                                    setFiltroFechaFin(e.target.value)
                                 }
-                                placeholder="Teléfono"
                             />
                         </div>
                         <div className="grabaciones-field">
                             <span className="grabaciones-field-label">
-                                Identificación
+                                Teléfono / Identificación
                             </span>
                             <input
                                 className="grabaciones-input"
                                 type="text"
-                                value={filtroIdentificacion}
+                                value={filtroBusqueda}
                                 onChange={(e) =>
-                                    setFiltroIdentificacion(e.target.value)
+                                    setFiltroBusqueda(e.target.value)
                                 }
-                                placeholder="Identificación"
+                                placeholder="Buscar por teléfono o identificación"
                             />
                         </div>
                     </div>
                 </div>
 
+                {filtrosError && <p className="grabaciones-error">{filtrosError}</p>}
                 {error && <p className="grabaciones-error">{error}</p>}
-                {loadingGrabaciones ? (
+                {loadingFiltros ? (
+                    <div className="grabaciones-state-card">
+                        Cargando filtros...
+                    </div>
+                ) : loadingGrabaciones ? (
                     <div className="grabaciones-state-card">
                         Cargando grabaciones...
                     </div>
                 ) : grabacionesFiltradas.length === 0 ? (
                     <div className="grabaciones-state-card">
-                        No hay grabaciones inbound disponibles.
+                        {hasSearched
+                            ? "No hay grabaciones inbound para los filtros seleccionados."
+                            : "Selecciona campaña y luego haz clic en Buscar grabaciones."}
                     </div>
                 ) : (
                     <div className="grabaciones-table-wrapper">
                         <table className="grabaciones-table">
                             <thead>
                                 <tr>
+                                    <th>
+                                        <input
+                                            type="checkbox"
+                                            checked={allFilteredSelected}
+                                            onChange={toggleSelectAllFiltered}
+                                            title="Seleccionar todas las filas filtradas"
+                                        />
+                                    </th>
                                     <th>Fecha</th>
                                     <th>Teléfono</th>
                                     <th>Identificación</th>
@@ -509,10 +648,26 @@ export default function GrabacionesInboundPage() {
                             <tbody>
                                 {grabacionesFiltradas.map((g, idx) => {
                                     const rowId = `audio-inbound-${idx}`;
+                                    const selectKey = `${g.ContactId || ""}|${g.InteractionId || ""}|${idx}`;
                                     return (
                                         <tr
                                             key={`${g.ContactId}-${g.InteractionId}-${idx}`}
                                         >
+                                            <td>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={Boolean(
+                                                        selectedRows[selectKey],
+                                                    )}
+                                                    onChange={() =>
+                                                        setSelectedRows((prev) => ({
+                                                            ...prev,
+                                                            [selectKey]:
+                                                                !prev[selectKey],
+                                                        }))
+                                                    }
+                                                />
+                                            </td>
                                             <td>
                                                 {g.calldate
                                                     ? new Date(

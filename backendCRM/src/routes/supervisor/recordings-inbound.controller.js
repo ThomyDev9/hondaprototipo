@@ -5,6 +5,7 @@ import { desencriptar } from "../../utils/crypto.js";
 
 const TARGET_YEAR = 2026;
 const TARGET_YEAR_START = `${TARGET_YEAR}-01-01 00:00:00`;
+const TARGET_YEAR_END = `${TARGET_YEAR + 1}-01-01 00:00:00`;
 const MAIN_SCHEMA =
     process.env.MYSQL_DB ||
     process.env.MYSQL_DB_ENCUESTA ||
@@ -27,6 +28,43 @@ function toLocalDateString(value) {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+}
+
+function resolveDateRange(startDateValue = "", endDateValue = "") {
+    const normalizedStart = String(startDateValue || "").trim();
+    const normalizedEnd = String(endDateValue || "").trim();
+
+    if (!normalizedStart && !normalizedEnd) {
+        return {
+            start: TARGET_YEAR_START,
+            end: TARGET_YEAR_END,
+        };
+    }
+
+    const startBase = normalizedStart || normalizedEnd;
+    const endBase = normalizedEnd || normalizedStart;
+    const parsedStart = new Date(`${startBase}T00:00:00`);
+    const parsedEnd = new Date(`${endBase}T00:00:00`);
+
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime())) {
+        return {
+            start: TARGET_YEAR_START,
+            end: TARGET_YEAR_END,
+        };
+    }
+
+    const nextDay = new Date(parsedEnd);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const toSql = (date) =>
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+            date.getDate(),
+        ).padStart(2, "0")} 00:00:00`;
+
+    return {
+        start: toSql(parsedStart),
+        end: toSql(nextDay),
+    };
 }
 
 async function buildAgentNameMap() {
@@ -56,7 +94,16 @@ async function buildAgentNameMap() {
 
 export async function getInboundRecordings(req, res) {
     try {
-        const { phone = "", identification = "" } = req.query;
+        const {
+            phone = "",
+            identification = "",
+            search = "",
+            campaignId = "",
+            startDate = "",
+            endDate = "",
+        } = req.query;
+        const { start, end } = resolveDateRange(startDate, endDate);
+        const searchValue = String(search || "").trim();
         let query = `
             SELECT
                 '${MAIN_SCHEMA}' AS schema_name,
@@ -78,9 +125,10 @@ export async function getInboundRecordings(req, res) {
                 payload_json AS PayloadJson
             FROM gestionfinal_inbound
             WHERE tmstmp >= ?
+              AND tmstmp < ?
               AND LOWER(TRIM(COALESCE(categorizacion, ''))) <> 'llamada fantasma'
         `;
-        const params = [TARGET_YEAR_START];
+        const params = [start, end];
 
         if (String(phone || "").trim()) {
             query += " AND celular LIKE ? ";
@@ -90,6 +138,14 @@ export async function getInboundRecordings(req, res) {
         if (String(identification || "").trim()) {
             query += " AND identification LIKE ? ";
             params.push(`%${String(identification).trim()}%`);
+        }
+        if (String(campaignId || "").trim()) {
+            query += " AND campaign_id = ? ";
+            params.push(String(campaignId).trim());
+        }
+        if (searchValue) {
+            query += " AND (celular LIKE ? OR identification LIKE ?) ";
+            params.push(`%${searchValue}%`, `%${searchValue}%`);
         }
 
         query += " ORDER BY tmstmp DESC, id DESC LIMIT 1000";
@@ -162,5 +218,41 @@ export async function getInboundRecordings(req, res) {
         return res.status(500).json({
             error: "Error al obtener grabaciones inbound",
         });
+    }
+}
+
+export async function getInboundRecordingFilterOptions(req, res) {
+    try {
+        const { startDate = "", endDate = "" } = req.query;
+        const { start, end } = resolveDateRange(startDate, endDate);
+
+        const [rows] = await pool.query(
+            `
+            SELECT campaign_id AS CampaignId,
+                   categorizacion AS Categorizacion,
+                   agent AS Agent
+            FROM gestionfinal_inbound
+            WHERE tmstmp >= ?
+              AND tmstmp < ?
+              AND LOWER(TRIM(COALESCE(categorizacion, ''))) <> 'llamada fantasma'
+            ORDER BY tmstmp DESC, id DESC
+            `,
+            [start, end],
+        );
+
+        const campaigns = Array.from(
+            new Set((rows || []).map((r) => String(r?.CampaignId || "").trim()).filter(Boolean)),
+        ).sort((a, b) => a.localeCompare(b));
+        const categorizaciones = Array.from(
+            new Set((rows || []).map((r) => String(r?.Categorizacion || "").trim()).filter(Boolean)),
+        ).sort((a, b) => a.localeCompare(b));
+        const agentes = Array.from(
+            new Set((rows || []).map((r) => String(r?.Agent || "").trim()).filter(Boolean)),
+        ).sort((a, b) => a.localeCompare(b));
+
+        return res.json({ campaigns, categorizaciones, agentes });
+    } catch (err) {
+        console.error("Error al obtener filtros inbound:", err);
+        return res.status(500).json({ error: "Error al obtener filtros inbound" });
     }
 }

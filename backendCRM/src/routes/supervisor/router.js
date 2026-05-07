@@ -6,8 +6,14 @@ import {
     requireRole,
 } from "../../middleware/role.middleware.js";
 import recordingSftpRouter from "./recording.sftp.js";
-import { getRecordingsByPhone } from "./recordings-linked.controller.js";
-import { getInboundRecordings } from "./recordings-inbound.controller.js";
+import {
+    getOutboundRecordingFilterOptions,
+    getRecordingsByPhone,
+} from "./recordings-linked.controller.js";
+import {
+    getInboundRecordingFilterOptions,
+    getInboundRecordings,
+} from "./recordings-inbound.controller.js";
 import {
     buildRedesReportWorkbook,
     buildOutboundReportWorkbook,
@@ -1481,7 +1487,9 @@ router.get("/asesores-activos", async (_req, res) => {
 });
 
 router.get("/grabaciones", getRecordingsByPhone);
+router.get("/grabaciones/filtros", getOutboundRecordingFilterOptions);
 router.get("/grabaciones-inbound", getInboundRecordings);
+router.get("/grabaciones-inbound/filtros", getInboundRecordingFilterOptions);
 router.post("/depuracion-inbound-fantasma/run", async (req, res) => {
     try {
         const startDate = String(req.body?.startDate || req.query?.startDate || "").trim();

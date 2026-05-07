@@ -1,12 +1,16 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./GrabacionesOutboundPage.css";
 // ...existing code...
 import { PageContainer } from "../../components/common";
 
-const getAuthToken = () => localStorage.getItem("access_token") || "";
+const getAuthToken = () => localStorage.getItem("access_token") || null;
 
 function getRecordingFilename(recordingfile) {
-    return String(recordingfile || "").split("/").pop() || "grabacion.wav";
+    return (
+        String(recordingfile || null)
+            .split("/")
+            .pop() || "grabacion.wav"
+    );
 }
 function toLocalDateString(value) {
     if (!value) return "";
@@ -19,12 +23,38 @@ function toLocalDateString(value) {
     return `${year}-${month}-${day}`;
 }
 
+function getTodayLocalDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function getRowKey(recording = {}, idx = 0) {
+    const id = String(recording?.Id || null).trim();
+    const contactId = String(recording?.ContactId || null).trim();
+    const interactionId = String(recording?.InteractionId || null).trim();
+    const calldate = String(recording?.calldate || null).trim();
+    const recordingfile = String(recording?.recordingfile || null).trim();
+    const composite = [id, contactId, interactionId, calldate, recordingfile]
+        .filter(Boolean)
+        .join("|");
+    return composite || `row-${idx}`;
+}
+
 export default function GrabacionesOutboundPage() {
     const [grabaciones, setGrabaciones] = useState([]);
     const [loadingGrabaciones, setLoadingGrabaciones] = useState(false);
+    const [loadingFiltros, setLoadingFiltros] = useState(false);
     const [audioUrls, setAudioUrls] = useState({});
     const [error, setError] = useState(null);
+    const [filtrosError, setFiltrosError] = useState(null);
     const [playingAudioId, setPlayingAudioId] = useState("");
+    const [campaignOptions, setCampaignOptions] = useState([]);
+    const [basesByCampaign, setBasesByCampaign] = useState({});
+    const [selectedRows, setSelectedRows] = useState({});
+    const [hasSearched, setHasSearched] = useState(false);
     const currentAudioRef = useRef(null);
     // Filtros
     const [filtroCampania, setFiltroCampania] = useState("");
@@ -32,28 +62,109 @@ export default function GrabacionesOutboundPage() {
     const [filtroResultado, setFiltroResultado] = useState("");
     const [filtroAgente, setFiltroAgente] = useState("");
     const [filtroTelefono, setFiltroTelefono] = useState("");
-    const [filtroFecha, setFiltroFecha] = useState("");
+    const [filtroFechaInicio, setFiltroFechaInicio] =
+        useState(getTodayLocalDate);
+    const [filtroFechaFin, setFiltroFechaFin] = useState(getTodayLocalDate);
 
     useEffect(() => {
         const API_BASE = import.meta.env.VITE_API_BASE;
         const token = getAuthToken();
-        setLoadingGrabaciones(true);
-        fetch(`${API_BASE}/supervisor/grabaciones`, {
-            headers: {
-                Authorization: `Bearer ${token}`,
+        const queryParams = new URLSearchParams();
+        if (filtroFechaInicio) queryParams.set("startDate", filtroFechaInicio);
+        if (filtroFechaFin) queryParams.set("endDate", filtroFechaFin);
+        const queryString = queryParams.toString();
+        setLoadingFiltros(true);
+        fetch(
+            `${API_BASE}/supervisor/grabaciones/filtros${queryString ? `?${queryString}` : ""}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
             },
-        })
+        )
             .then((res) => {
-                if (!res.ok) throw new Error("No autorizado");
+                if (!res.ok) {
+                    return res
+                        .json()
+                        .catch(() => ({}))
+                        .then((errorPayload) => {
+                            const detail = String(
+                                errorPayload?.error ||
+                                    errorPayload?.message ||
+                                    "",
+                            ).trim();
+                            throw new Error(
+                                detail || "No se pudo cargar filtros",
+                            );
+                        });
+                }
                 return res.json();
             })
-            .then((data) => setGrabaciones(Array.isArray(data) ? data : []))
-            .catch((err) => {
-                setError("No se pudo cargar las grabaciones");
-                setGrabaciones([]);
+            .then((data) => {
+                setCampaignOptions(
+                    Array.isArray(data?.campaigns) ? data.campaigns : [],
+                );
+                setBasesByCampaign(
+                    data?.basesByCampaign &&
+                        typeof data.basesByCampaign === "object"
+                        ? data.basesByCampaign
+                        : {},
+                );
+                setFiltrosError(null);
             })
-            .finally(() => setLoadingGrabaciones(false));
-    }, []);
+            .catch((err = {}) => {
+                setFiltrosError(
+                    String(err?.message || null).trim() ||
+                        "No se pudo cargar filtros",
+                );
+                setCampaignOptions([]);
+                setBasesByCampaign({});
+            })
+            .finally(() => setLoadingFiltros(false));
+    }, [filtroFechaInicio, filtroFechaFin]);
+
+    const cargarGrabaciones = async () => {
+        const API_BASE = import.meta.env.VITE_API_BASE;
+        const token = getAuthToken();
+        const queryParams = new URLSearchParams();
+        if (filtroFechaInicio) queryParams.set("startDate", filtroFechaInicio);
+        if (filtroFechaFin) queryParams.set("endDate", filtroFechaFin);
+        if (filtroCampania) queryParams.set("campaignId", filtroCampania);
+        if (filtroBase) queryParams.set("importId", filtroBase);
+        const queryString = queryParams.toString();
+
+        setLoadingGrabaciones(true);
+        setError(null);
+        setHasSearched(true);
+        try {
+            const res = await fetch(
+                `${API_BASE}/supervisor/grabaciones${queryString ? `?${queryString}` : ""}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            if (!res.ok) {
+                const errorPayload = await res.json().catch(() => ({}));
+                throw new Error(
+                    String(
+                        errorPayload?.error || errorPayload?.message || null,
+                    ).trim() || "No se pudo cargar las grabaciones",
+                );
+            }
+            const data = await res.json();
+            setGrabaciones(Array.isArray(data) ? data : []);
+            setSelectedRows({});
+        } catch (err) {
+            setError(
+                String(err?.message || null).trim() ||
+                    "No se pudo cargar las grabaciones",
+            );
+            setGrabaciones([]);
+            setSelectedRows({});
+        } finally {
+            setLoadingGrabaciones(false);
+        }
+    };
 
     // Limpia los object URLs al desmontar
     useEffect(() => {
@@ -83,8 +194,8 @@ export default function GrabacionesOutboundPage() {
                 try {
                     const errorData = await res.json();
                     backendMessage =
-                        String(errorData?.error || "").trim() ||
-                        String(errorData?.message || "").trim();
+                        String(errorData?.error || null).trim() ||
+                        String(errorData?.message || null).trim();
                 } catch {
                     backendMessage = "";
                 }
@@ -115,17 +226,14 @@ export default function GrabacionesOutboundPage() {
         setPlayingAudioId("");
     };
 
-    // Opciones únicas para selects
-    const campanias = Array.from(
-        new Set(grabaciones.map((g) => g.CampaignId).filter(Boolean)),
-    );
-    const bases = Array.from(
-        new Set(
-            grabaciones
-                .map((g) => g.ImportId || g.Importid || g.ImportID)
-                .filter(Boolean),
-        ),
-    );
+    // Opciones Ãºnicas para selects
+    const campanias = campaignOptions;
+    const bases = useMemo(() => {
+        if (!filtroCampania) return [];
+        return Array.isArray(basesByCampaign?.[filtroCampania])
+            ? basesByCampaign[filtroCampania]
+            : [];
+    }, [basesByCampaign, filtroCampania]);
     const resultados = Array.from(
         new Set(grabaciones.map((g) => g.ResultLevel1).filter(Boolean)),
     );
@@ -133,16 +241,13 @@ export default function GrabacionesOutboundPage() {
         new Set(grabaciones.map((g) => g.AgentName || g.Agent).filter(Boolean)),
     );
 
-    const totalConAudio = grabaciones.filter((g) => g.recordingfile).length;
-    const totalVinculadas = grabaciones.filter(
-        (g) => g.recordingfile && g.recordingLinked,
-    ).length;
-
     // Filtro aplicado
     const grabacionesFiltradas = grabaciones.filter((g) => {
         const fechaGrabacion =
             g.calldateLocal || toLocalDateString(g.calldate || g.TmStmp);
-        const fechaOk = !filtroFecha || fechaGrabacion === filtroFecha;
+        const fechaOk =
+            (!filtroFechaInicio || fechaGrabacion >= filtroFechaInicio) &&
+            (!filtroFechaFin || fechaGrabacion <= filtroFechaFin);
         const campaniaOk = !filtroCampania || g.CampaignId === filtroCampania;
         const baseOk =
             !filtroBase ||
@@ -151,8 +256,15 @@ export default function GrabacionesOutboundPage() {
             !filtroResultado || g.ResultLevel1 === filtroResultado;
         const agenteOk =
             !filtroAgente || (g.AgentName || g.Agent) === filtroAgente;
+        const filtroBusqueda = String(filtroTelefono || null).trim();
+        const valorCedula = String(
+            g.Cedula || g.IDENTIFICACION || g.ContactId || null,
+        ).trim();
+        const valorTelefono = String(g.dst || g.ContactAddress || null).trim();
         const telefonoOk =
-            !filtroTelefono || (g.dst && g.dst.includes(filtroTelefono));
+            !filtroBusqueda ||
+            valorTelefono.includes(filtroBusqueda) ||
+            valorCedula.includes(filtroBusqueda);
         return (
             fechaOk &&
             campaniaOk &&
@@ -162,15 +274,38 @@ export default function GrabacionesOutboundPage() {
             telefonoOk
         );
     });
+    const totalFiltradas = grabacionesFiltradas.length;
+    const totalFiltradasConAudio = grabacionesFiltradas.filter(
+        (g) => g.recordingfile,
+    ).length;
+    const selectedFilteredCount = grabacionesFiltradas.filter((g, idx) =>
+        Boolean(selectedRows[getRowKey(g, idx)]),
+    ).length;
+    const allFilteredSelected =
+        totalFiltradas > 0 &&
+        grabacionesFiltradas.every((g, idx) =>
+            Boolean(selectedRows[getRowKey(g, idx)]),
+        );
 
+    useEffect(() => {
+        if (!filtroBase) return;
+        if (!bases.includes(filtroBase)) {
+            setFiltroBase("");
+        }
+    }, [bases, filtroBase]);
     // Descarga en bloque
     const handleDescargarTodas = async () => {
-        if (grabacionesFiltradas.length === 0) {
+        const seleccionadas = grabacionesFiltradas.filter((g, idx) =>
+            Boolean(selectedRows[getRowKey(g, idx)]),
+        );
+        const targetRows =
+            seleccionadas.length > 0 ? seleccionadas : grabacionesFiltradas;
+        if (targetRows.length === 0) {
             alert("No hay grabaciones para descargar.");
             return;
         }
         let descargadas = 0;
-        for (const g of grabacionesFiltradas) {
+        for (const g of targetRows) {
             if (!g.recordingfile) continue;
             try {
                 const url = await fetchAudioUrl(g.recordingfile);
@@ -190,13 +325,43 @@ export default function GrabacionesOutboundPage() {
         }
     };
 
+    const toggleSelectAllFiltered = () => {
+        if (allFilteredSelected) {
+            const next = { ...selectedRows };
+            for (let i = 0; i < grabacionesFiltradas.length; i += 1) {
+                const key = getRowKey(grabacionesFiltradas[i], i);
+                delete next[key];
+            }
+            setSelectedRows(next);
+            return;
+        }
+
+        const next = { ...selectedRows };
+        for (let i = 0; i < grabacionesFiltradas.length; i += 1) {
+            const key = getRowKey(grabacionesFiltradas[i], i);
+            next[key] = true;
+        }
+        setSelectedRows(next);
+    };
+
+    const toggleRowSelection = (rowKey) => {
+        setSelectedRows((prev) => ({
+            ...prev,
+            [rowKey]: !prev[rowKey],
+        }));
+    };
     const limpiarFiltros = () => {
         setFiltroCampania("");
         setFiltroBase("");
         setFiltroResultado("");
         setFiltroAgente("");
         setFiltroTelefono("");
-        setFiltroFecha("");
+        setFiltroFechaInicio(getTodayLocalDate());
+        setFiltroFechaFin(getTodayLocalDate());
+        setGrabaciones([]);
+        setSelectedRows({});
+        setHasSearched(false);
+        setError(null);
     };
 
     return (
@@ -209,32 +374,78 @@ export default function GrabacionesOutboundPage() {
                         </h2>
                     </div>
                 </div>
-                <div className="grabaciones-filters-card">
+                <div className="grabaciones-filters-card grabaciones-filters-card--enhanced">
                     <div className="grabaciones-filters-head">
                         <div>
                             <h3 className="grabaciones-filters-title">
                                 Filtros de búsqueda
                             </h3>
                         </div>
-                        <div className="grabaciones-filters-actions">
-                            <button
-                                type="button"
-                                className="grabaciones-primary-btn"
-                                onClick={handleDescargarTodas}
-                                title="Descargar todas las grabaciones filtradas"
-                            >
-                                Descargar todas
-                            </button>
-                            <button
-                                type="button"
-                                className="grabaciones-chip-btn"
-                                onClick={limpiarFiltros}
-                            >
-                                Reiniciar
-                            </button>
+                        <div className="grabaciones-head-right">
+                            <div className="grabaciones-head-summary">
+                                <span className="grabaciones-summary-pill">
+                                    Total filtradas: <strong>{totalFiltradas}</strong>
+                                </span>
+                                <span className="grabaciones-summary-pill">
+                                    Con audio: <strong>{totalFiltradasConAudio}</strong>
+                                </span>
+                                <span className="grabaciones-summary-pill">
+                                    Seleccionadas: <strong>{selectedFilteredCount}</strong>
+                                </span>
+                            </div>
+                            <div className="grabaciones-filters-actions">
+                                <button
+                                    type="button"
+                                    className="grabaciones-primary-btn"
+                                    onClick={cargarGrabaciones}
+                                >
+                                    Buscar grabaciones
+                                </button>
+                                <button
+                                    type="button"
+                                    className="grabaciones-secondary-btn"
+                                    onClick={handleDescargarTodas}
+                                    title="Descargar seleccionadas o todas las filtradas si no hay selección"
+                                >
+                                    Descargar selección/filtradas
+                                </button>
+                                <button
+                                    type="button"
+                                    className="grabaciones-chip-btn"
+                                    onClick={limpiarFiltros}
+                                >
+                                    Reiniciar filtros
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div className="grabaciones-filters-grid">
+                        <div className="grabaciones-field">
+                            <span className="grabaciones-field-label">
+                                Fecha inicio
+                            </span>
+                            <input
+                                className="grabaciones-input"
+                                type="date"
+                                value={filtroFechaInicio}
+                                onChange={(e) =>
+                                    setFiltroFechaInicio(e.target.value)
+                                }
+                            />
+                        </div>
+                        <div className="grabaciones-field">
+                            <span className="grabaciones-field-label">
+                                Fecha fin
+                            </span>
+                            <input
+                                className="grabaciones-input"
+                                type="date"
+                                value={filtroFechaFin}
+                                onChange={(e) =>
+                                    setFiltroFechaFin(e.target.value)
+                                }
+                            />
+                        </div>
                         <div className="grabaciones-field">
                             <span className="grabaciones-field-label">
                                 Campaña
@@ -246,7 +457,7 @@ export default function GrabacionesOutboundPage() {
                                     setFiltroCampania(e.target.value)
                                 }
                             >
-                                <option value="">Todas las campañas</option>
+                                <option value="">Selecciona campaña</option>
                                 {campanias.map((c) => (
                                     <option key={c} value={c}>
                                         {c}
@@ -263,7 +474,11 @@ export default function GrabacionesOutboundPage() {
                                 value={filtroBase}
                                 onChange={(e) => setFiltroBase(e.target.value)}
                             >
-                                <option value="">Todas las bases</option>
+                                <option value="">
+                                    {filtroCampania
+                                        ? "Selecciona base"
+                                        : "Primero selecciona campaña"}
+                                </option>
                                 {bases.map((b) => (
                                     <option key={b} value={b}>
                                         {b}
@@ -311,18 +526,7 @@ export default function GrabacionesOutboundPage() {
                         </div>
                         <div className="grabaciones-field">
                             <span className="grabaciones-field-label">
-                                Fecha
-                            </span>
-                            <input
-                                className="grabaciones-input"
-                                type="date"
-                                value={filtroFecha}
-                                onChange={(e) => setFiltroFecha(e.target.value)}
-                            />
-                        </div>
-                        <div className="grabaciones-field">
-                            <span className="grabaciones-field-label">
-                                Telefono
+                                Teléfono / Cédula
                             </span>
                             <input
                                 className="grabaciones-input"
@@ -331,26 +535,46 @@ export default function GrabacionesOutboundPage() {
                                 onChange={(e) =>
                                     setFiltroTelefono(e.target.value)
                                 }
-                                placeholder="Teléfono"
+                                placeholder="Buscar por teléfono o cédula"
                             />
                         </div>
                     </div>
                 </div>
+                {filtrosError && (
+                    <p className="grabaciones-error">{filtrosError}</p>
+                )}
                 {error && <p className="grabaciones-error">{error}</p>}
-                {loadingGrabaciones ? (
+                {(loadingFiltros && (
+                    <div className="grabaciones-state-card">
+                        Cargando filtros...
+                    </div>
+                )) ||
+                    (loadingGrabaciones && (
                     <div className="grabaciones-state-card">
                         Cargando grabaciones...
                     </div>
-                ) : grabacionesFiltradas.length === 0 ? (
+                )) ||
+                    (grabacionesFiltradas.length === 0 && (
                     <div className="grabaciones-state-card">
-                        No hay grabaciones disponibles.
+                        {hasSearched
+                            ? "No hay grabaciones disponibles para los filtros seleccionados."
+                            : "Selecciona campaña y base, luego clic en Buscar grabaciones."}
                     </div>
-                ) : (
+                )) || (
                     <div className="grabaciones-table-wrapper">
                         <table className="grabaciones-table">
                             <thead>
                                 <tr>
+                                    <th>
+                                        <input
+                                            type="checkbox"
+                                            checked={allFilteredSelected}
+                                            onChange={toggleSelectAllFiltered}
+                                            title="Seleccionar todas las filas filtradas"
+                                        />
+                                    </th>
                                     <th>Fecha</th>
+                                    <th>Cédula</th>
                                     <th>Teléfono</th>
                                     <th>Usuario</th>
                                     <th>Agente</th>
@@ -363,254 +587,279 @@ export default function GrabacionesOutboundPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {grabacionesFiltradas.map((g, idx) => (
-                                    <tr key={idx}>
-                                        <td>
-                                            {g.calldate
-                                                ? new Date(
-                                                      g.calldate,
-                                                  ).toLocaleString()
-                                                : ""}
-                                        </td>
-                                        <td>{g.dst}</td>
-                                        <td>{g.Agent || ""}</td>
-                                        <td>
-                                            <div className="grabaciones-agent-main">
-                                                {g.AgentName || g.Agent}
-                                            </div>
-                                            <div className="grabaciones-agent-sub">
-                                                {g.Agent || ""}
-                                            </div>
-                                        </td>
-                                        <td>{g.ContactName}</td>
-                                        <td>{g.CampaignId}</td>
-                                        <td>
-                                            {g.ImportId ||
-                                                g.Importid ||
-                                                g.ImportID ||
-                                                ""}
-                                        </td>
-                                        <td>{g.ResultLevel1}</td>
-                                        <td>
-                                            {g.recordingfile ? (
-                                                <span
-                                                    className={`grabaciones-badge ${g.recordingLinked ? "grabaciones-badge--linked" : "grabaciones-badge--fallback"}`}
-                                                >
-                                                    {g.recordingLinked
-                                                        ? "Vinculada"
-                                                        : "Fallback"}
-                                                </span>
-                                            ) : (
-                                                "-"
-                                            )}
-                                        </td>
-                                        <td>
-                                            {g.recordingfile ? (
-                                                <>
-                                                    <span className="grabaciones-actions">
-                                                        {/* Icono escuchar */}
-                                                        <button
-                                                            title="Escuchar"
-                                                            className="grabaciones-icon-btn"
-                                                            onClick={async () => {
-                                                                const url =
-                                                                    await fetchAudioUrl(
-                                                                        g.recordingfile,
-                                                                    );
-                                                                if (url) {
-                                                                    const audio =
-                                                                        document.getElementById(
-                                                                            `audio-outbound-${idx}`,
-                                                                        );
-                                                                    if (audio) {
-                                                                        if (
-                                                                            currentAudioRef.current &&
-                                                                            currentAudioRef.current !==
-                                                                                audio
-                                                                        ) {
-                                                                            currentAudioRef.current.pause();
-                                                                            currentAudioRef.current.currentTime = 0;
-                                                                        }
-                                                                        audio.src =
-                                                                            url;
-                                                                        currentAudioRef.current =
-                                                                            audio;
-                                                                        audio.play();
-                                                                        setPlayingAudioId(
-                                                                            `audio-outbound-${idx}`,
-                                                                        );
-                                                                    }
-                                                                }
-                                                            }}
-                                                        >
-                                                            {/* SVG play icon */}
-                                                            <svg
-                                                                width="22"
-                                                                height="22"
-                                                                viewBox="0 0 22 22"
-                                                                fill="none"
-                                                                className="grabaciones-icon"
-                                                                xmlns="http://www.w3.org/2000/svg"
-                                                            >
-                                                                <circle
-                                                                    cx="11"
-                                                                    cy="11"
-                                                                    r="11"
-                                                                    fill="#2563EB"
-                                                                />
-                                                                <polygon
-                                                                    points="8,6 17,11 8,16"
-                                                                    fill="#fff"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                        {/* Reproductor oculto */}
-                                                        <audio
-                                                            id={`audio-outbound-${idx}`}
-                                                            style={{
-                                                                display: "none",
-                                                            }}
-                                                            src={
-                                                                audioUrls[
-                                                                    g
-                                                                        .recordingfile
-                                                                ] || ""
-                                                            }
-                                                            onEnded={() => {
-                                                                if (
-                                                                    playingAudioId ===
-                                                                    `audio-outbound-${idx}`
-                                                                ) {
-                                                                    setPlayingAudioId(
-                                                                        "",
-                                                                    );
-                                                                    currentAudioRef.current =
-                                                                        null;
-                                                                }
-                                                            }}
-                                                        />
-                                                        <button
-                                                            title="Detener"
-                                                            className="grabaciones-icon-btn"
-                                                            onClick={() => {
-                                                                const audioId = `audio-outbound-${idx}`;
-                                                                if (
-                                                                    playingAudioId ===
-                                                                    audioId
-                                                                ) {
-                                                                    stopCurrentAudio();
-                                                                    return;
-                                                                }
-
-                                                                const audio =
-                                                                    document.getElementById(
-                                                                        audioId,
-                                                                    );
-                                                                if (audio) {
-                                                                    audio.pause();
-                                                                    audio.currentTime = 0;
-                                                                }
-                                                            }}
-                                                        >
-                                                            <svg
-                                                                width="22"
-                                                                height="22"
-                                                                viewBox="0 0 22 22"
-                                                                fill="none"
-                                                                className="grabaciones-icon"
-                                                                xmlns="http://www.w3.org/2000/svg"
-                                                            >
-                                                                <circle
-                                                                    cx="11"
-                                                                    cy="11"
-                                                                    r="11"
-                                                                    fill={
-                                                                        playingAudioId ===
-                                                                        `audio-outbound-${idx}`
-                                                                            ? "#dc2626"
-                                                                            : "#64748b"
-                                                                    }
-                                                                />
-                                                                <rect
-                                                                    x="7"
-                                                                    y="7"
-                                                                    width="8"
-                                                                    height="8"
-                                                                    rx="1.5"
-                                                                    fill="#fff"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                        {/* Icono descargar */}
-                                                        <button
-                                                            title="Descargar"
-                                                            className="grabaciones-icon-btn"
-                                                            onClick={async () => {
-                                                                const url =
-                                                                    await fetchAudioUrl(
-                                                                        g.recordingfile,
-                                                                    );
-                                                                if (url) {
-                                                                    const a =
-                                                                        document.createElement(
-                                                                            "a",
-                                                                        );
-                                                                    a.href =
-                                                                        url;
-                                                                    a.download =
-                                                                        getRecordingFilename(
+                                {grabacionesFiltradas.map((g, idx) => {
+                                    const rowKey = getRowKey(g, idx);
+                                    return (
+                                        <tr key={rowKey}>
+                                            <td>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={Boolean(
+                                                        selectedRows[rowKey],
+                                                    )}
+                                                    onChange={() =>
+                                                        toggleRowSelection(
+                                                            rowKey,
+                                                        )
+                                                    }
+                                                />
+                                            </td>
+                                            <td>
+                                                {g.calldate
+                                                    ? new Date(
+                                                          g.calldate,
+                                                      ).toLocaleString()
+                                                    : ""}
+                                            </td>
+                                            <td>
+                                                {g.Cedula ||
+                                                    g.IDENTIFICACION ||
+                                                    g.ContactId ||
+                                                    ""}
+                                            </td>
+                                            <td>{g.dst}</td>
+                                            <td>{g.Agent || null}</td>
+                                            <td>
+                                                <div className="grabaciones-agent-main">
+                                                    {g.AgentName || g.Agent}
+                                                </div>
+                                                <div className="grabaciones-agent-sub">
+                                                    {g.Agent || null}
+                                                </div>
+                                            </td>
+                                            <td>{g.ContactName}</td>
+                                            <td>{g.CampaignId}</td>
+                                            <td>
+                                                {g.ImportId ||
+                                                    g.Importid ||
+                                                    g.ImportID ||
+                                                    ""}
+                                            </td>
+                                            <td>{g.ResultLevel1}</td>
+                                            <td>
+                                                {g.recordingfile ? (
+                                                    <span
+                                                        className={`grabaciones-badge ${g.recordingLinked ? "grabaciones-badge--linked" : "grabaciones-badge--fallback"}`}
+                                                    >
+                                                        {g.recordingLinked
+                                                            ? "Vinculada"
+                                                            : "Fallback"}
+                                                    </span>
+                                                ) : (
+                                                    "-"
+                                                )}
+                                            </td>
+                                            <td>
+                                                {g.recordingfile ? (
+                                                    <>
+                                                        <span className="grabaciones-actions">
+                                                            {/* Icono escuchar */}
+                                                            <button
+                                                                title="Escuchar"
+                                                                className="grabaciones-icon-btn"
+                                                                onClick={async () => {
+                                                                    const url =
+                                                                        await fetchAudioUrl(
                                                                             g.recordingfile,
                                                                         );
-                                                                    document.body.appendChild(
-                                                                        a,
-                                                                    );
-                                                                    a.click();
-                                                                    document.body.removeChild(
-                                                                        a,
-                                                                    );
-                                                                }
-                                                            }}
-                                                        >
-                                                            {/* SVG download icon */}
-                                                            <svg
-                                                                width="22"
-                                                                height="22"
-                                                                viewBox="0 0 22 22"
-                                                                fill="none"
-                                                                className="grabaciones-icon"
-                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                    if (url) {
+                                                                        const audio =
+                                                                            document.getElementById(
+                                                                                `audio-outbound-${idx}`,
+                                                                            );
+                                                                        if (
+                                                                            audio
+                                                                        ) {
+                                                                            if (
+                                                                                currentAudioRef.current &&
+                                                                                currentAudioRef.current !==
+                                                                                    audio
+                                                                            ) {
+                                                                                currentAudioRef.current.pause();
+                                                                                currentAudioRef.current.currentTime = 0;
+                                                                            }
+                                                                            audio.src =
+                                                                                url;
+                                                                            currentAudioRef.current =
+                                                                                audio;
+                                                                            audio.play();
+                                                                            setPlayingAudioId(
+                                                                                `audio-outbound-${idx}`,
+                                                                            );
+                                                                        }
+                                                                    }
+                                                                }}
                                                             >
-                                                                <circle
-                                                                    cx="11"
-                                                                    cy="11"
-                                                                    r="11"
-                                                                    fill="#2563EB"
-                                                                />
-                                                                <path
-                                                                    d="M11 6v7m0 0l-3-3m3 3l3-3"
-                                                                    stroke="#fff"
-                                                                    strokeWidth="2"
-                                                                    strokeLinecap="round"
-                                                                    strokeLinejoin="round"
-                                                                />
-                                                                <rect
-                                                                    x="7"
-                                                                    y="16"
-                                                                    width="8"
-                                                                    height="2"
-                                                                    rx="1"
-                                                                    fill="#fff"
-                                                                />
-                                                            </svg>
-                                                        </button>
-                                                    </span>
-                                                </>
-                                            ) : (
-                                                "-"
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
+                                                                {/* SVG play icon */}
+                                                                <svg
+                                                                    width="22"
+                                                                    height="22"
+                                                                    viewBox="0 0 22 22"
+                                                                    fill="none"
+                                                                    className="grabaciones-icon"
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                >
+                                                                    <circle
+                                                                        cx="11"
+                                                                        cy="11"
+                                                                        r="11"
+                                                                        fill="#2563EB"
+                                                                    />
+                                                                    <polygon
+                                                                        points="8,6 17,11 8,16"
+                                                                        fill="#fff"
+                                                                    />
+                                                                </svg>
+                                                            </button>
+                                                            {/* Reproductor oculto */}
+                                                            <audio
+                                                                id={`audio-outbound-${idx}`}
+                                                                style={{
+                                                                    display:
+                                                                        "none",
+                                                                }}
+                                                                src={
+                                                                    audioUrls[
+                                                                        g
+                                                                            .recordingfile
+                                                                    ] || null
+                                                                }
+                                                                onEnded={() => {
+                                                                    if (
+                                                                        playingAudioId ===
+                                                                        `audio-outbound-${idx}`
+                                                                    ) {
+                                                                        setPlayingAudioId(
+                                                                            "",
+                                                                        );
+                                                                        currentAudioRef.current =
+                                                                            null;
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <button
+                                                                title="Detener"
+                                                                className="grabaciones-icon-btn"
+                                                                onClick={() => {
+                                                                    const audioId = `audio-outbound-${idx}`;
+                                                                    if (
+                                                                        playingAudioId ===
+                                                                        audioId
+                                                                    ) {
+                                                                        stopCurrentAudio();
+                                                                        return;
+                                                                    }
+
+                                                                    const audio =
+                                                                        document.getElementById(
+                                                                            audioId,
+                                                                        );
+                                                                    if (audio) {
+                                                                        audio.pause();
+                                                                        audio.currentTime = 0;
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <svg
+                                                                    width="22"
+                                                                    height="22"
+                                                                    viewBox="0 0 22 22"
+                                                                    fill="none"
+                                                                    className="grabaciones-icon"
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                >
+                                                                    <circle
+                                                                        cx="11"
+                                                                        cy="11"
+                                                                        r="11"
+                                                                        fill={
+                                                                            playingAudioId ===
+                                                                            `audio-outbound-${idx}`
+                                                                                ? "#dc2626"
+                                                                                : "#64748b"
+                                                                        }
+                                                                    />
+                                                                    <rect
+                                                                        x="7"
+                                                                        y="7"
+                                                                        width="8"
+                                                                        height="8"
+                                                                        rx="1.5"
+                                                                        fill="#fff"
+                                                                    />
+                                                                </svg>
+                                                            </button>
+                                                            {/* Icono descargar */}
+                                                            <button
+                                                                title="Descargar"
+                                                                className="grabaciones-icon-btn"
+                                                                onClick={async () => {
+                                                                    const url =
+                                                                        await fetchAudioUrl(
+                                                                            g.recordingfile,
+                                                                        );
+                                                                    if (url) {
+                                                                        const a =
+                                                                            document.createElement(
+                                                                                "a",
+                                                                            );
+                                                                        a.href =
+                                                                            url;
+                                                                        a.download =
+                                                                            getRecordingFilename(
+                                                                                g.recordingfile,
+                                                                            );
+                                                                        document.body.appendChild(
+                                                                            a,
+                                                                        );
+                                                                        a.click();
+                                                                        document.body.removeChild(
+                                                                            a,
+                                                                        );
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {/* SVG download icon */}
+                                                                <svg
+                                                                    width="22"
+                                                                    height="22"
+                                                                    viewBox="0 0 22 22"
+                                                                    fill="none"
+                                                                    className="grabaciones-icon"
+                                                                    xmlns="http://www.w3.org/2000/svg"
+                                                                >
+                                                                    <circle
+                                                                        cx="11"
+                                                                        cy="11"
+                                                                        r="11"
+                                                                        fill="#2563EB"
+                                                                    />
+                                                                    <path
+                                                                        d="M11 6v7m0 0l-3-3m3 3l3-3"
+                                                                        stroke="#fff"
+                                                                        strokeWidth="2"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                    />
+                                                                    <rect
+                                                                        x="7"
+                                                                        y="16"
+                                                                        width="8"
+                                                                        height="2"
+                                                                        rx="1"
+                                                                        fill="#fff"
+                                                                    />
+                                                                </svg>
+                                                            </button>
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    "-"
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -619,5 +868,3 @@ export default function GrabacionesOutboundPage() {
         </PageContainer>
     );
 }
-
-

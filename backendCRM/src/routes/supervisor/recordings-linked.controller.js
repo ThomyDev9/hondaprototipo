@@ -52,6 +52,43 @@ function toLocalDateString(value) {
     return `${year}-${month}-${day}`;
 }
 
+function resolveDateRange(startDateValue = "", endDateValue = "", dateValue = "") {
+    const normalizedStart = String(startDateValue || "").trim();
+    const normalizedEnd = String(endDateValue || "").trim();
+    const normalizedSingle = String(dateValue || "").trim();
+    const normalized =
+        normalizedStart || normalizedEnd || normalizedSingle || "";
+
+    if (!normalizedStart && !normalizedEnd && !normalizedSingle) {
+        return {
+            start: TARGET_YEAR_START,
+            end: TARGET_YEAR_END,
+        };
+    }
+    const toSqlDate = (date) =>
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+            date.getDate(),
+        ).padStart(2, "0")} 00:00:00`;
+
+    const parsedStart = new Date(`${(normalizedStart || normalized)}T00:00:00`);
+    const parsedEndBase = new Date(`${(normalizedEnd || normalizedStart || normalized)}T00:00:00`);
+
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEndBase.getTime())) {
+        return {
+            start: TARGET_YEAR_START,
+            end: TARGET_YEAR_END,
+        };
+    }
+
+    const parsedEndExclusive = new Date(parsedEndBase);
+    parsedEndExclusive.setDate(parsedEndExclusive.getDate() + 1);
+
+    return {
+        start: toSqlDate(parsedStart),
+        end: toSqlDate(parsedEndExclusive),
+    };
+}
+
 function normalizePhone(value) {
     return String(value || "").replace(/\D/g, "");
 }
@@ -103,6 +140,54 @@ function findClosestCdrForManagement(cdrRows, management) {
     }, null);
 }
 
+async function fetchCdrRowsByPhonesInBatches({
+    start,
+    end,
+    phones = [],
+    batchSize = 250,
+}) {
+    const dedupedPhones = Array.from(
+        new Set(
+            phones
+                .map((value) => String(value || "").trim())
+                .filter(Boolean),
+        ),
+    );
+
+    if (!dedupedPhones.length) {
+        return [];
+    }
+
+    const allRows = [];
+    for (let i = 0; i < dedupedPhones.length; i += batchSize) {
+        const batch = dedupedPhones.slice(i, i + batchSize);
+        const placeholders = batch.map(() => "?").join(",");
+        const cdrQuery = `
+            SELECT calldate, src, dst, disposition, duration, recordingfile
+            FROM cdr
+            WHERE recordingfile IS NOT NULL
+              AND calldate >= ?
+              AND calldate < ?
+              AND (
+                (dst IN (${placeholders}) AND dst != '' AND dst != 'null')
+                OR
+                (src IN (${placeholders}) AND src != '' AND src != 'null')
+              )
+            ORDER BY calldate DESC
+        `;
+
+        const [rows] = await isabelPool.query(cdrQuery, [
+            start,
+            end,
+            ...batch,
+            ...batch,
+        ]);
+        allRows.push(...rows);
+    }
+
+    return allRows;
+}
+
 async function buildAgentNameMap() {
     const users = await userService.obtenerUsuarios();
     const agentNameMap = new Map();
@@ -142,7 +227,7 @@ async function buildClientByPhoneMap(phones = []) {
     const placeholders = normalizedPhones.map(() => "?").join(",");
     const [rows] = await pool.query(
         `
-        SELECT ContactAddress, ContactName, NOMBRE_CLIENTE, ContactId, CampaignId, TmStmp
+        SELECT ContactAddress, ContactName, NOMBRE_CLIENTE, ContactId, CampaignId, TmStmp, IDENTIFICACION
         FROM ${OUTBOUND_SCHEMA}.clientes_outbound
         WHERE REPLACE(REPLACE(REPLACE(REPLACE(ContactAddress, ' ', ''), '-', ''), '(', ''), ')', '') IN (${placeholders})
         ORDER BY TmStmp DESC, Id DESC
@@ -165,19 +250,39 @@ async function buildClientByPhoneMap(phones = []) {
 
 export async function getRecordingsByPhone(req, res) {
     try {
-        const { phone } = req.query;
+        const {
+            phone,
+            date,
+            startDate,
+            endDate,
+            campaignId,
+            importId,
+        } = req.query;
+        const { start, end } = resolveDateRange(startDate, endDate, date);
 
-        let query1 = `SELECT '${OUTBOUND_SCHEMA}' AS schema_name, Id, ContactId, InteractionId, TmStmp, CampaignId, ContactName, ContactAddress, ImportId, Agent, ResultLevel1
+        let query1 = `SELECT '${OUTBOUND_SCHEMA}' AS schema_name, Id, ContactId, InteractionId, TmStmp, CampaignId, ContactName, ContactAddress, ImportId, Agent, ResultLevel1, IDENTIFICACION
                         FROM ${OUTBOUND_SCHEMA}.gestionfinal_outbound
                         WHERE ContactAddress IS NOT null and ContactAddress !=''
                         and TmStmp >= ? and TmStmp < ?
                         and ResultLevel1 !='' `;
-        let params1 = [TARGET_YEAR_START, TARGET_YEAR_END];
+        let params1 = [start, end];
         if (phone) {
             query1 += ` AND ContactAddress = ?`;
             params1.push(phone);
         }
-        query1 += ` ORDER BY TmStmp DESC, Id DESC LIMIT 1000`;
+        if (String(campaignId || "").trim()) {
+            query1 += ` AND CampaignId = ?`;
+            params1.push(String(campaignId).trim());
+        }
+        if (String(importId || "").trim()) {
+            query1 += ` AND (ImportId = ? OR Importid = ? OR ImportID = ?)`;
+            params1.push(
+                String(importId).trim(),
+                String(importId).trim(),
+                String(importId).trim(),
+            );
+        }
+        query1 += ` ORDER BY TmStmp DESC, Id DESC`;
         const [gestionRows] = await pool.query(query1, params1);
         if (!gestionRows.length) {
             return res.json([]);
@@ -193,26 +298,11 @@ export async function getRecordingsByPhone(req, res) {
             return res.json([]);
         }
 
-        const placeholders = phones.map(() => "?").join(",");
-        const cdrQuery = `
-            SELECT calldate, src, dst, disposition, duration, recordingfile
-            FROM cdr
-            WHERE recordingfile IS NOT NULL
-              AND calldate >= ?
-              AND calldate < ?
-              AND (
-                (dst IN (${placeholders}) and dst != '' and dst != 'null')
-                OR
-                (src IN (${placeholders}) and src != '' and src != 'null')
-              )
-            ORDER BY calldate DESC
-        `;
-        const [cdrRows] = await isabelPool.query(cdrQuery, [
-            TARGET_YEAR_START,
-            TARGET_YEAR_END,
-            ...phones,
-            ...phones,
-        ]);
+        const cdrRows = await fetchCdrRowsByPhonesInBatches({
+            start,
+            end,
+            phones,
+        });
         const clientByPhoneMap = await buildClientByPhoneMap(
             cdrRows.flatMap((cdr) => [cdr?.src, cdr?.dst]),
         );
@@ -225,11 +315,23 @@ export async function getRecordingsByPhone(req, res) {
                 ) ||
                 linkedRecordings.get(buildLinkKey(g.schema_name, g.ContactId)) ||
                 null;
-                const linked = isFromTargetYear(linkedCandidate?.cdr_calldate)
+                const linkedHasRecordingData = Boolean(
+                    linkedCandidate?.recording_path ||
+                        linkedCandidate?.recordingfile,
+                );
+                const linked = isFromTargetYear(linkedCandidate?.cdr_calldate) ||
+                    linkedHasRecordingData
                     ? linkedCandidate
                     : null;
 
                 const cdr = findClosestCdrForManagement(cdrRows, g);
+                const linkedRecordingfileFromCdr =
+                    linked?.recordingfile && linked?.cdr_calldate
+                        ? buildRecordingPath(
+                              linked.recordingfile,
+                              linked.cdr_calldate,
+                          )
+                        : null;
                 const fallbackRecordingfile =
                     cdr?.recordingfile && cdr?.calldate
                         ? buildRecordingPath(cdr.recordingfile, cdr.calldate)
@@ -257,6 +359,11 @@ export async function getRecordingsByPhone(req, res) {
                         isFallbackAmbiguous
                             ? g.ContactId
                             : fallbackClient?.ContactId || g.ContactId,
+                    Cedula:
+                        g.IDENTIFICACION ||
+                        (isFallbackAmbiguous
+                            ? g.ContactId
+                            : fallbackClient?.IDENTIFICACION || g.ContactId),
                     CampaignId:
                         isFallbackAmbiguous
                             ? g.CampaignId
@@ -271,8 +378,14 @@ export async function getRecordingsByPhone(req, res) {
                         linked?.cdr_disposition || cdr?.disposition || null,
                     duration: linked?.cdr_duration || cdr?.duration || null,
                     recordingfile:
-                        linked?.recording_path || fallbackRecordingfile || null,
-                    recordingLinked: Boolean(linked?.recording_path),
+                        linked?.recording_path ||
+                        linkedRecordingfileFromCdr ||
+                        linked?.recordingfile ||
+                        fallbackRecordingfile ||
+                        null,
+                    recordingLinked: Boolean(
+                        linked?.recording_path || linked?.recordingfile,
+                    ),
                     fallbackAmbiguous: isFallbackAmbiguous,
                     calldateLocal:
                         toLocalDateString(
@@ -290,5 +403,62 @@ export async function getRecordingsByPhone(req, res) {
     } catch (err) {
         console.error("Error al obtener grabaciones:", err);
         return res.status(500).json({ error: "Error al obtener grabaciones" });
+    }
+}
+
+export async function getOutboundRecordingFilterOptions(req, res) {
+    try {
+        const { date, startDate, endDate } = req.query;
+        const { start, end } = resolveDateRange(startDate, endDate, date);
+
+        const [rows] = await pool.query(
+            `
+            SELECT CampaignId, ImportId, Importid, ImportID
+            FROM ${OUTBOUND_SCHEMA}.gestionfinal_outbound
+            WHERE ContactAddress IS NOT NULL
+              AND ContactAddress <> ''
+              AND ResultLevel1 <> ''
+              AND TmStmp >= ?
+              AND TmStmp < ?
+            ORDER BY TmStmp DESC, Id DESC
+            `,
+            [start, end],
+        );
+
+        const campaigns = new Set();
+        const basesByCampaign = new Map();
+
+        for (const row of rows || []) {
+            const campaign = String(row?.CampaignId || "").trim();
+            const base = String(
+                row?.ImportId || row?.Importid || row?.ImportID || "",
+            ).trim();
+            if (!campaign) continue;
+            campaigns.add(campaign);
+            if (!basesByCampaign.has(campaign)) {
+                basesByCampaign.set(campaign, new Set());
+            }
+            if (base) {
+                basesByCampaign.get(campaign).add(base);
+            }
+        }
+
+        return res.json({
+            campaigns: Array.from(campaigns).sort((a, b) => a.localeCompare(b)),
+            basesByCampaign: Array.from(basesByCampaign.entries()).reduce(
+                (acc, [campaign, bases]) => {
+                    acc[campaign] = Array.from(bases).sort((a, b) =>
+                        a.localeCompare(b),
+                    );
+                    return acc;
+                },
+                {},
+            ),
+        });
+    } catch (err) {
+        console.error("Error al obtener filtros de grabaciones outbound:", err);
+        return res.status(500).json({
+            error: "Error al obtener filtros de grabaciones outbound",
+        });
     }
 }
