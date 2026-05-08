@@ -79,6 +79,42 @@ function sanitizeClientName(value = "") {
     return normalized && !looksLikeInternalCode(normalized) ? normalized : "";
 }
 
+function findFirstValue(item, keys = []) {
+    for (const key of keys) {
+        const value = item?.[key];
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+            return String(value).trim();
+        }
+    }
+    return "";
+}
+
+function resolveCountryIdFromProvinceOption(provinceOption = null) {
+    if (!provinceOption || typeof provinceOption !== "object") {
+        return "";
+    }
+    const nestedCountry = provinceOption?.country || provinceOption?.pais || {};
+    return String(
+        findFirstValue(provinceOption, [
+            "country_id",
+            "pais_id",
+            "countryId",
+            "country",
+            "country_code",
+            "countryCode",
+        ]) ||
+            findFirstValue(nestedCountry, [
+                "country_id",
+                "pais_id",
+                "id",
+                "uuid",
+                "country_code",
+                "code",
+            ]) ||
+            "",
+    ).trim();
+}
+
 export default function RedesVisionFundTicketSection({
     identification,
     fullName,
@@ -292,16 +328,6 @@ export default function RedesVisionFundTicketSection({
 
     const setField = (key, value) => {
         setForm((prev) => ({ ...prev, [key]: value }));
-    };
-
-    const findFirstValue = (item, keys = []) => {
-        for (const key of keys) {
-            const value = item?.[key];
-            if (value !== undefined && value !== null && String(value).trim() !== "") {
-                return String(value).trim();
-            }
-        }
-        return "";
     };
 
     const findHumanLabel = (item, preferredKeys = []) => {
@@ -1002,18 +1028,57 @@ export default function RedesVisionFundTicketSection({
             });
             let locationWarning = "";
             if (createdTicketId) {
-                const happenedInEcuador =
-                    String(form.happened_in_ecuador || "").trim().toLowerCase() === "si";
-                const locationPayload = happenedInEcuador
-                    ? {
-                        ticket_id: createdTicketId,
-                        province_id: String(form.incident_province || "").trim(),
-                        canton_id: String(form.incident_canton || "").trim(),
-                    }
-                    : {
-                        ticket_id: createdTicketId,
-                        country_id: String(form.incident_country || "").trim(),
-                    };
+                const selectedIncidentProvince = (provinceOptions || []).find((item) => {
+                    const value = findFirstValue(item, ["province_id", "id", "uuid"]);
+                    return (
+                        String(value || "").trim() ===
+                        String(form.incident_province || "").trim()
+                    );
+                });
+                const clientProvinceObject =
+                    resolvedClient?.province ||
+                    resolvedClient?.client?.province ||
+                    {};
+                const countryIdFromClientProvince =
+                    resolveCountryIdFromProvinceOption(clientProvinceObject);
+                const countryId =
+                    String(form.incident_country || "").trim() ||
+                    resolveCountryIdFromProvinceOption(selectedIncidentProvince) ||
+                    countryIdFromClientProvince;
+                const provinceId = String(form.incident_province || "").trim();
+                const cantonId = String(form.incident_canton || "").trim();
+                const missingLocationFields = [
+                    ["province_id", provinceId],
+                    ["canton_id", cantonId],
+                ]
+                    .filter(([, value]) => !String(value || "").trim())
+                    .map(([key]) => key);
+
+                // eslint-disable-next-line no-console
+                console.log("[VisionFund Debug] ticket_location ids resolved:", {
+                    ticket_id: createdTicketId,
+                    country_id_from_form: String(form.incident_country || "").trim(),
+                    country_id_from_incident_province:
+                        resolveCountryIdFromProvinceOption(selectedIncidentProvince),
+                    country_id_from_client_province: countryIdFromClientProvince,
+                    country_id_final: countryId || "",
+                    province_id: provinceId,
+                    canton_id: cantonId,
+                });
+
+                if (missingLocationFields.length > 0) {
+                    throw new Error(
+                        `No se pudo registrar ticket_location. Faltan: ${missingLocationFields.join(", ")}`,
+                    );
+                }
+                const locationPayload = {
+                    ticket_id: createdTicketId,
+                    province_id: provinceId,
+                    canton_id: cantonId,
+                };
+                if (String(countryId || "").trim()) {
+                    locationPayload.country_id = String(countryId || "").trim();
+                }
                 // eslint-disable-next-line no-console
                 console.log("[VisionFund Debug] ticket_location payload:", locationPayload);
                 const locationResp = await createTicketLocation(locationPayload);
@@ -1027,6 +1092,7 @@ export default function RedesVisionFundTicketSection({
                         status: locationResp?.status,
                         json: locationResp?.json,
                         text: locationResp?.text,
+                        payload: locationPayload,
                     });
                 }
             }

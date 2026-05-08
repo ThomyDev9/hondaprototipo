@@ -18,6 +18,7 @@ import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
 import ConfiguracionAdmin from "./pages/admin/ConfiguracionAdmin";
 import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
 import ScriptsAdmin from "./pages/admin/ScriptsAdmin";
+import TalentoHumanoPage from "./pages/tthh/TalentoHumanoPage";
 import PublicMaquitaRrssForm from "./pages/PublicMaquitaRrssForm";
 import {
     endAgentSession,
@@ -509,6 +510,8 @@ function App() {
                         page={consultorPage}
                     />
                 )}
+
+                {userInfo.roles?.includes("TTHH") && <TalentoHumanoPage />}
             </DashboardLayout>
         );
     }

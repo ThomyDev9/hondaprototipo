@@ -20,6 +20,8 @@ export default function DashboardLayout({
         ? "CONSULTOR_ADMIN"
         : roles.includes("CONSULTOR")
           ? "CONSULTOR"
+          : roles.includes("TTHH")
+            ? "TTHH"
           : roles.includes("ADMINISTRADOR")
             ? "ADMINISTRADOR"
             : roles.includes("SUPERVISOR")

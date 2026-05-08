@@ -1134,6 +1134,28 @@ function AgentGestionForm({
         isVisionFundRedesFlow && pqrsFlowMode !== "no requiere pqrs";
     const shouldShowVisionFundExtraFields =
         isVisionFundRedesFlow && pqrsFlowMode === "credito/inversion";
+    const selectedInboundMenuItemId = String(
+        dynamicFormAnswers?.__inbound_nombre_cliente || "",
+    ).trim();
+    const selectedInboundClientLabel = String(
+        (inboundChildOptions || []).find(
+            (item) =>
+                String(item?.menuItemId || item?.value || "").trim() ===
+                selectedInboundMenuItemId,
+        )?.label ||
+            dynamicFormAnswers?.__inbound_nombre_cliente_label ||
+            dynamicFormAnswers?.__inbound_nombre_cliente ||
+            "",
+    ).trim();
+    const isVisionFundInboundFlow =
+        isInboundManualFlow &&
+        (isVisionFundClientLabel(selectedInboundClientLabel) ||
+            isVisionFundClientLabel(campaignId) ||
+            isVisionFundClientLabel(menuItemId));
+    const shouldShowVisionFundInboundTicket =
+        isVisionFundInboundFlow && pqrsFlowMode !== "no requiere pqrs";
+    const shouldShowAnyVisionFundTicket =
+        shouldShowVisionFundTicket || shouldShowVisionFundInboundTicket;
 
     const normalizedLevel1 = String(level1Seleccionado || "")
         .trim()
@@ -1237,7 +1259,7 @@ function AgentGestionForm({
                     <div className="agent-inbound-shell__content">
                         <div className="agent-inbound-shell__column">
                             {inboundPrimaryContent}
-                            {isVisionFundRedesFlow && (
+                            {(isVisionFundRedesFlow || isVisionFundInboundFlow) && (
                                 <section className="agent-form-card agent-form-card--tertiary">
                                     <div className="agent-form-header-row">
                                         <p className="agent-form-card__title">
@@ -1280,7 +1302,9 @@ function AgentGestionForm({
                                                 </div>
                                             </div>
                                         </div>
-                                        {shouldShowVisionFundExtraFields && (
+                                        {(shouldShowVisionFundExtraFields ||
+                                            (isVisionFundInboundFlow &&
+                                                pqrsFlowMode === "credito/inversion")) && (
                                             <div className="agent-dynamic-row agent-dynamic-row--redes">
                                                 <div className="agent-form-field">
                                                     <span className="agent-dynamic-label">
@@ -1337,7 +1361,7 @@ function AgentGestionForm({
                             )}
                             {isRedesManualFlow &&
                                 (() => {
-                                    if (!shouldShowVisionFundTicket) {
+                                    if (!shouldShowAnyVisionFundTicket) {
                                         return null;
                                     }
 
@@ -1541,9 +1565,22 @@ function AgentGestionForm({
                                                     [identificationFieldKey, normalizedIdentification],
                                                     [fullNameFieldKey, normalizedFullName],
                                                     [phoneFieldKey, normalizedPhone],
-                                                    ["__redes_vf_correo", normalizedEmail],
-                                                    ["__redes_vf_ciudad", normalizedCity],
-                                                    ["__redes_vf_agencia", normalizedAgency],
+                                                    ...(isRedesManualFlow
+                                                        ? [
+                                                              [
+                                                                  "__redes_vf_correo",
+                                                                  normalizedEmail,
+                                                              ],
+                                                              [
+                                                                  "__redes_vf_ciudad",
+                                                                  normalizedCity,
+                                                              ],
+                                                              [
+                                                                  "__redes_vf_agencia",
+                                                                  normalizedAgency,
+                                                              ],
+                                                          ]
+                                                        : []),
                                                 ];
                                                 const dedupedUpdates = Array.from(
                                                     new Map(
@@ -1587,6 +1624,35 @@ function AgentGestionForm({
                         />
                     </div>
                 </section>
+            )}
+
+            {isInboundManualFlow && shouldShowVisionFundInboundTicket && (
+                <RedesVisionFundTicketSection
+                    identification={String(
+                        dynamicFormAnswers?.IDENTIFICACION ||
+                            dynamicFormAnswers?.identificacion ||
+                            dynamicFormAnswers?.identification ||
+                            dynamicFormAnswers?.cedula ||
+                            "",
+                    ).trim()}
+                    fullName={String(
+                        dynamicFormAnswers?.NOMBRE_CLIENTE ||
+                            dynamicFormAnswers?.nombreCliente ||
+                            dynamicFormAnswers?.apellidosNombres ||
+                            dynamicFormAnswers?.__inbound_nombre_cliente_label ||
+                            "",
+                    ).trim()}
+                    phone={String(
+                        dynamicFormAnswers?.CAMPO3 ||
+                            dynamicFormAnswers?.celular ||
+                            dynamicFormAnswers?.Celular ||
+                            dynamicFormAnswers?.telefono ||
+                            dynamicFormAnswers?.telefonoCliente ||
+                            dynamicFormAnswers?.__inbound_current_call_phone ||
+                            "",
+                    ).trim()}
+                    pqrsFlowMode={pqrsFlowMode}
+                />
             )}
         </div>
     );

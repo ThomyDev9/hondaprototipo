@@ -109,6 +109,39 @@ router.get(
 );
 
 /* =========================================================
+   GET /admin/users/workgroups  → Listar perfiles/roles
+   ========================================================= */
+router.get(
+    "/workgroups",
+    requireAuth,
+    requireRole(["ADMINISTRADOR"]),
+    async (_req, res) => {
+        try {
+            const [rows] = await pool.query(
+                `SELECT id, description
+                 FROM workgroup
+                 WHERE description IS NOT NULL
+                 ORDER BY id ASC`,
+            );
+
+            const workgroups = (Array.isArray(rows) ? rows : [])
+                .map((item) => ({
+                    value: String(item?.id || "").trim(),
+                    label: String(item?.description || "").trim().toUpperCase(),
+                }))
+                .filter((item) => item.value && item.label);
+
+            return res.json({ workgroups });
+        } catch (err) {
+            console.error("Error listando workgroups:", err);
+            return res.status(500).json({
+                error: "Error listando workgroups",
+            });
+        }
+    },
+);
+
+/* =========================================================
    GET /admin/users/export  → Exportar usuarios a Excel
    ========================================================= */
 router.get(

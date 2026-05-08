@@ -25,6 +25,7 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
     const [password, setPassword] = useState("");
     const [showMasterKeyInput, setShowMasterKeyInput] = useState(false);
     const [masterKeyInput, setMasterKeyInput] = useState("");
+    const [profileOptions, setProfileOptions] = useState([]);
 
     // Cargar datos si es edición
     useEffect(() => {
@@ -47,6 +48,45 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingUser]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadWorkgroups = async () => {
+            try {
+                const res = await fetch(`${apiBase}/admin/users/workgroups`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+                const data = await parseJsonSafe(res);
+                if (!res.ok) {
+                    throw new Error(
+                        data.error || "No se pudieron cargar los perfiles",
+                    );
+                }
+                const options = Array.isArray(data?.workgroups)
+                    ? data.workgroups
+                    : [];
+                if (!cancelled) {
+                    setProfileOptions(options);
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setError(
+                        err.message ||
+                            "No se pudieron cargar los perfiles de usuario",
+                    );
+                }
+            }
+        };
+
+        loadWorkgroups();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [apiBase, token]);
 
     const handleChange = (e) => {
         setForm({
@@ -264,14 +304,7 @@ function UserFormModal({ apiBase, token, onClose, onSaved, editingUser }) {
                         name="UserGroup"
                         value={form.UserGroup}
                         onChange={handleChange}
-                        options={[
-                            { value: "1", label: "ADMINISTRADOR" },
-                            { value: "2", label: "SUPERVISOR" },
-                            { value: "3", label: "ASESOR" },
-                            { value: "4", label: "ESCUELA" },
-                            { value: "5", label: "CONSULTOR" },
-                            { value: "6", label: "CONSULTOR_ADMIN" },
-                        ]}
+                        options={profileOptions}
                         required
                     />
                 </div>

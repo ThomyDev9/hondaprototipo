@@ -737,22 +737,11 @@ export default function useAgentGestionSubmit({
 
                     if (isRedesManualFlow) {
                         const webhookDebug = json?.bvfRrssWebhook || null;
-                        // Temporal: trazas visibles para depurar envío a Drive (Apps Script).
                         // eslint-disable-next-line no-console
                         console.log(
-                            "[TEMP][RedesWebhook][guardar-gestion-redes] respuesta:",
+                            "[RedesWebhook][guardar-gestion-redes] respuesta:",
                             webhookDebug,
                         );
-                        if (webhookDebug && webhookDebug.sent !== true) {
-                            const webhookReason = String(
-                                webhookDebug?.reason ||
-                                    webhookDebug?.detail ||
-                                    "sin_detalle",
-                            ).trim();
-                            setError(
-                                `[TEMP][Drive] Gestion guardada, pero webhook no enviado. reason=${webhookReason}`,
-                            );
-                        }
                     }
 
                     if (imagesToUpload.length > 0) {

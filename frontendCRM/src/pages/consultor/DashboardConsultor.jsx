@@ -98,6 +98,7 @@ const RRSS_PROCESS_OPTIONS = [
 ];
 const CONSULTOR_COMMENT_OPTIONS = [
     { value: "", label: "Selecciona motivo" },
+    { value: "Si aplica", label: "Si aplica" },
     { value: "Sin capacidad de pago", label: "Sin capacidad de pago" },
     { value: "Sobreendeudamiento", label: "Sobreendeudamiento" },
     { value: "Score bajo", label: "Score bajo" },
@@ -133,6 +134,7 @@ function emptyForm() {
         province: "",
         estado_civil: "",
         actividad_economica: "",
+        tiempo_actividad_economica_anios: "",
         monto_solicitado: "",
         monto_aplica: "",
         autoriza_buro: "",
@@ -959,6 +961,8 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                 province: form.province,
                 estado_civil: form.estado_civil,
                 actividad_economica: form.actividad_economica,
+                tiempo_actividad_economica_anios:
+                    form.tiempo_actividad_economica_anios,
                 monto_solicitado: form.monto_solicitado,
                 monto_aplica: form.monto_aplica,
                 autoriza_buro: form.autoriza_buro,
@@ -2789,6 +2793,18 @@ export default function DashboardConsultor({ page = "consultor-leads" }) {
                                             readOnly
                                         />
                                     </label>
+                                    {selectedChannel === "rrss" ? (
+                                        <label>
+                                            Tiempo actividad economica (años)
+                                            <input
+                                                value={
+                                                    form.tiempo_actividad_economica_anios ||
+                                                    ""
+                                                }
+                                                readOnly
+                                            />
+                                        </label>
+                                    ) : null}
                                     <label>
                                         Monto solicitado
                                         <input

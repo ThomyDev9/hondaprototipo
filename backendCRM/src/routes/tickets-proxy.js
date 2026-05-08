@@ -151,6 +151,52 @@ async function upstreamPostWithToken(path, body, token) {
     );
 }
 
+function extractListFromPayload(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.result)) return payload.result;
+    if (Array.isArray(payload?.items)) return payload.items;
+    return [];
+}
+
+async function resolveEcuadorCountryId(token) {
+    const countryEndpoints = ["/api/country", "/api/countries", "/api/pais"];
+
+    for (const endpoint of countryEndpoints) {
+        const result = await upstreamGetWithToken(endpoint, token);
+        if (!result?.resp?.ok) {
+            continue;
+        }
+        const countries = extractListFromPayload(result.data);
+        const ecuador = countries.find((item) => {
+            const code = String(
+                item?.country_code ||
+                    item?.code ||
+                    item?.pais_code ||
+                    item?.countryCode ||
+                    "",
+            )
+                .trim()
+                .toUpperCase();
+            return code === "EC";
+        });
+        if (!ecuador) {
+            continue;
+        }
+        const countryId = getFirstValueByKeys(ecuador, [
+            "country_id",
+            "id",
+            "uuid",
+            "pais_id",
+        ]);
+        if (countryId) {
+            return countryId;
+        }
+    }
+
+    return "";
+}
+
 async function loginTicketApi(credentials = {}) {
     if (!TICKET_API) {
         return {
@@ -619,7 +665,7 @@ router.post("/catalog/ticket", async (req, res) => {
     }
 });
 
-router.post("/ticket_location", async (req, res) => {
+const handleTicketLocationCreate = async (req, res) => {
     try {
         const tokenResult = await resolveProxyToken(req);
         if (!tokenResult.ok || !tokenResult.token) {
@@ -627,16 +673,53 @@ router.post("/ticket_location", async (req, res) => {
                 tokenResult.json || { detail: "Token is missing" },
             );
         }
+        const ticketId = String(req.body?.ticket_id || "").trim();
+        const provinceId = String(req.body?.province_id || "").trim();
+        const cantonId = String(req.body?.canton_id || "").trim();
+
+        const missingRequired = [
+            ["ticket_id", ticketId],
+            ["province_id", provinceId],
+            ["canton_id", cantonId],
+        ]
+            .filter(([, value]) => !String(value || "").trim())
+            .map(([key]) => key);
+
+        if (missingRequired.length > 0) {
+            return res.status(400).json({
+                detail: `Faltan campos obligatorios: ${missingRequired.join(", ")}`,
+            });
+        }
+
+        const countryId = String(req.body?.country_id || "").trim();
+
+        const locationPayload = {
+            ...req.body,
+            ticket_id: ticketId,
+            province_id: provinceId,
+            canton_id: cantonId,
+            country_id: countryId || "",
+        };
+
         const result = await upstreamPostWithToken(
-            "/api/ticket_location",
-            req.body || {},
+            "/api/ticket/location",
+            locationPayload,
             tokenResult.token,
         );
+        console.log("[tickets-proxy][ticket_location] upstream response", {
+            status: result?.resp?.status,
+            ok: result?.resp?.ok,
+            payload: locationPayload,
+            data: result?.data,
+        });
         return res.status(result.resp.status).json(result.data);
     } catch (e) {
         return res.status(500).json({ detail: e.message });
     }
-});
+};
+
+router.post("/ticket_location", handleTicketLocationCreate);
+router.post("/api/ticket_location", handleTicketLocationCreate);
 
 router.get("/canal_type", async (req, res) => {
     try {

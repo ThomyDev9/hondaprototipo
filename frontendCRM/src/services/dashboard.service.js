@@ -889,9 +889,17 @@ export const fetchTicketCantonsByProvince = async (provinceId = "") =>
 export const fetchTicketCurrentUser = async () =>
     requestTicketApi("validate_token", { method: "GET" });
 
-export const createTicketLocation = async (payload = {}) =>
-    requestTicketApi("ticket_location", {
+export const createTicketLocation = async (payload = {}) => {
+    const requestOptions = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload || {}),
-    });
+    };
+    const primaryResponse = await requestTicketApi("ticket_location", requestOptions);
+    if (primaryResponse?.status !== 404) {
+        return primaryResponse;
+    }
+
+    // Compatibilidad con despliegues donde el proxy expone el prefijo /api.
+    return requestTicketApi("api/ticket_location", requestOptions);
+};

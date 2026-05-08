@@ -37,6 +37,7 @@ const MENU_ICONS = {
     "consultor-credit-status": "\u{1F4B3}",
     "consultor-reassign": "\u{1F504}",
     "consultor-assignment": "\u2696\uFE0F",
+    "talento-humano": "\u{1F464}",
 };
 
 function normalizeInboundAccessLabel(value) {
@@ -741,6 +742,7 @@ function Sidebar({
         { label: "Reasignar Leads", key: "consultor-reassign" },
         { label: "Configuracion Asignacion", key: "consultor-assignment" },
     ];
+    const menuTthh = [{ label: "Generar Roles", key: "talento-humano" }];
 
     const getMenu = () => {
         if (effectiveRole === "ADMINISTRADOR") return menuAdmin;
@@ -750,6 +752,9 @@ function Sidebar({
         }
         if (effectiveRole === "CONSULTOR") {
             return menuConsultor;
+        }
+        if (effectiveRole === "TTHH") {
+            return menuTthh;
         }
         return menuAgente;
     };
@@ -840,6 +845,10 @@ function Sidebar({
         ) {
             onChangeConsultorPage(item.key);
         }
+
+        if (effectiveRole.toUpperCase() === "TTHH" && onChangeAdminPage) {
+            onChangeAdminPage(item.key);
+        }
     };
 
     const isActive = (item) => {
@@ -863,6 +872,10 @@ function Sidebar({
         if (effectiveRole === "ASESOR") return item.key === agentPage;
         if (["CONSULTOR", "CONSULTOR_ADMIN"].includes(effectiveRole)) {
             return item.key === consultorPage;
+        }
+        if (effectiveRole === "TTHH") {
+            const tthhPage = adminPage === "talento-humano" ? adminPage : "talento-humano";
+            return item.key === tthhPage;
         }
         return false;
     };
