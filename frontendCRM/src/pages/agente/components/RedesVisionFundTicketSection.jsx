@@ -832,27 +832,20 @@ export default function RedesVisionFundTicketSection({
                     : genderValue.startsWith("m")
                       ? "M"
                       : "O";
+                const birthDate = String(form.birth_date || "").trim();
                 const clientPayload = {
-                    client_identification: idNumber,
+                    client_identification: String(idNumber || "").trim(),
                     client_name: String(form.client_name || "").trim(),
                     client_mail: String(form.email || "").trim(),
                     client_phone: String(form.phone || "").trim(),
-                    id_type: {
-                        identification_type_code: "C",
-                    },
-                    genre: {
-                        genre_code: genreCode,
-                    },
-                    birth_date: String(form.birth_date || "").trim() || null,
+                    client_id_type: "C",
+                    genre: genreCode,
+                    birth_date: birthDate || null,
                     first_street: String(form.main_street || "").trim(),
-                    second_street: String(form.secondary_street || "").trim(),
                     house_number: String(form.house_number || "").trim(),
-                    province: {
-                        province_id: String(form.province || "").trim() || null,
-                    },
-                    canton: {
-                        canton_id: String(form.canton || "").trim() || null,
-                    },
+                    second_street: String(form.secondary_street || "").trim(),
+                    province_id: String(form.province || "").trim() || null,
+                    canton_id: String(form.canton || "").trim() || null,
                 };
                 const createClientResp = await createTicketClient(clientPayload);
                 if (!createClientResp.ok) {
@@ -1176,9 +1169,18 @@ export default function RedesVisionFundTicketSection({
                 ...prev,
                 id_type: "C",
                 id_number: String(client?.client_identification || prev.id_number || "").trim(),
-                client_name: String(client?.client_name || prev.client_name || "").trim(),
-                email: String(client?.client_mail || prev.email || "").trim(),
-                phone: String(client?.client_phone || prev.phone || "").trim(),
+                client_name: String(
+                    client?.client_name ||
+                        client?.client_fullname ||
+                        prev.client_name ||
+                        "",
+                ).trim(),
+                email: String(
+                    client?.client_mail || client?.client_email || prev.email || "",
+                ).trim(),
+                phone: String(
+                    client?.client_phone || client?.client_account || prev.phone || "",
+                ).trim(),
                 gender:
                     normalizeGenderValue(
                         client?.genre?.genre_name || client?.genre?.genre_code || "",
@@ -1203,8 +1205,15 @@ export default function RedesVisionFundTicketSection({
                     identification: String(
                         client?.client_identification || form.id_number || "",
                     ).trim(),
-                    fullName: String(client?.client_name || form.client_name || "").trim(),
-                    phone: String(client?.client_phone || form.phone || "").trim(),
+                    fullName: String(
+                        client?.client_name ||
+                            client?.client_fullname ||
+                            form.client_name ||
+                            "",
+                    ).trim(),
+                    phone: String(
+                        client?.client_phone || client?.client_account || form.phone || "",
+                    ).trim(),
                 });
             }
         } catch (searchError) {

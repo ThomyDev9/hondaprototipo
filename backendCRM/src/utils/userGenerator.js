@@ -1,4 +1,4 @@
-import { encriptar } from "./crypto.js";
+import { desencriptar } from "./crypto.js";
 
 function normalizarTexto(texto) {
     return texto
@@ -12,23 +12,21 @@ export async function generarUsuarioSeguro(Name1, Surname1, connection) {
     const SurnameNorm = normalizarTexto(Surname1);
     const base = Name1.charAt(0).toUpperCase() + SurnameNorm;
 
+    // Id se guarda cifrado con IV aleatorio, por eso no se puede validar
+    // existencia comparando contra un nuevo cifrado del mismo texto.
+    const [rows] = await connection.query("SELECT Id FROM user");
+    const usernames = new Set();
+    for (const row of rows || []) {
+        const decrypted = String(desencriptar(row?.Id) || "").trim();
+        if (decrypted) {
+            usernames.add(decrypted.toLowerCase());
+        }
+    }
+
     let numero = 1;
-    let username = "";
-
-    while (true) {
-        username = base + numero;
-
-        const usernameEncrypt = encriptar(username);
-
-        const [rows] = await connection.query(
-            "SELECT 1 FROM user WHERE Id = ? LIMIT 1",
-            [usernameEncrypt],
-        );
-
-        if (rows.length === 0) break;
-
+    while (usernames.has(`${base}${numero}`.toLowerCase())) {
         numero++;
     }
 
-    return username;
+    return `${base}${numero}`;
 }

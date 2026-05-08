@@ -185,6 +185,7 @@ export function registerOutboundRoutes(
                 const importIdByFlow =
                     flow === "rrss" ? "OUTBOUND REDES" : "OUTBOUND MAIL";
                 const managedRowsByIdentification = new Set();
+                const managedRowsAnyFlowByIdentification = new Set();
                 if (filteredRows.length > 0) {
                     const identificationList = [
                         ...new Set(
@@ -226,6 +227,29 @@ export function registerOutboundRoutes(
                         for (const item of managedSet) {
                             managedRowsByIdentification.add(item);
                         }
+
+                        const [managedRowsAnyFlow] = await pool.query(
+                            `
+                            SELECT DISTINCT
+                                TRIM(COALESCE(gf.IDENTIFICACION, '')) AS identification
+                            FROM ${outboundSchema}.gestionfinal_outbound gf
+                            WHERE TRIM(COALESCE(gf.IDENTIFICACION, '')) IN (${placeholders})
+                              AND TRIM(COALESCE(gf.CampaignId, '')) = ?
+                              AND TRIM(COALESCE(gf.ImportId, '')) IN ('OUTBOUND MAIL', 'OUTBOUND REDES')
+                            `,
+                            [...identificationList, OUT_MAQUITA_CAMPAIGN_ID],
+                        );
+
+                        const managedAnyFlowSet = new Set(
+                            (managedRowsAnyFlow || [])
+                                .map((row) =>
+                                    String(row?.identification || "").trim(),
+                                )
+                                .filter(Boolean),
+                        );
+                        for (const item of managedAnyFlowSet) {
+                            managedRowsAnyFlowByIdentification.add(item);
+                        }
                     }
                 }
 
@@ -237,7 +261,9 @@ export function registerOutboundRoutes(
                         if (!identification) {
                             return true;
                         }
-                        return !managedRowsByIdentification.has(identification);
+                        return !managedRowsAnyFlowByIdentification.has(
+                            identification,
+                        );
                     });
                 } else if (mode === "regestion") {
                     filteredRows = filteredRows.filter((row) => {

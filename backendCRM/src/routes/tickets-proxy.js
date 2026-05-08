@@ -482,12 +482,23 @@ router.get("/client/:clientIdentification", async (req, res) => {
         const identification = encodeURIComponent(
             String(req.params?.clientIdentification || "").trim(),
         );
-        const result = await fetchWithAuthRetry(
+        // Flujo legacy (main_old): GET /api/client/:identification
+        const legacyResult = await fetchWithAuthRetry(
             `${TICKET_API}/api/client/${identification}`,
             { method: "GET" },
             tokenResult.token,
         );
-        return res.status(result.resp.status).json(result.data);
+        if (legacyResult?.resp?.ok || legacyResult?.resp?.status === 404) {
+            return res.status(legacyResult.resp.status).json(legacyResult.data);
+        }
+
+        // Fallback para despliegues nuevos.
+        const primaryResult = await fetchWithAuthRetry(
+            `${TICKET_API}/api/clients/by_identification?client_identification=${identification}`,
+            { method: "GET" },
+            tokenResult.token,
+        );
+        return res.status(primaryResult.resp.status).json(primaryResult.data);
     } catch (e) {
         return res.status(500).json({ detail: e.message });
     }
@@ -501,12 +512,42 @@ router.post("/client", async (req, res) => {
                 tokenResult.json || { detail: "Token is missing" },
             );
         }
-        const result = await upstreamPostWithToken(
+        const rawBody = req.body || {};
+        const normalizedBody = {
+            ...rawBody,
+            client_identification: String(
+                rawBody?.client_identification || "",
+            ).trim(),
+            client_fullname: String(rawBody?.client_fullname || "").trim(),
+            client_email:
+                rawBody?.client_email === null ||
+                String(rawBody?.client_email || "").trim() === ""
+                    ? null
+                    : String(rawBody?.client_email || "").trim(),
+            client_account:
+                rawBody?.client_account === null ||
+                String(rawBody?.client_account || "").trim() === ""
+                    ? null
+                    : String(rawBody?.client_account || "").trim(),
+        };
+
+        // Flujo legacy (main_old): POST /api/client
+        const legacyResult = await upstreamPostWithToken(
             "/api/client",
-            req.body || {},
+            normalizedBody,
             tokenResult.token,
         );
-        return res.status(result.resp.status).json(result.data);
+        if (legacyResult?.resp?.ok) {
+            return res.status(legacyResult.resp.status).json(legacyResult.data);
+        }
+
+        // Fallback para despliegues nuevos.
+        const primaryResult = await upstreamPostWithToken(
+            "/api/clients",
+            normalizedBody,
+            tokenResult.token,
+        );
+        return res.status(primaryResult.resp.status).json(primaryResult.data);
     } catch (e) {
         return res.status(500).json({ detail: e.message });
     }
