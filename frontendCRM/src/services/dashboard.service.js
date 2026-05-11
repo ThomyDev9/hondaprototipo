@@ -903,3 +903,10 @@ export const createTicketLocation = async (payload = {}) => {
     // Compatibilidad con despliegues donde el proxy expone el prefijo /api.
     return requestTicketApi("api/ticket_location", requestOptions);
 };
+
+export const createTicketComment = async (payload = {}) =>
+    requestTicketApi("comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+    });

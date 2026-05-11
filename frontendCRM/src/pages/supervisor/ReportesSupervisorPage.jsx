@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button, PageContainer } from "../../components/common";
 import {
+    downloadSupervisorInboundMonthlyFinalReport,
     downloadSupervisorRedesReport,
     downloadSupervisorOutboundReport,
+    fetchSupervisorInboundMonthlyFinalCampaigns,
     fetchSupervisorRedesCampaigns,
     fetchSupervisorOutboundCampaigns,
 } from "../../services/supervisorReports.service";
@@ -10,6 +12,10 @@ import {
 const REPORT_TYPES = [
     { value: "outbound", label: "Outbound" },
     { value: "redes", label: "Redes" },
+    {
+        value: "inbound_mensual",
+        label: "Reportes finales mensuales (Inbound)",
+    },
 ];
 
 function getTodayLocalDate() {
@@ -52,7 +58,9 @@ export default function ReportesSupervisorPage() {
                 const data =
                     reportType === "redes"
                         ? await fetchSupervisorRedesCampaigns()
-                        : await fetchSupervisorOutboundCampaigns();
+                        : reportType === "inbound_mensual"
+                          ? await fetchSupervisorInboundMonthlyFinalCampaigns()
+                          : await fetchSupervisorOutboundCampaigns();
 
                 if (cancelled) {
                     return;
@@ -93,6 +101,8 @@ export default function ReportesSupervisorPage() {
             const downloadReport =
                 reportType === "redes"
                     ? downloadSupervisorRedesReport
+                    : reportType === "inbound_mensual"
+                      ? downloadSupervisorInboundMonthlyFinalReport
                     : downloadSupervisorOutboundReport;
             const { blob, filename } = await downloadReport({
                 campaignId,

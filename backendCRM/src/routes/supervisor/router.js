@@ -18,8 +18,10 @@ import {
 import {
     buildRedesReportWorkbook,
     buildOutboundReportWorkbook,
+    buildInboundMonthlyFinalReportWorkbook,
     listRedesReportCampaigns,
     listOutboundReportCampaigns,
+    listInboundMonthlyFinalReportCampaigns,
 } from "../../services/supervisorReports.service.js";
 import { runInboundGhostDepuration } from "../../services/inboundGhostDepuration.service.js";
 
@@ -1767,6 +1769,21 @@ router.get("/reportes/redes/campanias", async (_req, res) => {
     }
 });
 
+router.get("/reportes/inbound-final-mensual/campanias", async (_req, res) => {
+    try {
+        const campaigns = await listInboundMonthlyFinalReportCampaigns(pool);
+        res.json({ data: campaigns });
+    } catch (err) {
+        console.error(
+            "Error listando campanias inbound final mensual para reportes:",
+            err,
+        );
+        res.status(500).json({
+            error: "Error obteniendo campanias inbound para reportes",
+        });
+    }
+});
+
 router.get("/reportes/outbound/export", async (req, res) => {
     try {
         const campaignId = String(req.query?.campaignId || "").trim();
@@ -1862,6 +1879,59 @@ router.get("/reportes/redes/export", async (req, res) => {
         console.error("Error exportando reporte redes supervisor:", err);
         return res.status(500).json({
             error: "Error exportando reporte redes",
+            detail: err?.sqlMessage || err?.message || "",
+        });
+    }
+});
+
+router.get("/reportes/inbound-final-mensual/export", async (req, res) => {
+    try {
+        const campaignId = String(req.query?.campaignId || "").trim();
+        const startDate = String(req.query?.startDate || "").trim();
+        const endDate = String(req.query?.endDate || "").trim();
+
+        if (!campaignId || !startDate || !endDate) {
+            return res.status(400).json({
+                error: "campaignId, startDate y endDate son requeridos",
+            });
+        }
+
+        if (startDate > endDate) {
+            return res.status(400).json({
+                error: "La fecha inicial no puede ser mayor a la fecha final",
+            });
+        }
+
+        const report = await buildInboundMonthlyFinalReportWorkbook({
+            campaignId,
+            startDate,
+            endDate,
+            executor: pool,
+        });
+
+        if (!report.buffer) {
+            return res.status(404).json({
+                error: "No hay datos para exportar con los filtros seleccionados",
+            });
+        }
+
+        res.setHeader(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        );
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${report.filename}"`,
+        );
+
+        return res.send(report.buffer);
+    } catch (err) {
+        console.error(
+            "Error exportando reporte inbound final mensual supervisor:",
+            err,
+        );
+        return res.status(500).json({
+            error: "Error exportando reporte inbound final mensual",
             detail: err?.sqlMessage || err?.message || "",
         });
     }

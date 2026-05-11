@@ -17,6 +17,7 @@ import {
     fetchTicketCantonsByProvince,
     fetchTicketCurrentUser,
     createTicketLocation,
+    createTicketComment,
 } from "../../../services/dashboard.service";
 
 const REQUIRED_STAGE_ONE = new Set([
@@ -931,6 +932,7 @@ export default function RedesVisionFundTicketSection({
                 agencia_id: agenciaId,
                 condition_code: "",
             };
+            const commentText = String(form.error_description || "").trim();
 
             const missingTicketFields = [
                 "client_id",
@@ -1020,6 +1022,7 @@ export default function RedesVisionFundTicketSection({
                 candidates: ticketIdCandidates,
             });
             let locationWarning = "";
+            let commentWarning = "";
             if (createdTicketId) {
                 const selectedIncidentProvince = (provinceOptions || []).find((item) => {
                     const value = findFirstValue(item, ["province_id", "id", "uuid"]);
@@ -1088,9 +1091,31 @@ export default function RedesVisionFundTicketSection({
                         payload: locationPayload,
                     });
                 }
+
+                if (commentText) {
+                    const commentPayload = {
+                        comment_text: commentText,
+                        ticket_id: createdTicketId,
+                        user_id: userInId,
+                    };
+                    const commentResp = await createTicketComment(commentPayload);
+                    if (!commentResp.ok) {
+                        commentWarning = getApiErrorMessage(
+                            commentResp,
+                            "No se pudo guardar el comentario del ticket.",
+                        );
+                        // eslint-disable-next-line no-console
+                        console.log("[VisionFund Debug] comment create failed:", {
+                            status: commentResp?.status,
+                            json: commentResp?.json,
+                            text: commentResp?.text,
+                            payload: commentPayload,
+                        });
+                    }
+                }
             }
             setMessage(
-                `Ticket creado: ${ticketRef}${locationWarning ? `. Ubicacion no registrada (${locationWarning})` : ""}`,
+                `Ticket creado: ${ticketRef}${locationWarning ? `. Ubicacion no registrada (${locationWarning})` : ""}${commentWarning ? `. Comentario no registrado (${commentWarning})` : ""}`,
             );
         } catch (submitError) {
             setError(

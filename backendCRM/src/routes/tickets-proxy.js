@@ -706,6 +706,42 @@ router.post("/catalog/ticket", async (req, res) => {
     }
 });
 
+router.post("/comment", async (req, res) => {
+    try {
+        const tokenResult = await resolveProxyToken(req);
+        if (!tokenResult.ok || !tokenResult.token) {
+            return res.status(tokenResult.status || 401).json(
+                tokenResult.json || { detail: "Token is missing" },
+            );
+        }
+
+        const payload = req.body || {};
+        const commentText = String(payload?.comment_text || "").trim();
+        const ticketId = payload?.ticket_id;
+        const userId = String(payload?.user_id || "").trim();
+
+        if (!commentText || ticketId === undefined || ticketId === null || !userId) {
+            return res.status(400).json({
+                detail: "Faltan campos obligatorios: comment_text, ticket_id, user_id.",
+            });
+        }
+
+        const result = await upstreamPostWithToken(
+            "/api/comment",
+            {
+                comment_text: commentText,
+                ticket_id: ticketId,
+                user_id: userId,
+            },
+            tokenResult.token,
+        );
+
+        return res.status(result.resp.status).json(result.data);
+    } catch (e) {
+        return res.status(500).json({ detail: e.message });
+    }
+});
+
 const handleTicketLocationCreate = async (req, res) => {
     try {
         const tokenResult = await resolveProxyToken(req);

@@ -51,6 +51,22 @@ export async function fetchSupervisorRedesCampaigns() {
     return Array.isArray(json?.data) ? json.data : [];
 }
 
+export async function fetchSupervisorInboundMonthlyFinalCampaigns() {
+    const response = await fetch(
+        `${API_BASE}/supervisor/reportes/inbound-final-mensual/campanias`,
+        {
+            headers: getAuthHeaders(),
+        },
+    );
+    const json = await response.json();
+
+    if (!response.ok) {
+        throw new Error(json.error || "Error obteniendo campanas");
+    }
+
+    return Array.isArray(json?.data) ? json.data : [];
+}
+
 export async function downloadSupervisorOutboundReport({
     campaignId,
     startDate,
@@ -123,9 +139,47 @@ export async function downloadSupervisorRedesReport({
     };
 }
 
+export async function downloadSupervisorInboundMonthlyFinalReport({
+    campaignId,
+    startDate,
+    endDate,
+}) {
+    const params = new URLSearchParams({
+        campaignId: String(campaignId || "").trim(),
+        startDate: String(startDate || "").trim(),
+        endDate: String(endDate || "").trim(),
+    });
+
+    const response = await fetch(
+        `${API_BASE}/supervisor/reportes/inbound-final-mensual/export?${params.toString()}`,
+        {
+            headers: getAuthHeaders(),
+        },
+    );
+
+    if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        throw new Error(json.error || "Error descargando reporte");
+    }
+
+    const blob = await response.blob();
+    const fallbackFilename = `reporte_final_mensual_inbound_${
+        sanitizeFileSegment(campaignId) || "campana"
+    }_${sanitizeFileSegment(endDate) || "sin_fecha"}.xlsx`;
+
+    return {
+        blob,
+        filename:
+            extractFilename(response.headers.get("content-disposition")) ||
+            fallbackFilename,
+    };
+}
+
 export default {
     fetchSupervisorOutboundCampaigns,
     fetchSupervisorRedesCampaigns,
+    fetchSupervisorInboundMonthlyFinalCampaigns,
     downloadSupervisorOutboundReport,
     downloadSupervisorRedesReport,
+    downloadSupervisorInboundMonthlyFinalReport,
 };

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import JSZip from "jszip";
 import "./GrabacionesOutboundPage.css";
 // ...existing code...
 import { PageContainer } from "../../components/common";
@@ -234,6 +235,38 @@ export default function GrabacionesOutboundPage() {
         }
     };
 
+    const fetchAudioBlob = async (recordingfile) => {
+        const API_BASE = import.meta.env.VITE_API_BASE;
+        const token = getAuthToken();
+        const res = await fetch(
+            `${API_BASE}/supervisor/grabacion-sftp/${recordingfile}?flow=outbound`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+            },
+        );
+
+        if (!res.ok) {
+            let backendMessage = "";
+            try {
+                const errorData = await res.json();
+                backendMessage =
+                    String(errorData?.error || null).trim() ||
+                    String(errorData?.message || null).trim();
+            } catch {
+                backendMessage = "";
+            }
+
+            throw new Error(
+                backendMessage ||
+                    (res.status === 401 || res.status === 403
+                        ? "No autorizado"
+                        : "Error al descargar la grabacion"),
+            );
+        }
+
+        return res.blob();
+    };
+
     const stopCurrentAudio = () => {
         if (currentAudioRef.current) {
             currentAudioRef.current.pause();
@@ -344,25 +377,47 @@ export default function GrabacionesOutboundPage() {
             alert("No hay grabaciones para descargar.");
             return;
         }
+
+        const zip = new JSZip();
+        const usedNames = new Map();
         let descargadas = 0;
+
         for (const g of targetRows) {
             if (!g.recordingfile) continue;
             try {
-                const url = await fetchAudioUrl(g.recordingfile);
-                if (url) {
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = getRecordingFilename(g.recordingfile);
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    descargadas++;
-                }
+                const blob = await fetchAudioBlob(g.recordingfile);
+                const baseName = getRecordingFilename(g.recordingfile);
+                const duplicateCount = usedNames.get(baseName) || 0;
+                usedNames.set(baseName, duplicateCount + 1);
+
+                const dotIndex = baseName.lastIndexOf(".");
+                const hasExt = dotIndex > 0;
+                const name = hasExt ? baseName.slice(0, dotIndex) : baseName;
+                const ext = hasExt ? baseName.slice(dotIndex) : "";
+                const finalName =
+                    duplicateCount === 0
+                        ? baseName
+                        : `${name}_${duplicateCount + 1}${ext}`;
+
+                zip.file(finalName, blob);
+                descargadas++;
             } catch (e) {}
         }
+
         if (descargadas === 0) {
-            alert("No se pudo descargar ninguna grabación.");
+            alert("No se pudo descargar ninguna grabacion.");
+            return;
         }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(zipBlob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `grabaciones_outbound_${toLocalDateString(new Date()) || "hoy"}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     const toggleSelectAllFiltered = () => {
@@ -908,3 +963,7 @@ export default function GrabacionesOutboundPage() {
         </PageContainer>
     );
 }
+
+
+
+
