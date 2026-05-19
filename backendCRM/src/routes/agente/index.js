@@ -457,25 +457,42 @@ router.post(
                 ipAddress: req.ip || req.headers["x-forwarded-for"] || "",
             });
 
+            let decryptedUsername = "";
+            let decryptedPassword = "";
+            let decryptedExtra = "";
+            try {
+                decryptedUsername = decryptSecret({
+                    encrypted: credential.username_encrypted,
+                    iv: credential.username_iv,
+                    tag: credential.username_tag,
+                });
+                decryptedPassword = decryptSecret({
+                    encrypted: credential.password_encrypted,
+                    iv: credential.password_iv,
+                    tag: credential.password_tag,
+                });
+                decryptedExtra = decryptSecret({
+                    encrypted: credential.extra_encrypted,
+                    iv: credential.extra_iv,
+                    tag: credential.extra_tag,
+                });
+            } catch (decryptErr) {
+                console.error(
+                    "No se pudo descifrar credencial de coop-service:",
+                    decryptErr,
+                );
+                return res.status(422).json({
+                    error: "No se pudo descifrar la credencial. Requiere re-guardar con la clave actual.",
+                });
+            }
+
             return res.json({
                 data: {
                     credentialId: credential.id,
                     alias: credential.alias,
-                    username: decryptSecret({
-                        encrypted: credential.username_encrypted,
-                        iv: credential.username_iv,
-                        tag: credential.username_tag,
-                    }),
-                    password: decryptSecret({
-                        encrypted: credential.password_encrypted,
-                        iv: credential.password_iv,
-                        tag: credential.password_tag,
-                    }),
-                    extra: decryptSecret({
-                        encrypted: credential.extra_encrypted,
-                        iv: credential.extra_iv,
-                        tag: credential.extra_tag,
-                    }),
+                    username: decryptedUsername,
+                    password: decryptedPassword,
+                    extra: decryptedExtra,
                     scopeType: String(credential.scope_type || "global"),
                 },
             });
