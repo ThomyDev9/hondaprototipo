@@ -191,7 +191,7 @@ export default function DashboardAgente({
                     : 0,
                 content: (
                     <BaseCardSection
-                        title="Bases activas disponibles"
+                        title=""
                         loading={loadingActiveBaseCards}
                         cards={activeBaseCards}
                         emptyMessage="No hay bases activas disponibles."
