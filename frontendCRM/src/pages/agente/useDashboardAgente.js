@@ -590,26 +590,61 @@ export default function useDashboardAgenteState({
                 return null;
             }
 
-            return (
-                (inboundChildOptions || []).find(
-                    (item) => {
-                        const queueTokens = String(item?.inboundQueue || "")
-                            .split(/[;,|]/)
-                            .flatMap((entry) =>
-                                String(entry || "")
-                                    .split(/\s+/)
-                                    .map((token) =>
-                                        normalizeInboundQueueValue(token),
-                                    ),
-                            )
-                            .filter(Boolean);
+            const matches = (inboundChildOptions || []).filter((item) => {
+                const queueTokens = String(item?.inboundQueue || "")
+                    .split(/[;,|]/)
+                    .flatMap((entry) =>
+                        String(entry || "")
+                            .split(/\s+/)
+                            .map((token) => normalizeInboundQueueValue(token)),
+                    )
+                    .filter(Boolean);
 
-                        return queueTokens.includes(normalizedQueue);
-                    },
-                ) || null
+                return queueTokens.includes(normalizedQueue);
+            });
+
+            if (matches.length === 0) return null;
+            if (matches.length === 1) return matches[0];
+
+            const currentSelectedChild = String(
+                dynamicFormAnswers?.__inbound_nombre_cliente || "",
+            ).trim();
+            if (currentSelectedChild) {
+                const preferredMatch = matches.find(
+                    (item) =>
+                        String(item?.menuItemId || item?.value || "").trim() ===
+                        currentSelectedChild,
+                );
+                if (preferredMatch) return preferredMatch;
+            }
+
+            const campaignHint = normalizeFlowLabel(
+                selectedCampaignLabel || selectedCampaignId || campaignIdSeleccionada,
             );
+            if (campaignHint) {
+                const hintedMatch = matches.find((item) => {
+                    const normalizedLabel = normalizeFlowLabel(
+                        item?.label || item?.campaignId || "",
+                    );
+                    return (
+                        normalizedLabel === campaignHint ||
+                        normalizedLabel.includes(campaignHint) ||
+                        campaignHint.includes(normalizedLabel)
+                    );
+                });
+                if (hintedMatch) return hintedMatch;
+            }
+
+            return null;
         },
-        [inboundChildOptions, normalizeInboundQueueValue],
+        [
+            campaignIdSeleccionada,
+            dynamicFormAnswers?.__inbound_nombre_cliente,
+            inboundChildOptions,
+            normalizeInboundQueueValue,
+            selectedCampaignId,
+            selectedCampaignLabel,
+        ],
     );
 
     const handleDynamicFormFieldChange = useCallback(

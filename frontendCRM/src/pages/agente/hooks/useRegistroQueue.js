@@ -81,6 +81,46 @@ function matchesInboundQueue(inboundQueueValue, activeQueueValue) {
         .includes(normalizedActiveQueue);
 }
 
+function findInboundChildrenByQueue(options = [], activeQueueValue = "") {
+    return (Array.isArray(options) ? options : []).filter((item) =>
+        matchesInboundQueue(item?.inboundQueue, activeQueueValue),
+    );
+}
+
+function resolveInboundQueueChildMatch({
+    options = [],
+    activeQueueValue = "",
+    preferredMenuItemId = "",
+    selectedCampaignLabel = "",
+}) {
+    const matches = findInboundChildrenByQueue(options, activeQueueValue);
+    if (matches.length === 0) return null;
+    if (matches.length === 1) return matches[0];
+
+    const preferred = String(preferredMenuItemId || "").trim();
+    if (preferred) {
+        const preferredMatch = matches.find(
+            (item) => String(item?.menuItemId || "").trim() === preferred,
+        );
+        if (preferredMatch) return preferredMatch;
+    }
+
+    const normalizedCampaignLabel = normalizeFlowLabel(selectedCampaignLabel);
+    if (normalizedCampaignLabel) {
+        const labelMatch = matches.find((item) => {
+            const label = normalizeFlowLabel(item?.label || item?.campaignId || "");
+            return (
+                label === normalizedCampaignLabel ||
+                label.includes(normalizedCampaignLabel) ||
+                normalizedCampaignLabel.includes(label)
+            );
+        });
+        if (labelMatch) return labelMatch;
+    }
+
+    return null;
+}
+
 export default function useRegistroQueue({
     selectedCampaignId,
     selectedCampaignLabel,
@@ -733,13 +773,16 @@ export default function useRegistroQueue({
                         ).trim();
 
                         if (ok && activeQueue) {
-                            queueMatchedChild =
-                                childData?.options?.find((item) =>
-                                    matchesInboundQueue(
-                                        item?.inboundQueue,
-                                        activeQueue,
-                                    ),
-                                ) || null;
+                            const currentSelectedClient = String(
+                                dynamicFormAnswersRef.current?.__inbound_nombre_cliente ||
+                                    "",
+                            ).trim();
+                            queueMatchedChild = resolveInboundQueueChildMatch({
+                                options: childData?.options || [],
+                                activeQueueValue: activeQueue,
+                                preferredMenuItemId: currentSelectedClient,
+                                selectedCampaignLabel,
+                            });
                         }
                     } catch {
                         queueMatchedChild = null;
