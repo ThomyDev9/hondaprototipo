@@ -997,9 +997,9 @@
     overflow: auto;
     border: 1px solid rgba(37, 99, 235, 0.25);
     background: #f8fbff;
-    border-radius: 0.5rem;
+    border-radius: 0.7rem;
     box-shadow: 0 20px 36px rgba(15, 23, 42, 0.32);
-    padding: 0.38rem;
+    padding: 0.72rem;
 }
 
 .inbound-float-card__head {
@@ -1007,7 +1007,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.4rem;
-    margin-bottom: 0.22rem;
+    margin-bottom: 0.4rem;
 }
 
 .inbound-float-card__inline-row {
@@ -1023,12 +1023,12 @@
 
 .inbound-float-card__section-title {
     display: block;
-    font-size: 0.56rem;
+    font-size: 0.82rem;
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: #1e3a8a;
-    margin: 0.18rem 0 0.08rem;
+    margin: 0.3rem 0 0.14rem;
 }
 
 .inbound-float-card__block {
@@ -1040,7 +1040,7 @@
 }
 
 .inbound-float-card__muted {
-    font-size: 0.62rem;
+    font-size: 0.86rem;
     color: #64748b;
 }
 
@@ -1049,12 +1049,12 @@
     border-radius: 999px;
     background: #fff;
     cursor: pointer;
-    padding: 0.08rem 0.3rem;
-    font-size: 0.62rem;
+    padding: 0.24rem 0.6rem;
+    font-size: 0.86rem;
 }
 
 .inbound-float-card a {
-    font-size: 0.68rem;
+    font-size: 0.9rem;
 }
 
 .inbound-float-card__service-actions {
@@ -1069,14 +1069,14 @@
     border: 1px solid rgba(37, 99, 235, 0.28);
     background: #eef4ff;
     border-radius: 999px;
-    padding: 0.08rem 0.26rem;
-    font-size: 0.58rem;
+    padding: 0.24rem 0.6rem;
+    font-size: 0.86rem;
     cursor: pointer;
 }
 
 .inbound-float-card p {
     margin: 0.18rem 0;
-    font-size: 0.62rem;
+    font-size: 0.9rem;
     white-space: pre-wrap;
     line-height: 1.2;
 }
@@ -1100,14 +1100,14 @@
 }
 
 .inbound-float-card__extra-label {
-    font-size: 0.54rem;
+    font-size: 0.8rem;
     font-weight: 700;
     color: #334155;
 }
 
 .inbound-float-card__extra p {
     margin: 0.08rem 0 0;
-    font-size: 0.6rem;
+    font-size: 0.86rem;
 }
 
 .inbound-float-card__credentials {
@@ -1125,7 +1125,7 @@
 
 .inbound-float-card__credential-head {
     margin-bottom: 0.12rem;
-    font-size: 0.68rem;
+    font-size: 0.92rem;
 }
 
 .inbound-float-card__actions {
@@ -1138,8 +1138,8 @@
     border: 1px solid rgba(37, 99, 235, 0.3);
     background: #eef4ff;
     border-radius: 999px;
-    padding: 0.08rem 0.25rem;
-    font-size: 0.58rem;
+    padding: 0.24rem 0.6rem;
+    font-size: 0.86rem;
     cursor: pointer;
 }
 
@@ -1149,7 +1149,7 @@
     border-radius: 0.25rem;
     background: #0f172a;
     color: #f8fafc;
-    font-size: 0.6rem;
+    font-size: 0.86rem;
     white-space: pre-wrap;
     line-height: 1.15;
 }

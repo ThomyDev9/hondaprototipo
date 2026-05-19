@@ -5,10 +5,12 @@ import {
     obtenerCampaniasDetalladasDesdeMenu,
 } from "../../services/campaign.service";
 import {
+    createPersonalCoopCredential,
     fetchCoopServices,
     revealCoopCredential,
     saveMyCoopCredential,
 } from "../../services/dashboard.service";
+import Tabs from "../../components/common/Tabs";
 import "./VaultAsesorPage.css";
 
 function normalizeText(value) {
@@ -21,6 +23,15 @@ function normalizeLabel(value) {
         .replace(/[\u0300-\u036f]/g, "")
         .trim()
         .toLowerCase();
+}
+
+const EXCLUDED_GLOBAL_SERVICES = new Set(["keos", "respond.io", "aldeamo"]);
+const PERSONAL_RESOURCE_PREFIX = "PERSONAL_USER_";
+
+function isPersonalCampaignId(value) {
+    return String(value || "")
+        .trim()
+        .startsWith(PERSONAL_RESOURCE_PREFIX);
 }
 
 function matchCampaign(left, right) {
@@ -86,6 +97,19 @@ export default function VaultAsesorPage() {
     const [revealedByCredential, setRevealedByCredential] = useState({});
     const [formByService, setFormByService] = useState({});
     const [selectedServiceId, setSelectedServiceId] = useState(0);
+    const [customForm, setCustomForm] = useState({
+        nombreServicio: "",
+        alias: "",
+        username: "",
+        password: "",
+        extra: "",
+        url: "",
+        notas: "",
+    });
+    const [showCustomOptional, setShowCustomOptional] = useState(false);
+    const [vaultTab, setVaultTab] = useState("sistema");
+    const [searchTerm, setSearchTerm] = useState("");
+    const [systemStatusFilter, setSystemStatusFilter] = useState("todas");
 
     useEffect(() => {
         const init = async () => {
@@ -145,10 +169,12 @@ export default function VaultAsesorPage() {
                 ? response.json.data
                 : [];
             const filtered = campaignId
-                ? data.filter((item) =>
-                      String(item?.accessScope || "campaign") ===
-                          "all_advisors" ||
-                      matchCampaign(item?.campaignId, campaignId),
+                ? data.filter(
+                      (item) =>
+                          isPersonalCampaignId(item?.campaignId) ||
+                          String(item?.accessScope || "campaign") ===
+                              "all_advisors" ||
+                          matchCampaign(item?.campaignId, campaignId),
                   )
                 : data;
             setServices(filtered);
@@ -160,45 +186,86 @@ export default function VaultAsesorPage() {
         }
     };
 
-    const groupedStats = useMemo(() => {
-        const requiresOwn = services.filter(
-            (item) => item?.requiresAdvisorCredential,
-        );
-        const total = requiresOwn.length;
-        const withCredentials = requiresOwn.filter(
-            (item) =>
-                Array.isArray(item?.credentials) && item.credentials.length > 0,
-        ).length;
-        return { total, withCredentials };
-    }, [services]);
-
-    const advisorOnlyServices = useMemo(
-        () => services.filter((item) => item?.requiresAdvisorCredential),
+    const advisorServices = useMemo(
+        () =>
+            services.filter((item) => {
+                const isGlobal =
+                    String(item?.accessScope || "campaign") === "all_advisors";
+                const serviceKey = normalizeLabel(item?.nombreServicio);
+                if (isGlobal && EXCLUDED_GLOBAL_SERVICES.has(serviceKey)) {
+                    return false;
+                }
+                return true;
+            }),
         [services],
     );
 
+    const systemServices = useMemo(
+        () => advisorServices.filter((item) => !item?.isPersonal),
+        [advisorServices],
+    );
+
+    const myCredentialServices = useMemo(
+        () => advisorServices.filter((item) => item?.isPersonal),
+        [advisorServices],
+    );
+
+    const servicesForCurrentTab = useMemo(() => {
+        if (vaultTab === "mis-claves") return myCredentialServices;
+        if (vaultTab === "sistema") {
+            if (systemStatusFilter === "configuradas") {
+                return systemServices.filter(
+                    (item) =>
+                        Array.isArray(item?.credentials) &&
+                        item.credentials.length > 0,
+                );
+            }
+            if (systemStatusFilter === "pendientes") {
+                return systemServices.filter(
+                    (item) =>
+                        !Array.isArray(item?.credentials) ||
+                        item.credentials.length === 0,
+                );
+            }
+            return systemServices;
+        }
+        return [];
+    }, [vaultTab, myCredentialServices, systemServices, systemStatusFilter]);
+
+    const filteredServicesForCurrentTab = useMemo(() => {
+        const term = normalizeLabel(searchTerm);
+        if (!term) return servicesForCurrentTab;
+        return servicesForCurrentTab.filter((item) => {
+            const name = normalizeLabel(item?.nombreServicio);
+            const campaign = normalizeLabel(item?.campaignId);
+            return name.includes(term) || campaign.includes(term);
+        });
+    }, [servicesForCurrentTab, searchTerm]);
+
     const selectedService = useMemo(
         () =>
-            advisorOnlyServices.find(
+            filteredServicesForCurrentTab.find(
                 (item) => Number(item.id) === Number(selectedServiceId),
             ) ||
-            advisorOnlyServices[0] ||
+            filteredServicesForCurrentTab[0] ||
             null,
-        [advisorOnlyServices, selectedServiceId],
+        [filteredServicesForCurrentTab, selectedServiceId],
     );
 
     useEffect(() => {
-        if (!advisorOnlyServices.length) {
+        if (!filteredServicesForCurrentTab.length) {
             setSelectedServiceId(0);
             return;
         }
-        const exists = advisorOnlyServices.some(
+        const exists = filteredServicesForCurrentTab.some(
             (item) => Number(item.id) === Number(selectedServiceId),
         );
         if (!exists) {
-            setSelectedServiceId(Number(advisorOnlyServices[0].id || 0));
+            setSelectedServiceId(
+                Number(filteredServicesForCurrentTab[0].id || 0),
+            );
         }
-    }, [advisorOnlyServices, selectedServiceId]);
+    }, [filteredServicesForCurrentTab, selectedServiceId]);
 
     const handleReveal = async (credentialId) => {
         const key = String(credentialId || "");
@@ -246,12 +313,65 @@ export default function VaultAsesorPage() {
         await loadServices();
     };
 
+    const handleCopyValue = async (label, value) => {
+        const text = String(value || "");
+        if (!text) return;
+        try {
+            await navigator.clipboard.writeText(text);
+            setSuccess(`${label} copiado al portapapeles.`);
+            setError("");
+        } catch {
+            setError("No se pudo copiar al portapapeles.");
+            setSuccess("");
+        }
+    };
+
+    const handleSaveCustomCredential = async () => {
+        const payload = {
+            nombreServicio: normalizeText(customForm.nombreServicio),
+            alias: normalizeText(customForm.alias),
+            username: normalizeText(customForm.username),
+            password: normalizeText(customForm.password),
+            extra: normalizeText(customForm.extra),
+            url: normalizeText(customForm.url),
+            notas: normalizeText(customForm.notas),
+        };
+
+        if (!payload.nombreServicio || !payload.username || !payload.password) {
+            setError(
+                "Completa nombre del servicio, usuario y clave para guardar en tu vault.",
+            );
+            setSuccess("");
+            return;
+        }
+
+        const response = await createPersonalCoopCredential({ payload });
+        if (!response?.ok) {
+            throw new Error(
+                response?.json?.error ||
+                    "No se pudo guardar la credencial personalizada",
+            );
+        }
+
+        setCustomForm({
+            nombreServicio: "",
+            alias: "",
+            username: "",
+            password: "",
+            extra: "",
+            url: "",
+            notas: "",
+        });
+        setSuccess("Credencial personalizada guardada en tu vault.");
+        setError("");
+        await loadServices();
+    };
+
     const renderDetail = () => {
         if (!selectedService) {
             return (
                 <p className="vault-asesor__muted">
-                    No hay servicios de credencial propia por asesor para el
-                    filtro actual.
+                    No hay servicios CRM disponibles para el filtro actual.
                 </p>
             );
         }
@@ -277,14 +397,20 @@ export default function VaultAsesorPage() {
                     <div className="vault-asesor__title-row">
                         <h3>{selectedService.nombreServicio}</h3>
                         <small>
-                            {String(selectedService?.accessScope || "campaign") ===
-                            "all_advisors"
-                                ? "Global (sin campana)"
-                                : selectedService.campaignId}
+                            {selectedService?.isPersonal
+                                ? "Personal"
+                                : String(
+                                        selectedService?.accessScope ||
+                                            "campaign",
+                                    ) === "all_advisors"
+                                  ? "Global (sin campana)"
+                                  : selectedService.campaignId}
                         </small>
                     </div>
                     <span className="vault-asesor__badge">
-                        Propia por asesor
+                        {selectedService.isPersonal
+                            ? "Personal"
+                            : "Servicio CRM"}
                     </span>
                 </div>
 
@@ -348,7 +474,46 @@ export default function VaultAsesorPage() {
                             Ver mi credencial
                         </button>
                         {revealed?.username || revealed?.password ? (
-                            <pre>{`usuario: ${revealed?.username || ""}\nclave: ${revealed?.password || ""}`}</pre>
+                            <>
+                                <pre>{`usuario: ${revealed?.username || ""}\nclave: ${revealed?.password || ""}\nextra: ${revealed?.extra || ""}`}</pre>
+                                <div className="vault-asesor__actions">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleCopyValue(
+                                                "Usuario",
+                                                revealed?.username,
+                                            )
+                                        }
+                                    >
+                                        Copiar usuario
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleCopyValue(
+                                                "Clave",
+                                                revealed?.password,
+                                            )
+                                        }
+                                    >
+                                        Copiar clave
+                                    </button>
+                                    {revealed?.extra ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleCopyValue(
+                                                    "Extra",
+                                                    revealed?.extra,
+                                                )
+                                            }
+                                        >
+                                            Copiar extra
+                                        </button>
+                                    ) : null}
+                                </div>
+                            </>
                         ) : null}
                     </div>
                 ) : (
@@ -433,12 +598,162 @@ export default function VaultAsesorPage() {
         );
     };
 
+    const renderServiceWorkspace = (items = []) => (
+        <div className="vault-asesor__workspace">
+            <aside className="vault-asesor__services-nav">
+                {items.map((service) => {
+                    const hasCred = Boolean((service.credentials || []).length);
+                    return (
+                        <button
+                            key={service.id}
+                            type="button"
+                            className={`vault-asesor__service-item ${
+                                Number(selectedService?.id) ===
+                                Number(service.id)
+                                    ? "is-active"
+                                    : ""
+                            }`}
+                            onClick={() =>
+                                setSelectedServiceId(Number(service.id))
+                            }
+                        >
+                            <strong>{service.nombreServicio}</strong>
+                            <small>
+                                {service?.isPersonal
+                                    ? "Personal"
+                                    : String(
+                                            service?.accessScope || "campaign",
+                                        ) === "all_advisors"
+                                      ? "Global (sin campana)"
+                                      : service.campaignId}
+                            </small>
+                            <span>{hasCred ? "Configurada" : "Pendiente"}</span>
+                        </button>
+                    );
+                })}
+            </aside>
+
+            <div className="vault-asesor__detail">{renderDetail()}</div>
+        </div>
+    );
+
+    const renderNewPersonalForm = () => (
+        <article className="vault-asesor__card">
+            <div className="vault-asesor__card-head">
+                <div className="vault-asesor__title-row">
+                    <h3>Nueva credencial personal</h3>
+                    <small>Solo pide lo minimo. Lo demas es opcional.</small>
+                </div>
+                <span className="vault-asesor__badge">Mi vault</span>
+            </div>
+            <div className="vault-asesor__form">
+                <div className="vault-asesor__form-grid">
+                    <input
+                        value={customForm.nombreServicio}
+                        onChange={(e) =>
+                            setCustomForm((prev) => ({
+                                ...prev,
+                                nombreServicio: e.target.value,
+                            }))
+                        }
+                        placeholder="Nombre del servicio (ej. Correo corporativo)"
+                    />
+                    <input
+                        value={customForm.username}
+                        onChange={(e) =>
+                            setCustomForm((prev) => ({
+                                ...prev,
+                                username: e.target.value,
+                            }))
+                        }
+                        placeholder="Usuario"
+                    />
+                    <input
+                        type="password"
+                        value={customForm.password}
+                        onChange={(e) =>
+                            setCustomForm((prev) => ({
+                                ...prev,
+                                password: e.target.value,
+                            }))
+                        }
+                        placeholder="Clave"
+                    />
+                </div>
+                <div className="vault-asesor__form-actions">
+                    <button
+                        type="button"
+                        onClick={() => setShowCustomOptional((prev) => !prev)}
+                    >
+                        {showCustomOptional
+                            ? "Ocultar opcionales"
+                            : "Mostrar opcionales"}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            try {
+                                await handleSaveCustomCredential();
+                            } catch (err) {
+                                setError(err?.message || "No se pudo guardar");
+                                setSuccess("");
+                            }
+                        }}
+                    >
+                        Guardar en mi vault
+                    </button>
+                </div>
+                {showCustomOptional ? (
+                    <div className="vault-asesor__form-grid">
+                        <input
+                            value={customForm.alias}
+                            onChange={(e) =>
+                                setCustomForm((prev) => ({
+                                    ...prev,
+                                    alias: e.target.value,
+                                }))
+                            }
+                            placeholder="Alias opcional (si no, usa nombre del servicio)"
+                        />
+                        <input
+                            value={customForm.url}
+                            onChange={(e) =>
+                                setCustomForm((prev) => ({
+                                    ...prev,
+                                    url: e.target.value,
+                                }))
+                            }
+                            placeholder="URL opcional"
+                        />
+                        <input
+                            value={customForm.notas}
+                            onChange={(e) =>
+                                setCustomForm((prev) => ({
+                                    ...prev,
+                                    notas: e.target.value,
+                                }))
+                            }
+                            placeholder="Nota breve opcional"
+                        />
+                        <textarea
+                            rows={2}
+                            value={customForm.extra}
+                            onChange={(e) =>
+                                setCustomForm((prev) => ({
+                                    ...prev,
+                                    extra: e.target.value,
+                                }))
+                            }
+                            placeholder="Observacion opcional"
+                        />
+                    </div>
+                ) : null}
+            </div>
+        </article>
+    );
+
     return (
         <section className="vault-asesor">
-            <header className="vault-asesor__header">
-                <h2>Vault de credenciales</h2>
-            </header>
-
             <div className="vault-asesor__toolbar">
                 <label>
                     Categoria
@@ -470,16 +785,27 @@ export default function VaultAsesorPage() {
                         ))}
                     </select>
                 </label>
+                {(vaultTab === "sistema" || vaultTab === "mis-claves") && (
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar clave..."
+                    />
+                )}
+                {vaultTab === "sistema" && (
+                    <select
+                        value={systemStatusFilter}
+                        onChange={(e) => setSystemStatusFilter(e.target.value)}
+                    >
+                        <option value="todas">Todas</option>
+                        <option value="configuradas">Configuradas</option>
+                        <option value="pendientes">Pendientes</option>
+                    </select>
+                )}
                 <button type="button" onClick={loadServices} disabled={loading}>
                     {loading ? "Cargando..." : "Cargar servicios"}
                 </button>
-            </div>
-
-            <div className="vault-asesor__stats">
-                <span>Total: {groupedStats.total}</span>
-                <span>
-                    Con credencial resoluble: {groupedStats.withCredentials}
-                </span>
             </div>
 
             {error ? (
@@ -493,43 +819,37 @@ export default function VaultAsesorPage() {
                 </div>
             ) : null}
 
-            <div className="vault-asesor__workspace">
-                <aside className="vault-asesor__services-nav">
-                    {advisorOnlyServices.map((service) => {
-                        const hasCred = Boolean(
-                            (service.credentials || []).length,
-                        );
-                        return (
-                            <button
-                                key={service.id}
-                                type="button"
-                                className={`vault-asesor__service-item ${
-                                    Number(selectedService?.id) ===
-                                    Number(service.id)
-                                        ? "is-active"
-                                        : ""
-                                }`}
-                                onClick={() =>
-                                    setSelectedServiceId(Number(service.id))
-                                }
-                            >
-                                <strong>{service.nombreServicio}</strong>
-                                <small>
-                                    {String(service?.accessScope || "campaign") ===
-                                    "all_advisors"
-                                        ? "Global (sin campana)"
-                                        : service.campaignId}
-                                </small>
-                                <span>
-                                    {hasCred ? "Configurada" : "Pendiente"}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </aside>
-
-                <div className="vault-asesor__detail">{renderDetail()}</div>
-            </div>
+            <Tabs
+                tabs={[
+                    {
+                        id: "sistema",
+                        label: "Claves de sistema",
+                        badge: systemServices.length,
+                        content: renderServiceWorkspace(
+                            vaultTab === "sistema"
+                                ? filteredServicesForCurrentTab
+                                : systemServices,
+                        ),
+                    },
+                    {
+                        id: "mis-claves",
+                        label: "Mis claves",
+                        badge: myCredentialServices.length,
+                        content: renderServiceWorkspace(
+                            vaultTab === "mis-claves"
+                                ? filteredServicesForCurrentTab
+                                : myCredentialServices,
+                        ),
+                    },
+                    {
+                        id: "nueva-personal",
+                        label: "Nueva clave personal",
+                        content: renderNewPersonalForm(),
+                    },
+                ]}
+                activeTab={vaultTab}
+                onChange={setVaultTab}
+            />
         </section>
     );
 }

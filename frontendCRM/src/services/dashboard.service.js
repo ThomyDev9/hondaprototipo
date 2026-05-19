@@ -943,3 +943,10 @@ export const saveMyCoopCredential = ({ resourceId, payload }) =>
             body: JSON.stringify(payload || {}),
         },
     );
+
+export const createPersonalCoopCredential = ({ payload }) =>
+    request("agente/coop-services/personal-credential", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+    });

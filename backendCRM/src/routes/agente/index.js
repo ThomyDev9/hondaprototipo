@@ -31,6 +31,7 @@ const outboundSchema =
     process.env.MYSQL_DB || process.env.MYSQL_DB_ENCUESTA || "cck_dev_pruebas";
 const agenteDAO = new AgenteDAO(pool);
 const serviceResourcesDAO = new ServiceResourcesDAO(pool);
+const PERSONAL_RESOURCE_PREFIX = "PERSONAL_USER_";
 
 function isOutMaquitaCampaign(campaignId) {
     return (
@@ -87,6 +88,17 @@ const agenteMiddlewares = [
 
 function getAgentActor(req) {
     return req.user?.username || req.user?.email || String(req.user?.id);
+}
+
+function getPersonalResourceCampaignId(advisorUserId) {
+    return `${PERSONAL_RESOURCE_PREFIX}${Number(advisorUserId || 0)}`;
+}
+
+function isPersonalResourceForAdvisor(campaignId, advisorUserId) {
+    return (
+        String(campaignId || "").trim() ===
+        getPersonalResourceCampaignId(advisorUserId)
+    );
 }
 
 async function recomputeStatsByContactId(contactId, actor) {
@@ -412,7 +424,21 @@ router.get("/coop-services", ...agenteMiddlewares, async (req, res) => {
             };
         }
 
-        return res.json({ data: Array.from(grouped.values()) });
+        const items = Array.from(grouped.values()).filter((item) => {
+            const isPersonal = isPersonalResourceForAdvisor(
+                item?.campaignId,
+                advisorUserId,
+            );
+            if (String(item?.campaignId || "").startsWith(PERSONAL_RESOURCE_PREFIX)) {
+                return isPersonal;
+            }
+            return true;
+        }).map((item) => ({
+            ...item,
+            isPersonal: isPersonalResourceForAdvisor(item?.campaignId, advisorUserId),
+        }));
+
+        return res.json({ data: items });
     } catch (err) {
         console.error("Error GET /agente/coop-services:", err);
         return res
@@ -504,6 +530,93 @@ router.post(
             return res
                 .status(500)
                 .json({ error: "Error revelando credencial" });
+        }
+    },
+);
+
+router.post(
+    "/coop-services/personal-credential",
+    ...agenteMiddlewares,
+    async (req, res) => {
+        let conn = null;
+        try {
+            const advisorUserId = Number(req.user?.id || 0);
+            const advisorUsername = String(
+                req.user?.username || req.user?.email || req.user?.id || "",
+            ).trim();
+            const nombreServicio = String(req.body?.nombreServicio || "").trim();
+            const aliasInput = String(req.body?.alias || "").trim();
+            const username = String(req.body?.username || "").trim();
+            const password = String(req.body?.password || "").trim();
+            const extra = String(req.body?.extra || "").trim();
+            const url = String(req.body?.url || "").trim();
+            const notas = String(req.body?.notas || "").trim();
+
+            if (!advisorUserId || !advisorUsername) {
+                return res.status(401).json({ error: "Usuario invalido" });
+            }
+            if (!nombreServicio || !username || !password) {
+                return res.status(400).json({
+                    error: "nombreServicio, username y password son requeridos",
+                });
+            }
+            const alias = aliasInput || nombreServicio;
+
+            conn = await pool.getConnection();
+            await conn.beginTransaction();
+
+            const resourceId = await serviceResourcesDAO.createResource(
+                {
+                    campaignId: getPersonalResourceCampaignId(advisorUserId),
+                    accessScope: "campaign",
+                    nombreServicio,
+                    url,
+                    notas,
+                    orden: 9999,
+                    activo: 1,
+                    homeShortcut: 0,
+                    requiresVirtualMachine: 0,
+                    virtualMachineNotes: "",
+                    actor: advisorUsername,
+                },
+                conn,
+            );
+
+            await serviceResourcesDAO.upsertAdvisorCredential(
+                {
+                    resourceId,
+                    alias,
+                    username: encryptSecret(username),
+                    password: encryptSecret(password),
+                    extra: extra ? encryptSecret(extra) : null,
+                    priority: 0,
+                    activo: 1,
+                    ownerUserId: advisorUserId,
+                    ownerUsername: advisorUsername,
+                    actor: advisorUsername,
+                },
+                conn,
+            );
+
+            await conn.commit();
+            return res.status(201).json({ data: { id: resourceId } });
+        } catch (err) {
+            if (conn) {
+                try {
+                    await conn.rollback();
+                } catch {
+                    // no-op
+                }
+            }
+            console.error(
+                "Error POST /agente/coop-services/personal-credential:",
+                err,
+            );
+            return res
+                .status(500)
+                .json({ error: "Error guardando credencial personal en vault" });
+        } finally {
+            if (conn) conn.release();
         }
     },
 );
