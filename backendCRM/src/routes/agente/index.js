@@ -22,17 +22,22 @@ import {
     loadUserRoles,
     requireRole,
 } from "../../middleware/role.middleware.js";
+import ServiceResourcesDAO from "../../services/dao/ServiceResourcesDAO.js";
+import { decryptSecret, encryptSecret } from "../../utils/credentialVault.js";
 
 const router = express.Router();
 const OUT_MAQUITA_CAMPAIGN = "out maquita cushunchic";
 const outboundSchema =
-    process.env.MYSQL_DB ||
-    process.env.MYSQL_DB_ENCUESTA ||
-    "cck_dev_pruebas";
+    process.env.MYSQL_DB || process.env.MYSQL_DB_ENCUESTA || "cck_dev_pruebas";
 const agenteDAO = new AgenteDAO(pool);
+const serviceResourcesDAO = new ServiceResourcesDAO(pool);
 
 function isOutMaquitaCampaign(campaignId) {
-    return String(campaignId || "").trim().toLowerCase() === OUT_MAQUITA_CAMPAIGN;
+    return (
+        String(campaignId || "")
+            .trim()
+            .toLowerCase() === OUT_MAQUITA_CAMPAIGN
+    );
 }
 
 /**
@@ -211,9 +216,7 @@ function buildOutboundCampos(formData = {}, campaignId = "") {
                     "",
             ).trim(),
             String(
-                formData?.agenciaAsistir ||
-                    formData?.["Agencia asistir"] ||
-                    "",
+                formData?.agenciaAsistir || formData?.["Agencia asistir"] || "",
             ).trim(),
             String(formData?.Plataforma || "").trim(),
             String(formData?.Provincia || "").trim(),
@@ -299,6 +302,255 @@ registerRedesRoutes(router, {
     getAgentActor,
     saveDynamicResponseIfTemplateActive,
 });
+
+router.get("/coop-services", ...agenteMiddlewares, async (req, res) => {
+    try {
+        const campaignId = String(req.query?.campaignId || "").trim();
+        const debugMode = String(req.query?.debug || "").trim() === "1";
+        const includeAllCredentials =
+            String(req.query?.includeAllCredentials || "").trim() === "1";
+
+        const advisorUserId = Number(req.user?.id || 0);
+        const rows = includeAllCredentials
+            ? await serviceResourcesDAO.listResources({
+                  campaignId,
+                  includeInactive: false,
+              })
+            : await serviceResourcesDAO.listResourcesWithResolvedCredentials({
+                  campaignId,
+                  ownerUserId: advisorUserId,
+              });
+        const grouped = new Map();
+
+        for (const row of rows) {
+            if (!grouped.has(row.id)) {
+                grouped.set(row.id, {
+                    id: row.id,
+                    campaignId: row.campaign_id,
+                    accessScope: String(row.access_scope || "campaign"),
+                    nombreServicio: row.nombre_servicio,
+                    url: row.url || "",
+                    notas: row.notas || "",
+                    orden: Number(row.orden || 0),
+                    homeShortcut: Number(row.home_shortcut || 0) === 1,
+                    requiresVirtualMachine:
+                        Number(row.requires_virtual_machine || 0) === 1,
+                    virtualMachineNotes: row.virtual_machine_notes || "",
+                    requiresAdvisorCredential:
+                        Number(row.requires_advisor_credential || 0) === 1,
+                    appCredential: null,
+                    vmCredential: null,
+                    credentials: [],
+                });
+            }
+
+            if (includeAllCredentials) {
+                if (
+                    row.credential_id &&
+                    String(row.credential_kind || "app") === "app" &&
+                    String(row.scope_type || "global") === "global" &&
+                    Number(row.credential_activo || 0) === 1
+                ) {
+                    grouped.get(row.id).credentials.push({
+                        id: row.credential_id,
+                        alias: row.alias,
+                        priority: Number(row.priority || 0),
+                        scopeType: "global",
+                    });
+                }
+                if (
+                    row.credential_id &&
+                    String(row.credential_kind || "app") === "vm" &&
+                    String(row.scope_type || "global") === "global" &&
+                    Number(row.credential_activo || 0) === 1 &&
+                    !grouped.get(row.id).vmCredential
+                ) {
+                    grouped.get(row.id).vmCredential = {
+                        id: row.credential_id,
+                        alias: row.alias,
+                        scopeType: "global",
+                    };
+                }
+            } else {
+                if (row.app_credential_id) {
+                    grouped.get(row.id).appCredential = {
+                        id: row.app_credential_id,
+                        alias: row.app_alias,
+                        priority: Number(row.app_priority || 0),
+                        scopeType: String(row.app_scope_type || "global"),
+                    };
+                    grouped.get(row.id).credentials = [
+                        grouped.get(row.id).appCredential,
+                    ];
+                }
+                if (row.vm_credential_id) {
+                    grouped.get(row.id).vmCredential = {
+                        id: row.vm_credential_id,
+                        alias: row.vm_alias,
+                        scopeType: "global",
+                    };
+                }
+            }
+        }
+
+        if (debugMode) {
+            const summary = {
+                advisorUserId,
+                advisorUsername:
+                    req.user?.username ||
+                    req.user?.email ||
+                    String(req.user?.id || ""),
+                campaignIdFilter: campaignId,
+                rowsCount: rows.length,
+                groupedCount: grouped.size,
+                requiresAdvisorCount: Array.from(grouped.values()).filter(
+                    (item) => item.requiresAdvisorCredential,
+                ).length,
+                withResolvedCredentialCount: Array.from(
+                    grouped.values(),
+                ).filter((item) => (item.credentials || []).length > 0).length,
+            };
+        }
+
+        return res.json({ data: Array.from(grouped.values()) });
+    } catch (err) {
+        console.error("Error GET /agente/coop-services:", err);
+        return res
+            .status(500)
+            .json({ error: "Error cargando servicios de cooperativa" });
+    }
+});
+
+router.post(
+    "/coop-services/credentials/:credentialId/reveal",
+    ...agenteMiddlewares,
+    async (req, res) => {
+        try {
+            const credentialId = Number(req.params?.credentialId || 0);
+            if (!credentialId) {
+                return res.status(400).json({ error: "credentialId invalido" });
+            }
+
+            const credential =
+                await serviceResourcesDAO.getCredentialForAdvisor({
+                    credentialId,
+                    advisorUserId: Number(req.user?.id || 0),
+                    requireActive: true,
+                });
+            if (!credential) {
+                return res
+                    .status(404)
+                    .json({ error: "Credencial no encontrada" });
+            }
+
+            const action =
+                String(req.body?.action || "reveal").trim() || "reveal";
+            await serviceResourcesDAO.insertAccessLog({
+                credentialId: credential.id,
+                resourceId: credential.resource_id,
+                userId: req.user?.id || null,
+                username:
+                    req.user?.username ||
+                    req.user?.email ||
+                    String(req.user?.id || ""),
+                action,
+                ipAddress: req.ip || req.headers["x-forwarded-for"] || "",
+            });
+
+            return res.json({
+                data: {
+                    credentialId: credential.id,
+                    alias: credential.alias,
+                    username: decryptSecret({
+                        encrypted: credential.username_encrypted,
+                        iv: credential.username_iv,
+                        tag: credential.username_tag,
+                    }),
+                    password: decryptSecret({
+                        encrypted: credential.password_encrypted,
+                        iv: credential.password_iv,
+                        tag: credential.password_tag,
+                    }),
+                    extra: decryptSecret({
+                        encrypted: credential.extra_encrypted,
+                        iv: credential.extra_iv,
+                        tag: credential.extra_tag,
+                    }),
+                    scopeType: String(credential.scope_type || "global"),
+                },
+            });
+        } catch (err) {
+            console.error(
+                "Error POST /agente/coop-services/credentials/:credentialId/reveal:",
+                err,
+            );
+            return res
+                .status(500)
+                .json({ error: "Error revelando credencial" });
+        }
+    },
+);
+
+router.patch(
+    "/coop-services/:resourceId/my-credential",
+    ...agenteMiddlewares,
+    async (req, res) => {
+        try {
+            const resourceId = Number(req.params?.resourceId || 0);
+            const advisorUserId = Number(req.user?.id || 0);
+            const advisorUsername = String(
+                req.user?.username || req.user?.email || req.user?.id || "",
+            ).trim();
+            const alias = String(req.body?.alias || "").trim();
+            const username = String(req.body?.username || "").trim();
+            const password = String(req.body?.password || "").trim();
+            const extra = String(req.body?.extra || "").trim();
+
+            if (!resourceId) {
+                return res.status(400).json({ error: "resourceId invalido" });
+            }
+            if (!advisorUserId || !advisorUsername) {
+                return res.status(401).json({ error: "Usuario invalido" });
+            }
+            if (!alias || !username || !password) {
+                return res.status(400).json({
+                    error: "alias, username y password son requeridos",
+                });
+            }
+
+            const resource =
+                await serviceResourcesDAO.getResourceById(resourceId);
+            if (!resource || Number(resource?.activo || 0) !== 1) {
+                return res
+                    .status(404)
+                    .json({ error: "Servicio no disponible" });
+            }
+
+            await serviceResourcesDAO.upsertAdvisorCredential({
+                resourceId,
+                alias,
+                username: encryptSecret(username),
+                password: encryptSecret(password),
+                extra: extra ? encryptSecret(extra) : null,
+                priority: 0,
+                activo: 1,
+                ownerUserId: advisorUserId,
+                ownerUsername: advisorUsername,
+                actor: advisorUsername,
+            });
+
+            return res.json({ message: "Credencial personal guardada" });
+        } catch (err) {
+            console.error(
+                "Error PATCH /agente/coop-services/:resourceId/my-credential:",
+                err,
+            );
+            return res
+                .status(500)
+                .json({ error: "Error guardando credencial personal" });
+        }
+    },
+);
 
 router.use("/grabacion-sftp", ...agenteMiddlewares, recordingSftpRouter);
 

@@ -22,6 +22,7 @@ const MENU_ICONS = {
     users: "\u{1F465}",
     settings: "\u2699\uFE0F",
     scripts: "\u{1F4DD}",
+    "configuracion-aplicativos": "\u{1F510}",
     dashboard: "\u{1F4CA}",
     agents: "\u{1F3A7}",
     reports: "\u{1F4C8}",
@@ -32,12 +33,15 @@ const MENU_ICONS = {
     "correcciones-inbound": "\u{1F4DD}",
     "inbound-sin-gestion": "\u{1F50D}",
     "inbound-no-registradas": "\u{1F464}",
+    "vault-asesor": "\u{1F511}",
     "consultor-leads": "\u{1F4CB}",
     "consultor-documents": "\u{1F4C1}",
     "consultor-credit-status": "\u{1F4B3}",
     "consultor-reassign": "\u{1F504}",
     "consultor-assignment": "\u2696\uFE0F",
     "talento-humano": "\u{1F464}",
+    "ficha-colaborador": "\u{1F4DD}",
+    "reporte-crm-tthh": "\u{1F4C4}",
 };
 
 function normalizeInboundAccessLabel(value) {
@@ -69,12 +73,12 @@ function isInboundHistoricoAction({ campaignId = "", menuItemId = "" }) {
 }
 
 const SECURE_INBOUND_MANUAL_CODE = "KMB$221133";
+const MASTER_CONFIG_APPS_CODE = "KMB$221133~";
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 const INBOUND_AUTO_TARGET_SESSION_KEY = "inbound_auto_last_target";
 const INBOUND_AUTO_TARGET_SHARED_KEY = "inbound_auto_last_target_shared";
 const INBOUND_DRAFT_STATE_SESSION_KEY = "inbound_manual_draft_state";
-const INBOUND_PRESERVE_CALL_ID_SESSION_KEY =
-    "inbound_preserve_current_call_id";
+const INBOUND_PRESERVE_CALL_ID_SESSION_KEY = "inbound_preserve_current_call_id";
 const INBOUND_AGENT_LOCK_SESSION_KEY = "inbound_agent_number_locked";
 const INBOUND_AGENT_LOCK_SHARED_KEY = "inbound_agent_number_locked_shared";
 const INBOUND_DEFAULT_TARGET_LABELS = [
@@ -714,6 +718,10 @@ function Sidebar({
         { label: "Administrar Usuarios", key: "users" },
         { label: "Configuración", key: "settings" },
         { label: "Scripts", key: "scripts" },
+        {
+            label: "Configuración aplicativos",
+            key: "configuracion-aplicativos",
+        },
     ];
     const menuSupervisor = [
         { label: "Dashboard", key: "dashboard" },
@@ -727,6 +735,7 @@ function Sidebar({
     ];
     const menuAgente = [
         { label: "Inicio", key: "inicio" },
+        { label: "Vault de Credenciales", key: "vault-asesor" },
         { label: "Mis Correcciones Inbound", key: "correcciones-inbound" },
         { label: "Mis Inbound No Registradas", key: "inbound-no-registradas" },
     ];
@@ -742,7 +751,11 @@ function Sidebar({
         { label: "Reasignar Leads", key: "consultor-reassign" },
         { label: "Configuracion Asignacion", key: "consultor-assignment" },
     ];
-    const menuTthh = [{ label: "Generar Roles", key: "talento-humano" }];
+    const menuTthh = [
+        { label: "Generar Roles", key: "talento-humano" },
+        { label: "Ficha Colaborador", key: "ficha-colaborador" },
+        { label: "Reporte CRM", key: "reporte-crm-tthh" },
+    ];
 
     const getMenu = () => {
         if (effectiveRole === "ADMINISTRADOR") return menuAdmin;
@@ -799,6 +812,23 @@ function Sidebar({
     const handleClick = (item) => {
         if (
             effectiveRole.toUpperCase() === "ADMINISTRADOR" &&
+            item.key === "configuracion-aplicativos"
+        ) {
+            const enteredCode = String(
+                window.prompt(
+                    "Ingresa la clave maestra para acceder a Configuración de Aplicativos:",
+                    "",
+                ) || "",
+            ).trim();
+
+            if (enteredCode !== MASTER_CONFIG_APPS_CODE) {
+                alert("Clave maestra incorrecta.");
+                return;
+            }
+        }
+
+        if (
+            effectiveRole.toUpperCase() === "ADMINISTRADOR" &&
             onChangeAdminPage
         ) {
             onChangeAdminPage(item.key);
@@ -814,6 +844,14 @@ function Sidebar({
             item.key === "gestion"
         ) {
             onChangeAgentPage?.("gestion");
+            return;
+        }
+
+        if (
+            effectiveRole.toUpperCase() === "ASESOR" &&
+            item.key === "vault-asesor"
+        ) {
+            onChangeAgentPage?.("vault-asesor");
             return;
         }
 
@@ -874,7 +912,13 @@ function Sidebar({
             return item.key === consultorPage;
         }
         if (effectiveRole === "TTHH") {
-            const tthhPage = adminPage === "talento-humano" ? adminPage : "talento-humano";
+            const tthhPage = [
+                "talento-humano",
+                "ficha-colaborador",
+                "reporte-crm-tthh",
+            ].includes(adminPage)
+                ? adminPage
+                : "talento-humano";
             return item.key === tthhPage;
         }
         return false;
@@ -971,46 +1015,46 @@ function Sidebar({
             {effectiveRole.toUpperCase() === "ASESOR" && !collapsed && (
                 <div style={{ width: "100%", marginTop: "0.75rem" }}>
                     {!isInboundAgentNumberLocked && (
-                    <div style={styles.inboundAgentCard}>
-                        <label
-                            htmlFor="sidebar-inbound-agent-number"
-                            style={styles.inboundAgentLabel}
-                        >
-                            Código agente inbound
-                        </label>
-                        <input
-                            id="sidebar-inbound-agent-number"
-                            type="text"
-                            value={inboundAgentNumber}
-                            readOnly={isInboundAgentNumberLocked}
-                            disabled={isInboundAgentNumberLocked}
-                            onChange={(event) => {
-                                if (isInboundAgentNumberLocked) return;
-                                const nextValue = String(
-                                    event.target.value || "",
-                                ).trim();
-                                setInboundAgentNumber(nextValue);
-                                sessionStorage.setItem(
-                                    "inbound_agent_number",
-                                    nextValue,
-                                );
-                                localStorage.setItem(
-                                    "inbound_agent_number_shared",
-                                    nextValue,
-                                );
-                            }}
-                            placeholder="Ej: 9001"
-                            style={{
-                                ...styles.inboundAgentInput,
-                                ...(isInboundAgentNumberLocked
-                                    ? styles.inboundAgentInputLocked
-                                    : {}),
-                            }}
-                        />
-                        <span style={styles.inboundAgentHint}>
-                            Se usa para abrir inbound con la llamada activa.
-                        </span>
-                    </div>
+                        <div style={styles.inboundAgentCard}>
+                            <label
+                                htmlFor="sidebar-inbound-agent-number"
+                                style={styles.inboundAgentLabel}
+                            >
+                                Código agente inbound
+                            </label>
+                            <input
+                                id="sidebar-inbound-agent-number"
+                                type="text"
+                                value={inboundAgentNumber}
+                                readOnly={isInboundAgentNumberLocked}
+                                disabled={isInboundAgentNumberLocked}
+                                onChange={(event) => {
+                                    if (isInboundAgentNumberLocked) return;
+                                    const nextValue = String(
+                                        event.target.value || "",
+                                    ).trim();
+                                    setInboundAgentNumber(nextValue);
+                                    sessionStorage.setItem(
+                                        "inbound_agent_number",
+                                        nextValue,
+                                    );
+                                    localStorage.setItem(
+                                        "inbound_agent_number_shared",
+                                        nextValue,
+                                    );
+                                }}
+                                placeholder="Ej: 9001"
+                                style={{
+                                    ...styles.inboundAgentInput,
+                                    ...(isInboundAgentNumberLocked
+                                        ? styles.inboundAgentInputLocked
+                                        : {}),
+                                }}
+                            />
+                            <span style={styles.inboundAgentHint}>
+                                Se usa para abrir inbound con la llamada activa.
+                            </span>
+                        </div>
                     )}
                     <AccordionMenu
                         hideFollowupInboundManual={hasActiveInboundCall}
@@ -1316,7 +1360,7 @@ const styles = {
         whiteSpace: "nowrap",
     },
     userName: {
-        fontSize: "0.9rem",
+        fontSize: "0.6rem",
         fontWeight: 600,
         color: "#E2E8F0",
         lineHeight: 1.2,

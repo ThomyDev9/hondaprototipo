@@ -2,11 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import {
     fetchRedesHistorico,
-    fetchRedesHistoricoClientes,
 } from "../../../services/dashboard.service";
+import {
+    obtenerCampaniasDetalladasDesdeMenu,
+} from "../../../services/campaign.service";
 import Button from "../../../components/common/Button";
 import Table from "../../../components/common/Table";
 import "./RedesHistoricoPanel.css";
+
+const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
+const REDES_SHARED_LABEL = "gestion redes";
 
 function formatDateTime(value) {
     const raw = String(value || "").trim();
@@ -22,7 +27,7 @@ function getTodayLocalDate() {
     return `${year}-${month}-${day}`;
 }
 
-export default function RedesHistoricoPanel({ campaignId }) {
+export default function RedesHistoricoPanel({ campaignId, categoryId, menuItemId }) {
     const today = useMemo(() => getTodayLocalDate(), []);
     const [clientOptions, setClientOptions] = useState([]);
     const [advisor, setAdvisor] = useState("");
@@ -38,6 +43,12 @@ export default function RedesHistoricoPanel({ campaignId }) {
         () => String(campaignId || "").trim(),
         [campaignId],
     );
+    const normalizeFlowLabel = (value) =>
+        String(value || "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim()
+            .toLowerCase();
 
     const tableColumns = useMemo(
         () => [
@@ -114,15 +125,45 @@ export default function RedesHistoricoPanel({ campaignId }) {
         const loadClientOptions = async () => {
             setLoadingClients(true);
             try {
-                const { ok, json } = await fetchRedesHistoricoClientes({
-                    campaignId: normalizedCampaignId,
-                });
-                if (cancelled) return;
-                if (!ok) {
+                const normalizedCategoryId = String(categoryId || "").trim();
+                const normalizedMenuItemId = String(menuItemId || "").trim();
+                if (!normalizedCategoryId || !normalizedMenuItemId) {
                     setClientOptions([]);
                     return;
                 }
-                setClientOptions(Array.isArray(json?.data) ? json.data : []);
+
+                const tree = await obtenerCampaniasDetalladasDesdeMenu(
+                    normalizedCategoryId,
+                );
+                if (cancelled) return;
+
+                const rootNode = (Array.isArray(tree) ? tree : []).find(
+                    (item) =>
+                        String(item?.id || "").trim() === normalizedMenuItemId ||
+                        (item?.subcampanias || []).some(
+                            (child) =>
+                                String(child?.id || "").trim() ===
+                                normalizedMenuItemId,
+                        ) ||
+                        String(item?.id || "").trim() ===
+                            REDES_PARENT_MENU_ITEM_ID ||
+                        normalizeFlowLabel(item?.campania) === REDES_SHARED_LABEL,
+                );
+
+                const options = Array.isArray(rootNode?.subcampanias)
+                    ? rootNode.subcampanias
+                          .map((child) => ({
+                              value: String(child?.id || "").trim(),
+                              label: String(
+                                  child?.nombre || child?.campania || "",
+                              ).trim(),
+                          }))
+                          .filter((item) => item.value && item.label)
+                    : [];
+
+                setClientOptions(options);
+            } catch {
+                if (!cancelled) setClientOptions([]);
             } finally {
                 if (!cancelled) setLoadingClients(false);
             }
@@ -139,7 +180,7 @@ export default function RedesHistoricoPanel({ campaignId }) {
         return () => {
             cancelled = true;
         };
-    }, [normalizedCampaignId, today]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [categoryId, menuItemId, normalizedCampaignId, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <section className="agent-form-card agent-form-card--secondary">
@@ -237,4 +278,6 @@ export default function RedesHistoricoPanel({ campaignId }) {
 
 RedesHistoricoPanel.propTypes = {
     campaignId: PropTypes.string,
+    categoryId: PropTypes.string,
+    menuItemId: PropTypes.string,
 };

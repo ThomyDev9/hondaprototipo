@@ -2,6 +2,7 @@
 import JSZip from "jszip";
 import "./TalentoHumanoPage.css";
 
+
 const INGRESOS_KEYS = [
     "SUELDO",
     "HORAS_EXTRAS_50",

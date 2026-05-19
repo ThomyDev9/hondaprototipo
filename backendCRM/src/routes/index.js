@@ -95,6 +95,11 @@ export const routeRegistry = [
         module: () => import("./public/external-rrss-form.routes.js"),
         description: "Formulario publico externo RRSS (aislado)",
     },
+    {
+        path: "/tthh",
+        module: () => import("./tthh/index.js"),
+        description: "Talento Humano: catalogos y ficha de colaborador",
+    },
 ] ;
 
 /**

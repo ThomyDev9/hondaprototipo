@@ -1,0 +1,181 @@
+﻿.config-apps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.config-apps__header h2 {
+    margin: 0;
+}
+
+.config-apps__header p {
+    margin: 0.1rem 0 0;
+    color: #475569;
+    font-size: 0.82rem;
+}
+
+.config-apps__toolbar {
+    display: flex;
+    gap: 0.45rem;
+    align-items: end;
+}
+
+.config-apps__toolbar label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+    min-width: 220px;
+    font-size: 0.78rem;
+}
+
+.config-apps input,
+.config-apps select,
+.config-apps textarea {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 0.3rem 0.42rem;
+    font-size: 0.8rem;
+    box-sizing: border-box;
+}
+
+.config-apps__layout {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 0.55rem;
+}
+
+.config-apps__list,
+.config-apps__panel {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.5rem;
+}
+
+.config-apps__list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.35rem;
+}
+
+.config-apps__list-head button {
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #f8fafc;
+    padding: 0.12rem 0.38rem;
+    cursor: pointer;
+    font-size: 0.72rem;
+}
+
+.config-apps__cards,
+.config-apps__credentials-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    max-height: 360px;
+    overflow: auto;
+}
+
+.config-apps__card,
+.config-apps__credential-item {
+    border: 1px solid #dbeafe;
+    background: #f8fbff;
+    border-radius: 8px;
+    text-align: left;
+    padding: 0.3rem 0.38rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.08rem;
+    cursor: pointer;
+}
+
+.config-apps__card.is-active,
+.config-apps__credential-item.is-active {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+.config-apps__card strong,
+.config-apps__credential-item strong {
+    color: #0f172a;
+}
+
+.config-apps__forms {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.config-apps__panel h3 {
+    margin: 0 0 0.35rem;
+    font-size: 0.95rem;
+}
+
+.config-apps__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+    gap: 0.32rem;
+}
+
+.config-apps__grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    font-size: 0.76rem;
+}
+
+.config-apps__grid label.full {
+    grid-column: 1 / -1;
+}
+
+.config-apps__hint {
+    margin: 0 0 0.3rem;
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+.config-apps__actions {
+    margin-top: 0.35rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.32rem;
+    flex-wrap: wrap;
+}
+
+.config-apps__alert {
+    padding: 0.3rem 0.45rem;
+    border-radius: 7px;
+    font-size: 0.78rem;
+}
+
+.config-apps__alert--error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.config-apps__alert--success {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+@media (max-width: 980px) {
+    .config-apps__layout {
+        grid-template-columns: 1fr;
+    }
+
+    .config-apps__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .config-apps__toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .config-apps__toolbar label {
+        min-width: 0;
+    }
+}

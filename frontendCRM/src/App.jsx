@@ -18,7 +18,10 @@ import CampaniasAdmin from "./pages/admin/CampaniasAdmin";
 import ConfiguracionAdmin from "./pages/admin/ConfiguracionAdmin";
 import NivelesGestionAdmin from "./pages/admin/NivelesGestionAdmin";
 import ScriptsAdmin from "./pages/admin/ScriptsAdmin";
+import ConfiguracionAplicativosAdmin from "./pages/admin/ConfiguracionAplicativosAdmin";
 import TalentoHumanoPage from "./pages/tthh/TalentoHumanoPage";
+import FichaColaboradorPage from "./pages/tthh/FichaColaboradorPage";
+import ReporteCrmTthhPage from "./pages/tthh/ReporteCrmTthhPage";
 import PublicMaquitaRrssForm from "./pages/PublicMaquitaRrssForm";
 import {
     endAgentSession,
@@ -428,6 +431,9 @@ function App() {
                         {adminPage === "users" && <UsuariosAdmin />}
                         {adminPage === "settings" && <ConfiguracionAdmin />}
                         {adminPage === "scripts" && <ScriptsAdmin />}
+                        {adminPage === "configuracion-aplicativos" && (
+                            <ConfiguracionAplicativosAdmin />
+                        )}
                     </>
                 )}
 
@@ -511,7 +517,14 @@ function App() {
                     />
                 )}
 
-                {userInfo.roles?.includes("TTHH") && <TalentoHumanoPage />}
+                {userInfo.roles?.includes("TTHH") &&
+                    (adminPage === "ficha-colaborador" ? (
+                        <FichaColaboradorPage />
+                    ) : adminPage === "reporte-crm-tthh" ? (
+                        <ReporteCrmTthhPage />
+                    ) : (
+                        <TalentoHumanoPage />
+                    ))}
             </DashboardLayout>
         );
     }

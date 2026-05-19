@@ -866,6 +866,301 @@
     color: #111827;
 }
 
+.inbound-quick-resources {
+    border: 1px solid rgba(37, 99, 235, 0.22);
+    background: rgba(248, 252, 255, 0.92);
+    border-radius: 0.36rem;
+    padding: 0.28rem;
+}
+
+.inbound-quick-resources__header {
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #1e3a8a;
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+}
+
+.inbound-quick-resources__status,
+.inbound-quick-resources__error {
+    font-size: 0.72rem;
+    margin: 0.08rem 0;
+}
+
+.inbound-quick-resources__error {
+    color: #b91c1c;
+}
+
+.inbound-quick-resources__card {
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: #fff;
+    border-radius: 0.32rem;
+    padding: 0.24rem;
+    margin-bottom: 0.22rem;
+}
+
+.inbound-quick-resources__card h4 {
+    margin: 0 0 0.1rem;
+    font-size: 0.78rem;
+    color: #0f172a;
+}
+
+.inbound-quick-resources__card a {
+    font-size: 0.72rem;
+}
+
+.inbound-quick-resources__card p {
+    margin: 0.12rem 0;
+    white-space: pre-wrap;
+    font-size: 0.7rem;
+}
+
+.inbound-quick-resources__credential {
+    padding-top: 0.14rem;
+    margin-top: 0.14rem;
+    border-top: 1px dashed rgba(148, 163, 184, 0.45);
+}
+
+.inbound-quick-resources__credential strong {
+    font-size: 0.68rem;
+}
+
+.inbound-quick-resources__actions {
+    display: flex;
+    gap: 0.12rem;
+    flex-wrap: wrap;
+    margin-top: 0.1rem;
+}
+
+.inbound-quick-resources__actions button {
+    border: 1px solid rgba(37, 99, 235, 0.28);
+    background: #eef4ff;
+    color: #1d4ed8;
+    border-radius: 999px;
+    padding: 0.12rem 0.36rem;
+    cursor: pointer;
+    font-size: 0.66rem;
+}
+
+.inbound-quick-resources__credential pre {
+    margin: 0.12rem 0 0;
+    padding: 0.16rem;
+    border-radius: 0.26rem;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.66rem;
+    white-space: pre-wrap;
+}
+
+.inbound-float-wrap {
+    position: fixed;
+    right: 14px;
+    top: 108px;
+    z-index: 1200;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+}
+
+.inbound-float-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.26rem;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 999px;
+    padding: 0.35rem 0.3rem;
+}
+
+.inbound-float-rail__toggle,
+.inbound-float-rail__item {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: #111827;
+    color: #f8fafc;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.inbound-float-rail__item.is-active {
+    background: #1d4ed8;
+    border-color: #93c5fd;
+}
+
+.inbound-float-card {
+    width: min(430px, 88vw);
+    max-height: calc(100vh - 140px);
+    overflow: auto;
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    background: #f8fbff;
+    border-radius: 0.5rem;
+    box-shadow: 0 20px 36px rgba(15, 23, 42, 0.32);
+    padding: 0.38rem;
+}
+
+.inbound-float-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    margin-bottom: 0.22rem;
+}
+
+.inbound-float-card__inline-row {
+    display: flex;
+    align-items: center;
+    gap: 0.24rem;
+    flex-wrap: wrap;
+}
+
+.inbound-float-card__inline-row--url {
+    margin-bottom: 0.12rem;
+}
+
+.inbound-float-card__section-title {
+    display: block;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #1e3a8a;
+    margin: 0.18rem 0 0.08rem;
+}
+
+.inbound-float-card__block {
+    border: 1px solid #dbeafe;
+    border-radius: 0.3rem;
+    padding: 0.18rem 0.24rem;
+    background: #fff;
+    font-size: 0.7rem;
+}
+
+.inbound-float-card__muted {
+    font-size: 0.62rem;
+    color: #64748b;
+}
+
+.inbound-float-card__head button {
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #fff;
+    cursor: pointer;
+    padding: 0.08rem 0.3rem;
+    font-size: 0.62rem;
+}
+
+.inbound-float-card a {
+    font-size: 0.68rem;
+}
+
+.inbound-float-card__service-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.18rem;
+    flex-wrap: wrap;
+}
+
+.inbound-float-card__service-actions button,
+.inbound-float-card__notes button {
+    border: 1px solid rgba(37, 99, 235, 0.28);
+    background: #eef4ff;
+    border-radius: 999px;
+    padding: 0.08rem 0.26rem;
+    font-size: 0.58rem;
+    cursor: pointer;
+}
+
+.inbound-float-card p {
+    margin: 0.18rem 0;
+    font-size: 0.62rem;
+    white-space: pre-wrap;
+    line-height: 1.2;
+}
+
+.inbound-float-card__notes {
+    border: 1px dashed rgba(148, 163, 184, 0.45);
+    border-radius: 0.28rem;
+    padding: 0.16rem 0.2rem;
+    margin-bottom: 0.18rem;
+}
+
+.inbound-float-card__notes p {
+    margin-top: 0;
+}
+
+.inbound-float-card__extra {
+    margin-top: 0.14rem;
+    border: 1px dashed rgba(148, 163, 184, 0.45);
+    border-radius: 0.26rem;
+    padding: 0.14rem;
+}
+
+.inbound-float-card__extra-label {
+    font-size: 0.54rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.inbound-float-card__extra p {
+    margin: 0.08rem 0 0;
+    font-size: 0.6rem;
+}
+
+.inbound-float-card__credentials {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.inbound-float-card__credential {
+    border: 1px solid #dbeafe;
+    border-radius: 0.3rem;
+    padding: 0.22rem;
+    background: #fff;
+}
+
+.inbound-float-card__credential-head {
+    margin-bottom: 0.12rem;
+    font-size: 0.68rem;
+}
+
+.inbound-float-card__actions {
+    display: flex;
+    gap: 0.12rem;
+    flex-wrap: wrap;
+}
+
+.inbound-float-card__actions button {
+    border: 1px solid rgba(37, 99, 235, 0.3);
+    background: #eef4ff;
+    border-radius: 999px;
+    padding: 0.08rem 0.25rem;
+    font-size: 0.58rem;
+    cursor: pointer;
+}
+
+.inbound-float-card__credential pre {
+    margin: 0.14rem 0 0;
+    padding: 0.16rem;
+    border-radius: 0.25rem;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.6rem;
+    white-space: pre-wrap;
+    line-height: 1.15;
+}
+
+@media (max-width: 960px) {
+    .inbound-float-wrap {
+        right: 8px;
+        top: 88px;
+    }
+}
+
 @media (max-width: 960px) {
     .agent-survey-grid {
         grid-template-columns: repeat(2, minmax(200px, 1fr));

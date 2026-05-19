@@ -1,0 +1,364 @@
+.thf-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.thf-section {
+    border: 1px solid #dbe2ec;
+    border-radius: 10px;
+    padding: 12px;
+    background: #fbfdff;
+}
+
+.thf-section-title {
+    margin: 0 0 10px;
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #1e3a5f;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.thf-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.thf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.thf-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #2f455c;
+}
+
+.thf-photo-preview {
+    width: 100%;
+    max-width: 180px;
+    height: 180px;
+    object-fit: cover;
+    border: 1px solid #dbe2ec;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.thf-photo-empty {
+    display: inline-block;
+    padding: 10px;
+    border: 1px dashed #c9d5e4;
+    border-radius: 8px;
+    color: #5f738b;
+    font-size: 0.82rem;
+    background: #f8fbff;
+}
+
+.thf-form input,
+.thf-form select,
+.thf-form textarea {
+    border: 1px solid #dbe2ec;
+    border-radius: 8px;
+    padding: 9px 10px;
+    font-size: 0.9rem;
+    color: #16324f;
+    background: #ffffff;
+}
+
+.thf-form input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    padding: 0;
+}
+
+.thf-form textarea {
+    min-height: 88px;
+    resize: vertical;
+}
+
+.thf-full {
+    grid-column: 1 / -1;
+}
+
+.thf-switches {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    padding: 6px 2px;
+}
+
+.thf-switches label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #304860;
+    font-weight: 600;
+    font-size: 0.86rem;
+}
+
+.thf-divider {
+    margin: 4px 0 0;
+    border-top: 1px solid #dbe2ec;
+    padding-top: 12px;
+}
+
+.thf-inline-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1.2fr auto;
+    gap: 8px;
+}
+
+.thf-inline-grid button,
+.thf-form button {
+    border: 1px solid #1e40af;
+    border-radius: 8px;
+    background: #1d4ed8;
+    color: #fff;
+    font-weight: 600;
+    padding: 9px 12px;
+    cursor: pointer;
+}
+
+@media (max-width: 900px) {
+    .thf-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .thf-inline-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .thf-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.thf-list-search {
+    display: flex;
+    gap: 8px;
+}
+
+.thf-list-search input {
+    min-width: 260px;
+    border: 1px solid #dbe2ec;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.thf-list-search button {
+    border: 1px solid #1e40af;
+    border-radius: 8px;
+    background: #1d4ed8;
+    color: #fff;
+    padding: 8px 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.thf-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    max-height: 50vh;
+    overflow: auto;
+}
+
+.thf-list-item {
+    border: 1px solid #dbe2ec;
+    border-radius: 10px;
+    padding: 10px;
+    background: #f8fbff;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: #304860;
+}
+
+.thf-list-item-btn {
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
+}
+
+.thf-selected {
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 1px #1d4ed8 inset;
+    background: #eff6ff;
+}
+
+.thf-view-layout {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 12px;
+}
+
+.thf-profile-card {
+    background: #ffffff;
+}
+
+.thf-profile-sheet {
+    border: 1px solid #cfd8e6;
+    border-radius: 14px;
+    padding: 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.thf-profile-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: center;
+    border-bottom: 2px solid #dbe2ec;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+}
+
+.thf-profile-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.thf-profile-logo {
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
+    background: #fff;
+    border: 1px solid #dbe2ec;
+    border-radius: 10px;
+    padding: 6px;
+}
+
+.thf-profile-header h2 {
+    margin: 0;
+    color: #0f2e4a;
+    font-size: 1.15rem;
+}
+
+.thf-profile-header p {
+    margin: 4px 0 2px;
+    color: #244866;
+    font-weight: 700;
+    font-size: 0.98rem;
+}
+
+.thf-profile-subline {
+    color: #5f738b;
+    font-size: 0.76rem;
+    letter-spacing: 0.01em;
+}
+
+.thf-profile-photo {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid #dbe2ec;
+    background: #fff;
+}
+
+.thf-profile-photo-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #5f738b;
+    font-size: 0.82rem;
+}
+
+.thf-profile-topmeta {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.thf-profile-topmeta > div {
+    border: 1px solid #dbe2ec;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.thf-profile-topmeta span {
+    color: #5f738b;
+    font-size: 0.72rem;
+}
+
+.thf-profile-topmeta strong {
+    color: #1a334f;
+    font-size: 0.83rem;
+}
+
+.thf-profile-section {
+    margin-top: 10px;
+}
+
+.thf-profile-section h3 {
+    margin: 0 0 8px;
+    color: #123a5e;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    background: #eaf2fb;
+    border: 1px solid #d8e5f6;
+    border-radius: 8px;
+    padding: 6px 8px;
+}
+
+.thf-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.thf-profile-grid > div {
+    border: 1px solid #d3deec;
+    border-radius: 8px;
+    padding: 8px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.thf-profile-grid span {
+    color: #5f738b;
+    font-size: 0.76rem;
+}
+
+.thf-profile-grid strong {
+    color: #1a334f;
+    font-size: 0.86rem;
+    font-weight: 700;
+    word-break: break-word;
+}
+
+.thf-profile-wide {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 1100px) {
+    .thf-view-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .thf-profile-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .thf-profile-topmeta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

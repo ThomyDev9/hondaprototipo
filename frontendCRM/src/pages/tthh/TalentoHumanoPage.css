@@ -28,6 +28,26 @@
     min-width: 260px;
 }
 
+.th-report-filter-row {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: end;
+}
+
+.th-report-filter-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: #334155;
+    font-size: 13px;
+}
+
+.th-report-filter-row input {
+    min-width: 180px;
+}
+
 .th-list {
     margin-top: 12px;
     display: flex;

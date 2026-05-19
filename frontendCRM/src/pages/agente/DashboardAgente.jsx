@@ -1,5 +1,7 @@
 import PropTypes from "prop-types";
+import { useMemo, useState } from "react";
 import { PageContainer } from "../../components/common";
+import Tabs from "../../components/common/Tabs";
 import AgentGestionForm from "./components/AgentGestionForm";
 import InboundHistoricoPanel from "./components/InboundHistoricoPanelV2";
 import RedesHistoricoPanel from "./components/RedesHistoricoPanel";
@@ -8,6 +10,7 @@ import OutMaquitaPage from "./OutMaquitaPage";
 import OutHondaPage from "./OutHondaPage";
 import useDashboardAgenteState from "./useDashboardAgente";
 import BaseCardSection from "./components/BaseCardSection";
+import HomeGlobalShortcuts from "./components/HomeGlobalShortcuts";
 import "./DashboardAgente.css";
 import {
     INBOUND_HISTORICO_MENU_ITEM_ID,
@@ -15,6 +18,7 @@ import {
 } from "../../components/AccordionMenu";
 import InboundNoRegistradasPage from "../supervisor/InboundNoRegistradasPage";
 import CorreccionesInboundPage from "../supervisor/CorreccionesInboundPage";
+import VaultAsesorPage from "./VaultAsesorPage";
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
 
@@ -105,6 +109,7 @@ export default function DashboardAgente({
         onChangeAgentPage,
         selectedImportId,
     });
+    const [homeBaseTab, setHomeBaseTab] = useState("activas");
 
     const getBaseCardKey = (card, index) =>
         `${card.campaignId || ""}-${card.importId || card.base || index}`;
@@ -170,13 +175,68 @@ export default function DashboardAgente({
 
     const showRegestionSection =
         loadingRegestionBaseCards || regestionBaseCards.length > 0;
-    const baseCardLayoutClass = `agent-base-card-layout${
-        showRegestionSection ? "" : " agent-base-card-layout--single"
-    }`;
+
+    const homeTabs = useMemo(() => {
+        const tabs = [
+            {
+                id: "accesos",
+                label: "Accesos redes",
+                content: <HomeGlobalShortcuts />,
+            },
+            {
+                id: "activas",
+                label: "Bases activas",
+                badge: Array.isArray(activeBaseCards)
+                    ? activeBaseCards.length
+                    : 0,
+                content: (
+                    <BaseCardSection
+                        title="Bases activas disponibles"
+                        loading={loadingActiveBaseCards}
+                        cards={activeBaseCards}
+                        emptyMessage="No hay bases activas disponibles."
+                        renderCard={renderActiveBaseCard}
+                        getKey={getBaseCardKey}
+                    />
+                ),
+            },
+        ];
+
+        if (showRegestionSection) {
+            tabs.push({
+                id: "regestion",
+                label: "Bases regestión",
+                badge: Array.isArray(regestionBaseCards)
+                    ? regestionBaseCards.length
+                    : 0,
+                content: (
+                    <BaseCardSection
+                        title="Bases regestión disponibles"
+                        loading={loadingRegestionBaseCards}
+                        cards={regestionBaseCards}
+                        emptyMessage="No hay bases regestión disponibles."
+                        renderCard={renderRegestionBaseCard}
+                        getKey={getBaseCardKey}
+                    />
+                ),
+            });
+        }
+
+        return tabs;
+    }, [
+        activeBaseCards,
+        loadingActiveBaseCards,
+        regestionBaseCards,
+        loadingRegestionBaseCards,
+        showRegestionSection,
+    ]);
     const shouldHideManualFormError =
         manualFlowActivo &&
-        String(categoryIdSeleccionada || "").trim() === INBOUND_MENU_CATEGORY_ID &&
-        String(error || "").toLowerCase().includes("formulario 2 activo");
+        String(categoryIdSeleccionada || "").trim() ===
+            INBOUND_MENU_CATEGORY_ID &&
+        String(error || "")
+            .toLowerCase()
+            .includes("formulario 2 activo");
     const isInboundHistoricoView =
         (String(selectedMenuItemId || "").trim() ===
             INBOUND_HISTORICO_MENU_ITEM_ID ||
@@ -215,71 +275,71 @@ export default function DashboardAgente({
         );
     }
 
+    if (agentPage === "vault-asesor") {
+        return (
+            <PageContainer fullWidth className="agent-page-container">
+                <VaultAsesorPage />
+            </PageContainer>
+        );
+    }
+
     return (
         <PageContainer fullWidth className="">
             <section className="">
-                    {!registro && !manualFlowActivo && isHomeView && (
-                        <div className={baseCardLayoutClass}>
-                            <BaseCardSection
-                                title="Bases activas disponibles"
-                                loading={loadingActiveBaseCards}
-                                cards={activeBaseCards}
-                                emptyMessage="No hay bases activas disponibles."
-                                renderCard={renderActiveBaseCard}
-                                getKey={getBaseCardKey}
-                            />
-                            {showRegestionSection && (
-                                <BaseCardSection
-                                    title="Bases regestion disponibles"
-                                    loading={loadingRegestionBaseCards}
-                                    cards={regestionBaseCards}
-                                    emptyMessage="No hay bases regestion disponibles."
-                                    renderCard={renderRegestionBaseCard}
-                                    getKey={getBaseCardKey}
-                                />
-                            )}
-                        </div>
-                    )}
+                {!registro && !manualFlowActivo && isHomeView && (
+                    <div className="agent-home-tabs-wrap">
+                        <Tabs
+                            tabs={homeTabs}
+                            activeTab={
+                                homeTabs.some((tab) => tab.id === homeBaseTab)
+                                    ? homeBaseTab
+                                    : "accesos"
+                            }
+                            onChange={setHomeBaseTab}
+                        />
+                    </div>
+                )}
 
-                    {error &&
-                        !shouldHideManualFormError &&
-                        !isInboundHistoricoView && (
+                {error &&
+                    !shouldHideManualFormError &&
+                    !isInboundHistoricoView && (
                         <p className="agent-error">{error}</p>
                     )}
 
-                    {loadingRegistro &&
-                        !manualFlowActivo &&
-                        !isHomeView &&
-                        !isInboundHistoricoView &&
-                        !isGestionOutbound && (
+                {loadingRegistro &&
+                    !manualFlowActivo &&
+                    !isHomeView &&
+                    !isInboundHistoricoView &&
+                    !isGestionOutbound && (
+                        <p className="agent-info-text">Asignando registro...</p>
+                    )}
+
+                {shouldShowQueueMessage &&
+                    !isHomeView &&
+                    !isInboundHistoricoView &&
+                    !isGestionOutbound && (
                         <p className="agent-info-text">
-                            Asignando registro...
+                            {estadoAgente === "Disponible"
+                                ? "No hay registros disponibles en tu cola en este momento."
+                                : 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'}
                         </p>
                     )}
 
-                    {shouldShowQueueMessage &&
-                        !isHomeView &&
-                        !isInboundHistoricoView &&
-                        !isGestionOutbound && (
-                            <p className="agent-info-text">
-                                {estadoAgente === "Disponible"
-                                    ? "No hay registros disponibles en tu cola en este momento."
-                                    : 'Estás en estado de pausa. Vuelve a "Disponible" para tomar registros.'}
-                            </p>
-                        )}
+                {isInboundHistoricoView &&
+                    (String(selectedMenuItemId || "").trim() ===
+                    REDES_HISTORICO_MENU_ITEM_ID ? (
+                        <RedesHistoricoPanel
+                            campaignId=""
+                            categoryId={selectedCategoryId || ""}
+                            menuItemId={selectedMenuItemId || ""}
+                        />
+                    ) : (
+                        <InboundHistoricoPanel campaignId="" />
+                    ))}
 
-                    {isInboundHistoricoView && (
-                        String(selectedMenuItemId || "").trim() ===
-                        REDES_HISTORICO_MENU_ITEM_ID ? (
-                            <RedesHistoricoPanel campaignId="" />
-                        ) : (
-                            <InboundHistoricoPanel campaignId="" />
-                        )
-                    )}
-
-                    {(registro || manualFlowActivo) &&
-                        !isHomeView &&
-                        !isInboundHistoricoView && (
+                {(registro || manualFlowActivo) &&
+                    !isHomeView &&
+                    !isInboundHistoricoView && (
                         <AgentGestionForm
                             registro={registro}
                             campaignId={
@@ -332,9 +392,7 @@ export default function DashboardAgente({
                             onInboundInteractionDetailChange={
                                 handleInboundInteractionDetailChange
                             }
-                            onAddInboundImageDraft={
-                                handleAddInboundImageDraft
-                            }
+                            onAddInboundImageDraft={handleAddInboundImageDraft}
                             onRemoveInboundImageDraft={
                                 handleRemoveInboundImageDraft
                             }
@@ -353,47 +411,45 @@ export default function DashboardAgente({
                             isSaving={isSavingGestion}
                         />
                     )}
-                    {isAgente &&
-                        !isHomeView &&
-                        isGestionOutbound &&
-                        (() => {
-                            const label = (
-                                campaignIdSeleccionada ||
-                                selectedCampaignId ||
-                                ""
-                            ).toLowerCase();
-                            const outboundKey = `${
-                                campaignIdSeleccionada ||
-                                selectedCampaignId ||
-                                ""
-                            }-${selectedCampaignTick || ""}`;
+                {isAgente &&
+                    !isHomeView &&
+                    isGestionOutbound &&
+                    (() => {
+                        const label = (
+                            campaignIdSeleccionada ||
+                            selectedCampaignId ||
+                            ""
+                        ).toLowerCase();
+                        const outboundKey = `${
+                            campaignIdSeleccionada || selectedCampaignId || ""
+                        }-${selectedCampaignTick || ""}`;
 
-                            if (
-                                [
-                                    "out cacpeco",
-                                    "out kullki wasi",
-                                    "out mutualista imbabura",
-                                ].some((l) => label.includes(l))
-                            ) {
-                                return (
-                                    <GestionOutboundDemo
-                                        key={outboundKey}
-                                        campaignName={
-                                            campaignIdSeleccionada ||
-                                            selectedCampaignId ||
-                                            ""
-                                        }
-                                    />
-                                );
-                            }
-                            if (label.includes("out maquita cushunchic")) {
-                                return <OutMaquitaPage key={outboundKey} />;
-                            }
-                            if (label.includes("out honda")) {
-                                return <OutHondaPage key={outboundKey} />;
-                            }
-                            return null;
-                        })()}   
+                        if (
+                            [
+                                "out cacpeco",
+                                "out kullki wasi",
+                                "out mutualista imbabura",
+                            ].some((l) => label.includes(l))
+                        ) {
+                            return (
+                                <GestionOutboundDemo
+                                    key={outboundKey}
+                                    campaignName={
+                                        campaignIdSeleccionada ||
+                                        selectedCampaignId ||
+                                        ""
+                                    }
+                                />
+                            );
+                        }
+                        if (label.includes("out maquita cushunchic")) {
+                            return <OutMaquitaPage key={outboundKey} />;
+                        }
+                        if (label.includes("out honda")) {
+                            return <OutHondaPage key={outboundKey} />;
+                        }
+                        return null;
+                    })()}
             </section>
         </PageContainer>
     );

@@ -910,3 +910,36 @@ export const createTicketComment = async (payload = {}) =>
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload || {}),
     });
+
+export const fetchCoopServices = ({
+    campaignId,
+    debug = false,
+    includeAllCredentials = false,
+}) =>
+    request(
+        `agente/coop-services?campaignId=${encodeURIComponent(
+            String(campaignId || "").trim(),
+        )}&debug=${debug ? "1" : "0"}&includeAllCredentials=${
+            includeAllCredentials ? "1" : "0"
+        }`,
+    );
+
+export const revealCoopCredential = ({ credentialId, action = "reveal" }) =>
+    request(
+        `agente/coop-services/credentials/${encodeURIComponent(String(credentialId || "").trim())}/reveal`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action }),
+        },
+    );
+
+export const saveMyCoopCredential = ({ resourceId, payload }) =>
+    request(
+        `agente/coop-services/${encodeURIComponent(String(resourceId || "").trim())}/my-credential`,
+        {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload || {}),
+        },
+    );

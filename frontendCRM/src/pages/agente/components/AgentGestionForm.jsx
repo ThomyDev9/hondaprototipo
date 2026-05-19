@@ -9,6 +9,7 @@ import AgentGestionPrimarySection from "./AgentGestionPrimarySection";
 import AgentGestionDynamicSection from "./AgentGestionDynamicSection";
 import AgentGestionSurveySection from "./AgentGestionSurveySection";
 import RedesVisionFundTicketSection from "./RedesVisionFundTicketSection";
+import InboundQuickResources from "./InboundQuickResources";
 import { buildCrmEmailDraft } from "../crmEmailDraft.helpers";
 import {
     buildDynamicFormRows,
@@ -848,6 +849,13 @@ function AgentGestionForm({
         : isInboundManualFlow
           ? manualInboundDisplayTitle
           : `Formulario 2 - ${dynamicFormConfig?.title || "Formulario 2"}`;
+    const inboundCampaignHints = [
+        campaignId,
+        campaignLabel,
+        dynamicFormAnswers?.__inbound_nombre_cliente_label,
+    ]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
 
     const handleOpenEmailComposer = () => {
         const draft = isRedesManualFlow
@@ -1614,16 +1622,22 @@ function AgentGestionForm({
                                     );
                                 })()}
                         </div>
-                        <InboundInteractionDetailsSection
-                            details={inboundInteractionDetails}
-                            levels={levels}
-                            onAdd={onAddInboundInteractionDetail}
-                            onRemove={onRemoveInboundInteractionDetail}
-                            onChange={onInboundInteractionDetailChange}
-                            mode={isRedesManualFlow ? "redes" : "inbound"}
-                        />
+                        <div className="agent-inbound-shell__column">
+                            <InboundInteractionDetailsSection
+                                details={inboundInteractionDetails}
+                                levels={levels}
+                                onAdd={onAddInboundInteractionDetail}
+                                onRemove={onRemoveInboundInteractionDetail}
+                                onChange={onInboundInteractionDetailChange}
+                                mode={isRedesManualFlow ? "redes" : "inbound"}
+                            />
+                        </div>
                     </div>
                 </section>
+            )}
+
+            {isInboundManualFlow && (
+                <InboundQuickResources campaignHints={inboundCampaignHints} />
             )}
 
             {isInboundManualFlow && shouldShowVisionFundInboundTicket && (
