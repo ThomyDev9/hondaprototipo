@@ -332,6 +332,44 @@ router.get("/coop-services", ...agenteMiddlewares, async (req, res) => {
                   campaignId,
                   ownerUserId: advisorUserId,
               });
+        const allCredentialRows = includeAllCredentials
+            ? rows
+            : await serviceResourcesDAO.listResources({
+                  campaignId,
+                  includeInactive: false,
+              });
+        const vmCredentialsByResource = new Map();
+
+        for (const row of allCredentialRows) {
+            if (
+                !row?.id ||
+                !row?.credential_id ||
+                String(row?.credential_kind || "app") !== "vm" ||
+                String(row?.scope_type || "global") !== "global" ||
+                Number(row?.credential_activo || 0) !== 1
+            ) {
+                continue;
+            }
+
+            const resourceId = Number(row.id);
+            if (!vmCredentialsByResource.has(resourceId)) {
+                vmCredentialsByResource.set(resourceId, []);
+            }
+
+            const currentList = vmCredentialsByResource.get(resourceId) || [];
+            const alreadyExists = currentList.some(
+                (item) =>
+                    Number(item?.id || 0) === Number(row.credential_id),
+            );
+            if (!alreadyExists) {
+                currentList.push({
+                    id: row.credential_id,
+                    alias: row.alias,
+                    scopeType: "global",
+                });
+            }
+            vmCredentialsByResource.set(resourceId, currentList);
+        }
         const grouped = new Map();
 
         for (const row of rows) {
@@ -352,6 +390,8 @@ router.get("/coop-services", ...agenteMiddlewares, async (req, res) => {
                         Number(row.requires_advisor_credential || 0) === 1,
                     appCredential: null,
                     vmCredential: null,
+                    vmCredentials:
+                        vmCredentialsByResource.get(Number(row.id)) || [],
                     credentials: [],
                 });
             }
@@ -374,14 +414,24 @@ router.get("/coop-services", ...agenteMiddlewares, async (req, res) => {
                     row.credential_id &&
                     String(row.credential_kind || "app") === "vm" &&
                     String(row.scope_type || "global") === "global" &&
-                    Number(row.credential_activo || 0) === 1 &&
-                    !grouped.get(row.id).vmCredential
+                    Number(row.credential_activo || 0) === 1
                 ) {
-                    grouped.get(row.id).vmCredential = {
+                    const nextVmCredential = {
                         id: row.credential_id,
                         alias: row.alias,
                         scopeType: "global",
                     };
+                    const currentVmCredentials = grouped.get(row.id).vmCredentials || [];
+                    const alreadyExists = currentVmCredentials.some(
+                        (item) => Number(item?.id || 0) === Number(nextVmCredential.id),
+                    );
+                    if (!alreadyExists) {
+                        currentVmCredentials.push(nextVmCredential);
+                    }
+                    grouped.get(row.id).vmCredentials = currentVmCredentials;
+                    if (!grouped.get(row.id).vmCredential) {
+                        grouped.get(row.id).vmCredential = nextVmCredential;
+                    }
                 }
             } else {
                 if (row.app_credential_id) {
@@ -396,11 +446,23 @@ router.get("/coop-services", ...agenteMiddlewares, async (req, res) => {
                     ];
                 }
                 if (row.vm_credential_id) {
-                    grouped.get(row.id).vmCredential = {
+                    const resolvedVmCredential = {
                         id: row.vm_credential_id,
                         alias: row.vm_alias,
                         scopeType: "global",
                     };
+                    grouped.get(row.id).vmCredential = resolvedVmCredential;
+                    const currentVmCredentials =
+                        grouped.get(row.id).vmCredentials || [];
+                    const alreadyExists = currentVmCredentials.some(
+                        (item) =>
+                            Number(item?.id || 0) ===
+                            Number(resolvedVmCredential.id),
+                    );
+                    if (!alreadyExists) {
+                        currentVmCredentials.unshift(resolvedVmCredential);
+                    }
+                    grouped.get(row.id).vmCredentials = currentVmCredentials;
                 }
             }
         }

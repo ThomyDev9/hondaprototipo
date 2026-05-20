@@ -72,17 +72,17 @@ router.get("/reports/crm-break.csv", ...tthhMiddlewares, async (req, res) => {
         const [rows] = await pool.query(
             `SELECT
                 Agent,
-                DATE(EstadoInicio) AS FechaBase,
-                MIN(EstadoInicio) AS HoraInicioSesion,
-                MAX(EstadoFin) AS HoraFinSesion,
-                SEC_TO_TIME(
+                DATE_FORMAT(DATE(EstadoInicio), '%Y-%m-%d') AS FechaBase,
+                DATE_FORMAT(MIN(EstadoInicio), '%H:%i:%s') AS HoraInicioSesion,
+                DATE_FORMAT(MAX(EstadoFin), '%H:%i:%s') AS HoraFinSesion,
+                TIME_FORMAT(SEC_TO_TIME(
                     TIMESTAMPDIFF(
                         SECOND,
                         MIN(EstadoInicio),
                         MAX(EstadoFin)
                     )
-                ) AS TiempoSesion,
-                SEC_TO_TIME(
+                ), '%H:%i:%s') AS TiempoSesion,
+                TIME_FORMAT(SEC_TO_TIME(
                     SUM(
                         CASE
                             WHEN LOWER(TRIM(Estado)) = 'break'
@@ -90,8 +90,8 @@ router.get("/reports/crm-break.csv", ...tthhMiddlewares, async (req, res) => {
                             ELSE 0
                         END
                     )
-                ) AS TiempoBreak,
-                SEC_TO_TIME(
+                ), '%H:%i:%s') AS TiempoBreak,
+                TIME_FORMAT(SEC_TO_TIME(
                     TIMESTAMPDIFF(SECOND, MIN(EstadoInicio), MAX(EstadoFin))
                     - SUM(
                         CASE
@@ -100,7 +100,7 @@ router.get("/reports/crm-break.csv", ...tthhMiddlewares, async (req, res) => {
                             ELSE 0
                         END
                     )
-                ) AS TiempoEfectivo
+                ), '%H:%i:%s') AS TiempoEfectivo
             FROM session_estado_log
             WHERE EstadoInicio IS NOT NULL
               AND EstadoFin IS NOT NULL

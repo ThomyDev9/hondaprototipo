@@ -92,6 +92,9 @@ export default function useDashboardAgenteState({
             file: null,
         },
     ]);
+    const [inboundValidationToast, setInboundValidationToast] = useState(null);
+    const [inboundFailedValidationAlertByIdentification, setInboundFailedValidationAlertByIdentification] =
+        useState({});
     const [isSavingGestion, setIsSavingGestion] = useState(false);
 
     const {
@@ -778,10 +781,11 @@ export default function useDashboardAgenteState({
             const nextValue = String(value ?? "");
             const isInboundIdentificationFieldForValidation =
                 manualFlowActivo &&
-                String(categoryIdSeleccionada || "").trim() ===
-                    INBOUND_MENU_CATEGORY_ID &&
                 fieldKey === "IDENTIFICACION" &&
-                !isRedesManualFlow;
+                !isRedesManualFlow &&
+                !esGestionOutbound(
+                    campaignIdSeleccionada || selectedCampaignId,
+                );
             const selectedIdentificationType = String(
                 dynamicFormAnswers?.__inbound_tipo_identificacion || "",
             )
@@ -831,9 +835,10 @@ export default function useDashboardAgenteState({
 
             const isInboundIdentificationField =
                 manualFlowActivo &&
-                String(categoryIdSeleccionada || "").trim() ===
-                    INBOUND_MENU_CATEGORY_ID &&
-                fieldKey === "IDENTIFICACION";
+                fieldKey === "IDENTIFICACION" &&
+                !esGestionOutbound(
+                    campaignIdSeleccionada || selectedCampaignId,
+                );
 
             if (!isInboundIdentificationField || isRedesManualFlow) {
                 return;
@@ -864,6 +869,33 @@ export default function useDashboardAgenteState({
                     String(selectedChild?.campaignId || "").trim() ||
                     String(campaignIdSeleccionada || "").trim(),
             });
+
+            const failedValidationToday = json?.validationNoExitosaHoy || null;
+            const shouldShowFailedValidationAlert =
+                /^\d{10}$/.test(identification) &&
+                Boolean(failedValidationToday) &&
+                !inboundFailedValidationAlertByIdentification[identification];
+
+            if (shouldShowFailedValidationAlert) {
+                setInboundValidationToast({
+                    title: "Validacion no exitosa hoy",
+                    campaignId: String(
+                        failedValidationToday?.campaignId || "-",
+                    ).trim(),
+                    identification: String(
+                        failedValidationToday?.identification || identification,
+                    ).trim(),
+                    fullName: String(failedValidationToday?.fullName || "-").trim(),
+                    celular: String(failedValidationToday?.celular || "-").trim(),
+                    observaciones: String(
+                        failedValidationToday?.observaciones || "",
+                    ).trim(),
+                });
+                setInboundFailedValidationAlertByIdentification((prev) => ({
+                    ...prev,
+                    [identification]: true,
+                }));
+            }
 
             if (status === 404 || !json?.data) {
                 return;
@@ -954,10 +986,12 @@ export default function useDashboardAgenteState({
             manualFlowActivo,
             menuItemIdSeleccionado,
             allowsManualInboundClientSelection,
+            selectedCampaignId,
             resolveInboundChildByQueue,
             setDynamicFormAnswers,
             setError,
             findDynamicFieldKeyByLabels,
+            inboundFailedValidationAlertByIdentification,
         ],
     );
 
@@ -1381,6 +1415,7 @@ export default function useDashboardAgenteState({
         inboundChildOptions,
         inboundInteractionDetails,
         inboundImageDrafts,
+        inboundValidationToast,
         isSavingGestion,
         allowsManualInboundClientSelection,
         shouldShowQueueMessage,
@@ -1399,6 +1434,7 @@ export default function useDashboardAgenteState({
         handleAddInboundImageDraft,
         handleRemoveInboundImageDraft,
         handleInboundImageDraftChange,
+        setInboundValidationToast,
         handleGuardarGestion,
         handleCancelarGestion,
         selectBaseCard,

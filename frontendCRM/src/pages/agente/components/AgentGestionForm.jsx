@@ -820,6 +820,8 @@ function AgentGestionForm({
     onAddInboundImageDraft,
     onRemoveInboundImageDraft,
     onInboundImageDraftChange,
+    inboundValidationToast,
+    onCloseInboundValidationToast,
     allowInboundClientManualSelection = false,
     onCancelarGestion,
     user,
@@ -1706,6 +1708,47 @@ function AgentGestionForm({
                     : ""
             }`}
         >
+            {inboundValidationToast && (
+                <aside
+                    className="agent-inbound-toast"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <div className="agent-inbound-toast__header">
+                        <strong>{inboundValidationToast.title}</strong>
+                        <button
+                            type="button"
+                            className="agent-inbound-toast__close"
+                            onClick={onCloseInboundValidationToast}
+                            aria-label="Cerrar notificacion"
+                        >
+                            x
+                        </button>
+                    </div>
+                    <p>
+                        Este usuario ya se comunico hoy y no paso la validacion
+                        de datos.
+                    </p>
+                    <p>
+                        <b>Campania:</b> {inboundValidationToast.campaignId || "-"}
+                    </p>
+                    <p>
+                        <b>Cedula:</b> {inboundValidationToast.identification || "-"}
+                    </p>
+                    <p>
+                        <b>Nombre:</b> {inboundValidationToast.fullName || "-"}
+                    </p>
+                    <p>
+                        <b>Celular:</b> {inboundValidationToast.celular || "-"}
+                    </p>
+                    {inboundValidationToast.observaciones && (
+                        <p>
+                            <b>Observaciones:</b>{" "}
+                            {inboundValidationToast.observaciones}
+                        </p>
+                    )}
+                </aside>
+            )}
             <AgentScriptTabs
                 scriptEntries={scriptEntries}
                 activeScriptKey={activeScriptKey}
@@ -1804,6 +1847,15 @@ AgentGestionForm.propTypes = {
     onAddInboundImageDraft: PropTypes.func,
     onRemoveInboundImageDraft: PropTypes.func,
     onInboundImageDraftChange: PropTypes.func,
+    inboundValidationToast: PropTypes.shape({
+        title: PropTypes.string,
+        campaignId: PropTypes.string,
+        identification: PropTypes.string,
+        fullName: PropTypes.string,
+        celular: PropTypes.string,
+        observaciones: PropTypes.string,
+    }),
+    onCloseInboundValidationToast: PropTypes.func,
     allowInboundClientManualSelection: PropTypes.bool,
     onCancelarGestion: PropTypes.func.isRequired,
     user: PropTypes.shape({

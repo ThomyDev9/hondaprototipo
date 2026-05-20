@@ -615,6 +615,61 @@ const GET_INBOUND_CLIENT_BY_IDENTIFICATION = `
   LIMIT 1
 `;
 
+const GET_INBOUND_TODAY_FAILED_DATA_VALIDATION_BY_IDENTIFICATION = `
+  SELECT
+    campaign_id,
+    identification,
+    full_name,
+    celular,
+    categorizacion,
+    result_level1,
+    result_level2,
+    observaciones,
+    tmstmp
+  FROM gestionfinal_inbound
+  WHERE TRIM(COALESCE(identification, '')) = TRIM(?)
+    AND REPLACE(
+      REPLACE(
+        REPLACE(
+          REPLACE(
+            REPLACE(UPPER(TRIM(COALESCE(result_level1, ''))), 'Á', 'A'),
+            'É',
+            'E'
+          ),
+          'Í',
+          'I'
+        ),
+        'Ó',
+        'O'
+      ),
+      'Ú',
+      'U'
+    ) = 'VALIDACION DE DATOS'
+    AND REPLACE(
+      REPLACE(
+        REPLACE(
+          REPLACE(
+            REPLACE(UPPER(TRIM(COALESCE(result_level2, ''))), 'Á', 'A'),
+            'É',
+            'E'
+          ),
+          'Í',
+          'I'
+        ),
+        'Ó',
+        'O'
+      ),
+      'Ú',
+      'U'
+    ) = 'NO EXITOSA'
+    AND (
+      DATE(tmstmp) = CURDATE()
+      OR DATE(CONVERT_TZ(tmstmp, '+00:00', '-05:00')) = DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '-05:00'))
+    )
+  ORDER BY tmstmp DESC
+  LIMIT 1
+`;
+
 const INSERT_INBOUND_CLIENT = `
   INSERT INTO clientes_inbound (
     contact_id,
@@ -2021,6 +2076,17 @@ export class AgenteDAO {
         const [rows] = await executor.query(GET_INBOUND_CLIENT_BY_IDENTIFICATION, [
             identification,
         ]);
+        return rows[0] || null;
+    }
+
+    async getInboundTodayFailedDataValidationByIdentification(
+        identification,
+        executor = this.pool,
+    ) {
+        const [rows] = await executor.query(
+            GET_INBOUND_TODAY_FAILED_DATA_VALIDATION_BY_IDENTIFICATION,
+            [identification],
+        );
         return rows[0] || null;
     }
 

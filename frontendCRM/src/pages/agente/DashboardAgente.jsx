@@ -72,6 +72,7 @@ export default function DashboardAgente({
         inboundChildOptions,
         inboundInteractionDetails,
         inboundImageDrafts,
+        inboundValidationToast,
         isSavingGestion,
         allowsManualInboundClientSelection,
         shouldShowQueueMessage,
@@ -90,6 +91,7 @@ export default function DashboardAgente({
         handleAddInboundImageDraft,
         handleRemoveInboundImageDraft,
         handleInboundImageDraftChange,
+        setInboundValidationToast,
         handleGuardarGestion,
         handleCancelarGestion,
         selectBaseCard,
@@ -398,6 +400,10 @@ export default function DashboardAgente({
                             }
                             onInboundImageDraftChange={
                                 handleInboundImageDraftChange
+                            }
+                            inboundValidationToast={inboundValidationToast}
+                            onCloseInboundValidationToast={() =>
+                                setInboundValidationToast(null)
                             }
                             onSurveyFieldChange={handleSurveyFieldChange}
                             onDynamicFormFieldChange={

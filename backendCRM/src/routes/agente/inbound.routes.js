@@ -897,6 +897,11 @@ export function registerInboundRoutes(
                     });
                 }
 
+                const failedDataValidationToday =
+                    await agenteDAO.getInboundTodayFailedDataValidationByIdentification(
+                        identification,
+                    );
+
                 const clientByCampaign = campaignId
                     ? await agenteDAO.getInboundClientByIdentificationAndCampaign(
                           identification,
@@ -912,6 +917,35 @@ export function registerInboundRoutes(
                 if (!client) {
                     return res.status(404).json({
                         error: "Cliente inbound no encontrado",
+                        validationNoExitosaHoy: failedDataValidationToday
+                            ? {
+                                  campaignId: String(
+                                      failedDataValidationToday.campaign_id || "",
+                                  ).trim(),
+                                  identification: String(
+                                      failedDataValidationToday.identification || "",
+                                  ).trim(),
+                                  fullName: String(
+                                      failedDataValidationToday.full_name || "",
+                                  ).trim(),
+                                  celular: String(
+                                      failedDataValidationToday.celular || "",
+                                  ).trim(),
+                                  categorizacion: String(
+                                      failedDataValidationToday.categorizacion || "",
+                                  ).trim(),
+                                  resultLevel1: String(
+                                      failedDataValidationToday.result_level1 || "",
+                                  ).trim(),
+                                  resultLevel2: String(
+                                      failedDataValidationToday.result_level2 || "",
+                                  ).trim(),
+                                  observaciones: String(
+                                      failedDataValidationToday.observaciones || "",
+                                  ).trim(),
+                                  tmstmp: failedDataValidationToday.tmstmp || null,
+                              }
+                            : null,
                     });
                 }
 
@@ -935,6 +969,35 @@ export function registerInboundRoutes(
                         tipoCanal: client.tipo_canal || "",
                         nombreClienteRef: client.nombre_cliente_ref || "",
                     },
+                    validationNoExitosaHoy: failedDataValidationToday
+                        ? {
+                              campaignId: String(
+                                  failedDataValidationToday.campaign_id || "",
+                              ).trim(),
+                              identification: String(
+                                  failedDataValidationToday.identification || "",
+                              ).trim(),
+                              fullName: String(
+                                  failedDataValidationToday.full_name || "",
+                              ).trim(),
+                              celular: String(
+                                  failedDataValidationToday.celular || "",
+                              ).trim(),
+                              categorizacion: String(
+                                  failedDataValidationToday.categorizacion || "",
+                              ).trim(),
+                              resultLevel1: String(
+                                  failedDataValidationToday.result_level1 || "",
+                              ).trim(),
+                              resultLevel2: String(
+                                  failedDataValidationToday.result_level2 || "",
+                              ).trim(),
+                              observaciones: String(
+                                  failedDataValidationToday.observaciones || "",
+                              ).trim(),
+                              tmstmp: failedDataValidationToday.tmstmp || null,
+                          }
+                        : null,
                 });
             } catch (err) {
                 console.error("Error en /agente/buscar-cliente-inbound:", err);

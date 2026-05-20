@@ -100,6 +100,11 @@ export default function HomeGlobalShortcuts() {
                         const credentials = Array.isArray(service?.credentials)
                             ? service.credentials
                             : [];
+                        const vmCredentials = Array.isArray(service?.vmCredentials)
+                            ? service.vmCredentials
+                            : service?.vmCredential
+                              ? [service.vmCredential]
+                              : [];
                         return (
                             <article
                                 className="agent-global-shortcuts__card"
@@ -206,6 +211,86 @@ export default function HomeGlobalShortcuts() {
                                 ) : (
                                     <small>Sin credencial global activa</small>
                                 )}
+
+                                {vmCredentials.length > 0 ? (
+                                    <div className="agent-global-shortcuts__vm-list">
+                                        <small className="agent-global-shortcuts__alias">
+                                            Credenciales VM
+                                        </small>
+                                        {vmCredentials.map((credential) => {
+                                            const details =
+                                                revealed[String(credential.id)] || {};
+                                            return (
+                                                <div
+                                                    className="agent-global-shortcuts__cred"
+                                                    key={`vm-${credential.id}`}
+                                                >
+                                                    <div className="agent-global-shortcuts__cred-row">
+                                                        <small className="agent-global-shortcuts__alias">
+                                                            {credential.alias || "VM"}
+                                                        </small>
+                                                        <div className="agent-global-shortcuts__actions agent-global-shortcuts__actions--inline">
+                                                            <button
+                                                                type="button"
+                                                                onClick={async () => {
+                                                                    const current =
+                                                                        (await reveal(
+                                                                            credential.id,
+                                                                        )) || details;
+                                                                    await copyText(
+                                                                        current?.username,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                Copiar usuario VM
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={async () => {
+                                                                    const current =
+                                                                        (await reveal(
+                                                                            credential.id,
+                                                                        )) || details;
+                                                                    await copyText(
+                                                                        current?.password,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                Copiar clave VM
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    reveal(
+                                                                        credential.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                Ver
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    hideCredential(
+                                                                        credential.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                Ocultar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    {details?.username ||
+                                                    details?.password ? (
+                                                        <div className="agent-global-shortcuts__inline-credentials">
+                                                            {`usuario VM: ${details.username || ""} | clave VM: ${details.password || ""}`}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : null}
                             </article>
                         );
                     })}

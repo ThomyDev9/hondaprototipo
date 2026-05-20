@@ -20,7 +20,11 @@ function normalizeLabel(value) {
 function matchCampaign(target, campaignId) {
     const left = normalizeLabel(target);
     const right = normalizeLabel(campaignId);
-    return left && right && (left === right || left.includes(right) || right.includes(left));
+    return (
+        left &&
+        right &&
+        (left === right || left.includes(right) || right.includes(left))
+    );
 }
 
 export default function InboundQuickResources({
@@ -54,17 +58,21 @@ export default function InboundQuickResources({
     );
 
     const activeService = useMemo(
-        () => items.find((item) => Number(item.id) === Number(activeServiceId)) || null,
+        () =>
+            items.find((item) => Number(item.id) === Number(activeServiceId)) ||
+            null,
         [items, activeServiceId],
     );
     const activeCredential = useMemo(
         () => (activeService?.credentials || [])[0] || null,
         [activeService],
     );
-    const activeVmCredential = useMemo(
-        () => activeService?.vmCredential || null,
-        [activeService],
-    );
+    const activeVmCredentials = useMemo(() => {
+        if (Array.isArray(activeService?.vmCredentials)) {
+            return activeService.vmCredentials;
+        }
+        return activeService?.vmCredential ? [activeService.vmCredential] : [];
+    }, [activeService]);
 
     useEffect(() => {
         let nextPosition = null;
@@ -91,7 +99,10 @@ export default function InboundQuickResources({
 
     useEffect(() => {
         if (!position) return;
-        localStorage.setItem(FLOAT_POSITION_STORAGE_KEY, JSON.stringify(position));
+        localStorage.setItem(
+            FLOAT_POSITION_STORAGE_KEY,
+            JSON.stringify(position),
+        );
     }, [position]);
 
     useEffect(() => {
@@ -119,11 +130,18 @@ export default function InboundQuickResources({
                 return;
             }
 
-            const railElement = wrapRef.current.querySelector(".inbound-float-rail");
-            const cardElement = wrapRef.current.querySelector(".inbound-float-card");
-            const railWidth = railElement?.getBoundingClientRect?.().width || 46;
-            const cardWidth = cardElement?.getBoundingClientRect?.().width || 430;
-            const availableRight = window.innerWidth - position.x - railWidth - 12;
+            const railElement = wrapRef.current.querySelector(
+                ".inbound-float-rail",
+            );
+            const cardElement = wrapRef.current.querySelector(
+                ".inbound-float-card",
+            );
+            const railWidth =
+                railElement?.getBoundingClientRect?.().width || 46;
+            const cardWidth =
+                cardElement?.getBoundingClientRect?.().width || 430;
+            const availableRight =
+                window.innerWidth - position.x - railWidth - 12;
             const availableLeft = position.x - 12;
 
             if (availableRight >= cardWidth) {
@@ -248,8 +266,7 @@ export default function InboundQuickResources({
                         );
                     if (allowGlobalOnEmpty && normalizedHints.length === 0) {
                         return (
-                            isGlobal &&
-                            Number(service?.homeShortcut || 0) === 1
+                            isGlobal && Number(service?.homeShortcut || 0) === 1
                         );
                     }
                     return inHints;
@@ -298,7 +315,10 @@ export default function InboundQuickResources({
         const key = String(credentialId || "");
         if (!key) return null;
 
-        const { ok, json } = await revealCoopCredential({ credentialId, action });
+        const { ok, json } = await revealCoopCredential({
+            credentialId,
+            action,
+        });
         if (!ok) {
             throw new Error(json?.error || "No se pudo leer credencial");
         }
@@ -312,11 +332,19 @@ export default function InboundQuickResources({
     };
 
     if (loading && items.length === 0) {
-        return <div className="inbound-float-rail inbound-float-rail--loading">Cargando...</div>;
+        return (
+            <div className="inbound-float-rail inbound-float-rail--loading">
+                Cargando...
+            </div>
+        );
     }
 
     if (error && items.length === 0) {
-        return <div className="inbound-float-rail inbound-float-rail--error">{error}</div>;
+        return (
+            <div className="inbound-float-rail inbound-float-rail--error">
+                {error}
+            </div>
+        );
     }
 
     if (!items.length) return null;
@@ -369,7 +397,9 @@ export default function InboundQuickResources({
                         key={service.id}
                         type="button"
                         className={`inbound-float-rail__item ${
-                            Number(activeServiceId) === Number(service.id) ? "is-active" : ""
+                            Number(activeServiceId) === Number(service.id)
+                                ? "is-active"
+                                : ""
                         }`}
                         onClick={() => {
                             setActiveServiceId(Number(service.id));
@@ -377,7 +407,9 @@ export default function InboundQuickResources({
                         }}
                         title={service.nombreServicio}
                     >
-                        {String(service.nombreServicio || "").slice(0, 2).toUpperCase()}
+                        {String(service.nombreServicio || "")
+                            .slice(0, 2)
+                            .toUpperCase()}
                     </button>
                 ))}
             </div>
@@ -405,31 +437,44 @@ export default function InboundQuickResources({
                         </button>
                     </div>
                     <div className="inbound-float-card__inline-row inbound-float-card__inline-row--url">
-                        <span className="inbound-float-card__section-title">URL:</span>
+                        <span className="inbound-float-card__section-title">
+                            URL:
+                        </span>
                         {activeService.url ? (
                             <div className="inbound-float-card__service-actions">
-                                <a href={activeService.url} target="_blank" rel="noreferrer">
+                                <a
+                                    href={activeService.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
                                     Abrir enlace
                                 </a>
                                 <button
                                     type="button"
-                                    onClick={async () => copyText(activeService.url)}
+                                    onClick={async () =>
+                                        copyText(activeService.url)
+                                    }
                                 >
                                     Copiar link
                                 </button>
                             </div>
                         ) : (
-                            <span className="inbound-float-card__muted">Sin URL</span>
+                            <span className="inbound-float-card__muted">
+                                Sin URL
+                            </span>
                         )}
                     </div>
 
                     <span className="inbound-float-card__section-title">
                         Credenciales
                     </span>
-                    {activeService?.requiresAdvisorCredential && !activeCredential ? (
+                    {activeService?.requiresAdvisorCredential &&
+                    !activeCredential ? (
                         <div className="inbound-float-card__notes">
                             <p>
-                                Este servicio usa credencial propia por asesor. Configúrala en el apartado "Vault de Credenciales".
+                                Este servicio usa credencial propia por asesor.
+                                Configúrala en el apartado "Vault de
+                                Credenciales".
                             </p>
                         </div>
                     ) : null}
@@ -438,10 +483,15 @@ export default function InboundQuickResources({
                         {(activeService.credentials || []).map((credential) => {
                             const key = String(credential.id);
                             const current = revealed[key] || {};
-                            const hasRevealed = Boolean(current.username || current.password);
+                            const hasRevealed = Boolean(
+                                current.username || current.password,
+                            );
 
                             return (
-                                <div key={credential.id} className="inbound-float-card__credential">
+                                <div
+                                    key={credential.id}
+                                    className="inbound-float-card__credential"
+                                >
                                     <div className="inbound-float-card__credential-head">
                                         <strong>{credential.alias}</strong>
                                         <small>
@@ -454,8 +504,13 @@ export default function InboundQuickResources({
                                         <button
                                             type="button"
                                             onClick={async () => {
-                                                const next = await handleReveal(credential.id, "copy");
-                                                await copyText(next?.username || "");
+                                                const next = await handleReveal(
+                                                    credential.id,
+                                                    "copy",
+                                                );
+                                                await copyText(
+                                                    next?.username || "",
+                                                );
                                             }}
                                         >
                                             Copiar usuario
@@ -463,8 +518,13 @@ export default function InboundQuickResources({
                                         <button
                                             type="button"
                                             onClick={async () => {
-                                                const next = await handleReveal(credential.id, "copy");
-                                                await copyText(next?.password || "");
+                                                const next = await handleReveal(
+                                                    credential.id,
+                                                    "copy",
+                                                );
+                                                await copyText(
+                                                    next?.password || "",
+                                                );
                                             }}
                                         >
                                             Copiar clave
@@ -472,7 +532,10 @@ export default function InboundQuickResources({
                                         <button
                                             type="button"
                                             onClick={async () => {
-                                                await handleReveal(credential.id, "reveal");
+                                                await handleReveal(
+                                                    credential.id,
+                                                    "reveal",
+                                                );
                                             }}
                                         >
                                             Ver
@@ -480,7 +543,7 @@ export default function InboundQuickResources({
                                     </div>
                                     {hasRevealed ? (
                                         <pre>
-{`usuario: ${current.username || ""}\nclave: ${current.password || ""}`}
+                                            {`usuario: ${current.username || ""}\nclave: ${current.password || ""}`}
                                         </pre>
                                     ) : null}
                                     {hasRevealed && current?.extra ? (
@@ -496,47 +559,90 @@ export default function InboundQuickResources({
                         })}
                     </div>
 
-                    {activeService?.requiresVirtualMachine || activeService?.vmCredential ? (
+                    {activeService?.requiresVirtualMachine ||
+                    activeVmCredentials.length > 0 ? (
                         <>
                             <span className="inbound-float-card__section-title">
                                 Acceso a máquina virtual
                             </span>
                             <div className="inbound-float-card__notes">
-                                {activeService?.vmCredential?.alias ? (
-                                    <p>
-                                        <strong>Alias VM:</strong>{" "}
-                                        {activeService.vmCredential.alias}
-                                    </p>
-                                ) : null}
                                 <p>
-                                    {String(activeService?.virtualMachineNotes || "").trim() ||
+                                    {String(
+                                        activeService?.virtualMachineNotes ||
+                                            "",
+                                    ).trim() ||
                                         "Este servicio requiere acceso por máquina virtual. Revisa las instrucciones del servicio."}
                                 </p>
-                                {activeService?.vmCredential ? (
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            await handleReveal(activeService.vmCredential.id, "reveal");
-                                        }}
-                                    >
-                                        Ver credencial VM global
-                                    </button>
-                                ) : null}
-                                {activeVmCredential ? (
-                                    (() => {
-                                        const vmData =
-                                            revealed[String(activeVmCredential.id)] || {};
-                                        const hasVmData = Boolean(
-                                            vmData?.username || vmData?.password,
-                                        );
-                                        if (!hasVmData) return null;
-                                        return (
-                                            <pre>
-{`usuario VM: ${vmData.username || ""}\nclave VM: ${vmData.password || ""}`}
-                                            </pre>
-                                        );
-                                    })()
-                                ) : null}
+                                {activeVmCredentials.map((vmCredential) => {
+                                    const vmData =
+                                        revealed[String(vmCredential.id)] || {};
+                                    const hasVmData = Boolean(
+                                        vmData?.username || vmData?.password,
+                                    );
+                                    return (
+                                        <div
+                                            key={`vm-${vmCredential.id}`}
+                                            className="inbound-float-card__credential"
+                                        >
+                                            {vmCredential?.alias ? (
+                                                <p>
+                                                    <strong>Alias VM:</strong>{" "}
+                                                    {vmCredential.alias}
+                                                </p>
+                                            ) : null}
+                                            <div className="inbound-float-card__actions">
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const next =
+                                                            await handleReveal(
+                                                                vmCredential.id,
+                                                                "copy",
+                                                            );
+                                                        await copyText(
+                                                            next?.username ||
+                                                                "",
+                                                        );
+                                                    }}
+                                                >
+                                                    Copiar usuario VM
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const next =
+                                                            await handleReveal(
+                                                                vmCredential.id,
+                                                                "copy",
+                                                            );
+                                                        await copyText(
+                                                            next?.password ||
+                                                                "",
+                                                        );
+                                                    }}
+                                                >
+                                                    Copiar clave VM
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        await handleReveal(
+                                                            vmCredential.id,
+                                                            "reveal",
+                                                        );
+                                                    }}
+                                                >
+                                                    Ver credencial
+                                                </button>
+                                            </div>
+                                            {hasVmData ? (
+                                                <pre>
+                                                    {`usuario VM: ${vmData.username || ""}\nclave VM: ${vmData.password || ""}`}
+                                                </pre>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </>
                     ) : null}
@@ -545,7 +651,10 @@ export default function InboundQuickResources({
                         Observaciones
                     </span>
                     <div className="inbound-float-card__notes">
-                        <p>{String(activeService.notas || "").trim() || "Sin observaciones"}</p>
+                        <p>
+                            {String(activeService.notas || "").trim() ||
+                                "Sin observaciones"}
+                        </p>
                     </div>
                 </aside>
             ) : null}
