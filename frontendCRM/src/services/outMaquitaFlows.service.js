@@ -8,6 +8,8 @@ export async function fetchOutMaquitaFlowData({
     flow = "mail",
     mode = "gestion",
     search = "",
+    startDate = "",
+    endDate = "",
     limit = 300,
 } = {}) {
     const base = String(API_BASE || "").replace(/\/+$/, "");
@@ -17,6 +19,12 @@ export async function fetchOutMaquitaFlowData({
     params.set("mode", String(mode || "").trim().toLowerCase());
     if (search) {
         params.set("search", String(search).trim());
+    }
+    if (startDate) {
+        params.set("startDate", String(startDate).trim());
+    }
+    if (endDate) {
+        params.set("endDate", String(endDate).trim());
     }
     params.set("limit", String(limit));
     const url = `${path}?${params.toString()}`;

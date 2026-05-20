@@ -1,5 +1,5 @@
 ﻿import PropTypes from "prop-types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
     fetchCoopServices,
     revealCoopCredential,
@@ -7,6 +7,7 @@ import {
 
 const CACHE_TTL_MS = 60 * 1000;
 const CACHE_KEY_PREFIX = "inbound_quick_resources::";
+const FLOAT_POSITION_STORAGE_KEY = "inbound_quick_resources_position_v1";
 
 function normalizeLabel(value) {
     return String(value || "")
@@ -32,6 +33,11 @@ export default function InboundQuickResources({
     const [revealed, setRevealed] = useState({});
     const [open, setOpen] = useState(false);
     const [activeServiceId, setActiveServiceId] = useState(0);
+    const [position, setPosition] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [renderCardOnLeft, setRenderCardOnLeft] = useState(false);
+    const dragOffsetRef = useRef({ x: 0, y: 0 });
+    const wrapRef = useRef(null);
 
     const normalizedHints = useMemo(() => {
         return campaignHints
@@ -59,6 +65,109 @@ export default function InboundQuickResources({
         () => activeService?.vmCredential || null,
         [activeService],
     );
+
+    useEffect(() => {
+        let nextPosition = null;
+        try {
+            const raw = localStorage.getItem(FLOAT_POSITION_STORAGE_KEY) || "";
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                const x = Number(parsed?.x);
+                const y = Number(parsed?.y);
+                if (Number.isFinite(x) && Number.isFinite(y)) {
+                    nextPosition = { x, y };
+                }
+            }
+        } catch {
+            nextPosition = null;
+        }
+
+        if (!nextPosition) {
+            const defaultX = Math.max(12, (window.innerWidth || 1366) - 500);
+            nextPosition = { x: defaultX, y: 108 };
+        }
+        setPosition(nextPosition);
+    }, []);
+
+    useEffect(() => {
+        if (!position) return;
+        localStorage.setItem(FLOAT_POSITION_STORAGE_KEY, JSON.stringify(position));
+    }, [position]);
+
+    useEffect(() => {
+        const clampInsideViewport = () => {
+            if (!wrapRef.current || !position) return;
+            const rect = wrapRef.current.getBoundingClientRect();
+            const maxX = Math.max(12, window.innerWidth - rect.width - 12);
+            const maxY = Math.max(12, window.innerHeight - rect.height - 12);
+            const clampedX = Math.min(maxX, Math.max(12, position.x));
+            const clampedY = Math.min(maxY, Math.max(12, position.y));
+            if (clampedX !== position.x || clampedY !== position.y) {
+                setPosition({ x: clampedX, y: clampedY });
+            }
+        };
+
+        clampInsideViewport();
+        window.addEventListener("resize", clampInsideViewport);
+        return () => window.removeEventListener("resize", clampInsideViewport);
+    }, [position]);
+
+    useEffect(() => {
+        const resolveCardSide = () => {
+            if (!wrapRef.current || !position || !open) {
+                setRenderCardOnLeft(false);
+                return;
+            }
+
+            const railElement = wrapRef.current.querySelector(".inbound-float-rail");
+            const cardElement = wrapRef.current.querySelector(".inbound-float-card");
+            const railWidth = railElement?.getBoundingClientRect?.().width || 46;
+            const cardWidth = cardElement?.getBoundingClientRect?.().width || 430;
+            const availableRight = window.innerWidth - position.x - railWidth - 12;
+            const availableLeft = position.x - 12;
+
+            if (availableRight >= cardWidth) {
+                setRenderCardOnLeft(false);
+                return;
+            }
+
+            if (availableLeft >= cardWidth) {
+                setRenderCardOnLeft(true);
+                return;
+            }
+
+            setRenderCardOnLeft(availableLeft > availableRight);
+        };
+
+        resolveCardSide();
+        window.addEventListener("resize", resolveCardSide);
+        return () => window.removeEventListener("resize", resolveCardSide);
+    }, [open, position, activeServiceId]);
+
+    useEffect(() => {
+        if (!isDragging) return undefined;
+
+        const handleMouseMove = (event) => {
+            if (!wrapRef.current) return;
+            const rect = wrapRef.current.getBoundingClientRect();
+            const nextX = event.clientX - dragOffsetRef.current.x;
+            const nextY = event.clientY - dragOffsetRef.current.y;
+            const maxX = Math.max(12, window.innerWidth - rect.width - 12);
+            const maxY = Math.max(12, window.innerHeight - rect.height - 12);
+            setPosition({
+                x: Math.min(maxX, Math.max(12, nextX)),
+                y: Math.min(maxY, Math.max(12, nextY)),
+            });
+        };
+
+        const handleMouseUp = () => setIsDragging(false);
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+        };
+    }, [isDragging]);
 
     useEffect(() => {
         let cancelled = false;
@@ -212,9 +321,40 @@ export default function InboundQuickResources({
 
     if (!items.length) return null;
 
+    const startDrag = (event) => {
+        if (!wrapRef.current || !position) return;
+        const rect = wrapRef.current.getBoundingClientRect();
+        dragOffsetRef.current = {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+        };
+        setIsDragging(true);
+    };
+
     return (
-        <div className="inbound-float-wrap">
-            <div className="inbound-float-rail">
+        <div
+            className={`inbound-float-wrap ${isDragging ? "is-dragging" : ""} ${
+                renderCardOnLeft ? "inbound-float-wrap--left-card" : ""
+            }`}
+            ref={wrapRef}
+            style={
+                position
+                    ? {
+                          left: `${position.x}px`,
+                          top: `${position.y}px`,
+                      }
+                    : undefined
+            }
+        >
+            <div
+                className="inbound-float-rail"
+                onMouseDown={(event) => {
+                    if (event.button !== 0) return;
+                    event.preventDefault();
+                    startDrag(event);
+                }}
+                title="Arrastra para mover"
+            >
                 <button
                     type="button"
                     className="inbound-float-rail__toggle"
@@ -244,7 +384,16 @@ export default function InboundQuickResources({
 
             {open && activeService ? (
                 <aside className="inbound-float-card">
-                    <div className="inbound-float-card__head">
+                    <div
+                        className="inbound-float-card__head"
+                        onMouseDown={(event) => {
+                            if (event.button !== 0) return;
+                            if (event.target?.closest?.("button")) return;
+                            event.preventDefault();
+                            startDrag(event);
+                        }}
+                        title="Arrastra para mover"
+                    >
                         <div className="inbound-float-card__inline-row">
                             <span className="inbound-float-card__section-title">
                                 Servicio:

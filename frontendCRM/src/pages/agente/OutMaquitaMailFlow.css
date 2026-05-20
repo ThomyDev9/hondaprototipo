@@ -177,6 +177,49 @@
     background: #f8fafc;
 }
 
+.outmaquita-mail__historico-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+    align-items: center;
+}
+
+.outmaquita-mail__historico-input {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 0.92rem;
+    color: #10213f;
+    background: #fff;
+}
+
+.outmaquita-mail__historico-input--search {
+    min-width: 280px;
+    flex: 1 1 320px;
+}
+
+.outmaquita-mail__historico-loading {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #1d4ed8;
+    background: #eaf2ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    padding: 6px 10px;
+}
+
+.outmaquita-mail__historico-clear-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #10213f;
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
 .outmaquita-mail__select-button {
     border: 1px solid #cbd5e1;
     background: #fff;

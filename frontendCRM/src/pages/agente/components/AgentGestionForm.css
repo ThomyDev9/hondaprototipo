@@ -955,12 +955,14 @@
 
 .inbound-float-wrap {
     position: fixed;
-    right: 14px;
+    left: calc(100vw - 500px);
     top: 108px;
     z-index: 1200;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.45rem;
+    display: block;
+}
+
+.inbound-float-wrap.is-dragging {
+    user-select: none;
 }
 
 .inbound-float-rail {
@@ -971,6 +973,11 @@
     border: 1px solid rgba(148, 163, 184, 0.35);
     border-radius: 999px;
     padding: 0.35rem 0.3rem;
+    cursor: grab;
+}
+
+.inbound-float-wrap.is-dragging .inbound-float-rail {
+    cursor: grabbing;
 }
 
 .inbound-float-rail__toggle,
@@ -992,6 +999,9 @@
 }
 
 .inbound-float-card {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 0.45rem);
     width: min(430px, 88vw);
     max-height: calc(100vh - 140px);
     overflow: auto;
@@ -1002,12 +1012,22 @@
     padding: 0.72rem;
 }
 
+.inbound-float-wrap.inbound-float-wrap--left-card .inbound-float-card {
+    left: auto;
+    right: calc(100% + 0.45rem);
+}
+
 .inbound-float-card__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.4rem;
     margin-bottom: 0.4rem;
+    cursor: grab;
+}
+
+.inbound-float-wrap.is-dragging .inbound-float-card__head {
+    cursor: grabbing;
 }
 
 .inbound-float-card__inline-row {

@@ -181,11 +181,24 @@ export default function OutMaquitaMailFlow({ onBack }) {
     const [registro, setRegistro] = React.useState(null);
     const [gestionRows, setGestionRows] = React.useState([]);
     const [regestionRows, setRegestionRows] = React.useState([]);
+    const [historicoRows, setHistoricoRows] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState("");
     const [successMessage, setSuccessMessage] = React.useState("");
     const [pdfUrl, setPdfUrl] = React.useState(null);
     const [mailDraft, setMailDraft] = React.useState({});
+    const [historicoSearch, setHistoricoSearch] = React.useState("");
+    const [historicoSearchDebounced, setHistoricoSearchDebounced] = React.useState("");
+    const [historicoStartDate, setHistoricoStartDate] = React.useState("");
+    const [historicoEndDate, setHistoricoEndDate] = React.useState("");
+    const [historicoLoading, setHistoricoLoading] = React.useState(false);
+
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            setHistoricoSearchDebounced(historicoSearch);
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [historicoSearch]);
 
     const activeFlowConfig = React.useMemo(
         () =>
@@ -194,6 +207,11 @@ export default function OutMaquitaMailFlow({ onBack }) {
                       title: "Regestion Leads Mail",
                       mode: "regestion",
                   }
+                : activeTab === "historico"
+                  ? {
+                        title: "Historico Gestiones Mail",
+                        mode: "historico",
+                    }
                 : {
                       title: "Gestion Leads Mail",
                       mode: "gestion",
@@ -218,14 +236,27 @@ export default function OutMaquitaMailFlow({ onBack }) {
         return fetchOutMaquitaFlowData({
             flow: "mail",
             mode: activeFlowConfig.mode,
+            search: activeTab === "historico" ? historicoSearchDebounced : "",
+            startDate: activeTab === "historico" ? historicoStartDate : "",
+            endDate: activeTab === "historico" ? historicoEndDate : "",
         });
-    }, [activeFlowConfig]);
+    }, [
+        activeFlowConfig,
+        activeTab,
+        historicoEndDate,
+        historicoSearchDebounced,
+        historicoStartDate,
+    ]);
 
     React.useEffect(() => {
         let mounted = true;
 
         async function loadInitialRow() {
-            setLoading(true);
+            if (activeTab === "historico") {
+                setHistoricoLoading(true);
+            } else {
+                setLoading(true);
+            }
             setError("");
             setSuccessMessage("");
 
@@ -236,13 +267,23 @@ export default function OutMaquitaMailFlow({ onBack }) {
 
                 if (activeTab === "regestion") {
                     setGestionRows([]);
+                    setHistoricoRows([]);
                     setRegestionRows(data);
+                    setRegistro(null);
+                    return;
+                }
+
+                if (activeTab === "historico") {
+                    setGestionRows([]);
+                    setRegestionRows([]);
+                    setHistoricoRows(data);
                     setRegistro(null);
                     return;
                 }
 
                 setGestionRows(data);
                 setRegestionRows([]);
+                setHistoricoRows([]);
                 setRegistro(null);
             } catch {
                 if (mounted) {
@@ -250,7 +291,11 @@ export default function OutMaquitaMailFlow({ onBack }) {
                 }
             } finally {
                 if (mounted) {
-                    setLoading(false);
+                    if (activeTab === "historico") {
+                        setHistoricoLoading(false);
+                    } else {
+                        setLoading(false);
+                    }
                 }
             }
         }
@@ -474,6 +519,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
 
     const showRegestionTable = activeTab === "regestion";
     const showGestionTable = activeTab === "gestion";
+    const showHistoricoTable = activeTab === "historico";
 
     const renderMailTable = (rows, title, emptyMessage) => (
         <div className="outmaquita-mail__regestion-card">
@@ -546,7 +592,105 @@ export default function OutMaquitaMailFlow({ onBack }) {
         </div>
     );
 
-    if (loading) {
+    const renderHistoricoTable = (rows) => (
+        <div className="outmaquita-mail__regestion-card">
+            <div className="outmaquita-mail__regestion-head">
+                <h2 className="outmaquita-mail__regestion-title">
+                    Historico de gestiones
+                </h2>
+                <span className="outmaquita-mail__regestion-count">
+                    {rows.length} registros
+                </span>
+            </div>
+            <div className="outmaquita-mail__historico-filters">
+                <input
+                    className="outmaquita-mail__historico-input"
+                    type="date"
+                    value={historicoStartDate}
+                    onChange={(event) => setHistoricoStartDate(event.target.value)}
+                />
+                <input
+                    className="outmaquita-mail__historico-input"
+                    type="date"
+                    value={historicoEndDate}
+                    onChange={(event) => setHistoricoEndDate(event.target.value)}
+                />
+                <input
+                    type="text"
+                    className="outmaquita-mail__historico-input outmaquita-mail__historico-input--search"
+                    placeholder="Buscar por cédula, teléfono o nombre"
+                    value={historicoSearch}
+                    onChange={(event) => setHistoricoSearch(event.target.value)}
+                />
+                <button
+                    type="button"
+                    className="outmaquita-mail__historico-clear-btn"
+                    onClick={() => {
+                        setHistoricoStartDate("");
+                        setHistoricoEndDate("");
+                        setHistoricoSearch("");
+                        setHistoricoSearchDebounced("");
+                    }}
+                >
+                    Limpiar filtros
+                </button>
+                {historicoLoading ? (
+                    <span className="outmaquita-mail__historico-loading">Buscando...</span>
+                ) : null}
+            </div>
+
+            {rows.length === 0 ? (
+                <div className="outmaquita-mail__empty-state">
+                    No hay gestiones historicas registradas.
+                </div>
+            ) : (
+                <div className="outmaquita-mail__table-wrapper">
+                    <table className="outmaquita-mail__table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Identificacion</th>
+                                <th>Cliente</th>
+                                <th>Motivo</th>
+                                <th>Submotivo</th>
+                                <th>Observacion</th>
+                                <th>Producto</th>
+                                <th>Observacion AGENTE MAQUITA</th>
+                                <th>PROCESO A REALIZAR</th>
+                                <th>Asesor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, index) => (
+                                <tr
+                                    key={`${String(row?.identification || "").trim()}-${String(
+                                        row?.fecha_gestion || "",
+                                    )}-${index}`}
+                                >
+                                    <td>
+                                        {String(row?.fecha_gestion || "")
+                                            .replace("T", " ")
+                                            .slice(0, 19)}
+                                    </td>
+                                    <td>{String(row?.identification || "").trim()}</td>
+                                    <td>{String(row?.full_name || "").trim()}</td>
+                                    <td>{String(row?.motivo_interaccion || "").trim()}</td>
+                                    <td>{String(row?.submotivo_interaccion || "").trim()}</td>
+                                    <td>{String(row?.observaciones || "").trim()}</td>
+                                    <td>{String(row?.producto || "").trim()}</td>
+                                    <td>{String(row?.observacion_agente_maquita || "").trim()}</td>
+                                    <td>{String(row?.proceso_a_realizar || "").trim()}</td>
+                                    <td>{String(row?.agent || "").trim()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+
+    if (loading && activeTab !== "historico") {
         return (
             <div className="outmaquita-mail__status">Cargando registros...</div>
         );
@@ -576,6 +720,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
                             tabs={[
                                 { id: "gestion", label: "Gestion", content: null },
                                 { id: "regestion", label: "Regestion", content: null },
+                                { id: "historico", label: "Historico", content: null },
                             ]}
                         />
                     </div>
@@ -800,6 +945,8 @@ export default function OutMaquitaMailFlow({ onBack }) {
                                 </div>
                             )}
                         </>
+                    ) : showHistoricoTable ? (
+                        renderHistoricoTable(historicoRows)
                     ) : null}
                 </section>
 
@@ -824,6 +971,7 @@ export default function OutMaquitaMailFlow({ onBack }) {
         </div>
     );
 }
+
 
 
 

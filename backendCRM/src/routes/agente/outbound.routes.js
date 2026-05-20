@@ -112,6 +112,8 @@ export function registerOutboundRoutes(
                     .trim()
                     .toLowerCase();
                 const search = String(req.query?.search || "").trim();
+                const startDate = String(req.query?.startDate || "").trim();
+                const endDate = String(req.query?.endDate || "").trim();
                 const limit = Math.min(
                     Math.max(Number(req.query?.limit || 300), 1),
                     1000,
@@ -123,9 +125,96 @@ export function registerOutboundRoutes(
                     });
                 }
 
-                if (!["gestion", "regestion"].includes(mode)) {
+                if (!["gestion", "regestion", "historico"].includes(mode)) {
                     return res.status(400).json({
-                        error: "mode debe ser 'gestion' o 'regestion'",
+                        error: "mode debe ser 'gestion', 'regestion' o 'historico'",
+                    });
+                }
+
+                const importIdByFlow =
+                    flow === "rrss" ? "OUTBOUND REDES" : "OUTBOUND MAIL";
+
+                if (mode === "historico") {
+                    const historicoWhere = [
+                        "TRIM(COALESCE(gf.CampaignId, '')) = ?",
+                        "TRIM(COALESCE(gf.ImportId, '')) IN ('OUTBOUND MAIL', 'OUTBOUND REDES')",
+                    ];
+                    const historicoParams = [OUT_MAQUITA_CAMPAIGN_ID];
+
+                    if (search) {
+                        historicoWhere.push(
+                            `(
+                                TRIM(COALESCE(gf.IDENTIFICACION, '')) LIKE ?
+                                OR
+                                TRIM(COALESCE(gf.ContactName, '')) LIKE ?
+                                OR TRIM(COALESCE(gf.ContactAddress, '')) LIKE ?
+                                OR TRIM(COALESCE(gf.Agent, '')) LIKE ?
+                                OR TRIM(COALESCE(gf.ResultLevel1, '')) LIKE ?
+                                OR TRIM(COALESCE(gf.ResultLevel2, '')) LIKE ?
+                                OR TRIM(COALESCE(gf.Observaciones, '')) LIKE ?
+                            )`,
+                        );
+                        historicoParams.push(
+                            `%${search}%`,
+                            `%${search}%`,
+                            `%${search}%`,
+                            `%${search}%`,
+                            `%${search}%`,
+                            `%${search}%`,
+                            `%${search}%`,
+                        );
+                    }
+
+                    if (startDate) {
+                        historicoWhere.push("DATE(gf.TmStmp) >= ?");
+                        historicoParams.push(startDate);
+                    }
+
+                    if (endDate) {
+                        historicoWhere.push("DATE(gf.TmStmp) <= ?");
+                        historicoParams.push(endDate);
+                    }
+
+                    const [historicoRows] = await pool.query(
+                        `
+                        SELECT
+                            TRIM(COALESCE(gf.IDENTIFICACION, '')) AS identification,
+                            TRIM(COALESCE(gf.ContactName, '')) AS full_name,
+                            TRIM(COALESCE(gf.ContactAddress, '')) AS celular,
+                            TRIM(COALESCE(gf.ImportId, '')) AS import_id,
+                            TRIM(COALESCE(gf.Agent, '')) AS agent,
+                            TRIM(COALESCE(gf.ResultLevel1, '')) AS motivo_interaccion,
+                            TRIM(COALESCE(gf.ResultLevel2, '')) AS submotivo_interaccion,
+                            TRIM(COALESCE(gf.Observaciones, '')) AS observaciones,
+                            TRIM(COALESCE(gf.ManagementResultCode, '')) AS management_result_code,
+                            TRIM(COALESCE(el.producto, '')) AS producto,
+                            TRIM(COALESCE(el.observacion_cooperativa, '')) AS observacion_agente_maquita,
+                            TRIM(COALESCE(el.proceso_a_realizar, '')) AS proceso_a_realizar,
+                            gf.TmStmp AS fecha_gestion
+                        FROM ${outboundSchema}.gestionfinal_outbound gf
+                        LEFT JOIN external_leads el
+                          ON TRIM(COALESCE(el.identification, '')) = TRIM(COALESCE(gf.IDENTIFICACION, ''))
+                         AND LOWER(COALESCE(el.source_provider, '')) = 'maquita'
+                         AND LOWER(COALESCE(el.source_channel, '')) = ?
+                         AND el.id = (
+                            SELECT el2.id
+                            FROM external_leads el2
+                            WHERE TRIM(COALESCE(el2.identification, '')) = TRIM(COALESCE(gf.IDENTIFICACION, ''))
+                              AND LOWER(COALESCE(el2.source_provider, '')) = 'maquita'
+                              AND LOWER(COALESCE(el2.source_channel, '')) = ?
+                            ORDER BY el2.updated_at DESC, el2.id DESC
+                            LIMIT 1
+                         )
+                        WHERE ${historicoWhere.join(" AND ")}
+                        ORDER BY gf.TmStmp DESC
+                        LIMIT ?
+                        `,
+                        [flow, flow, ...historicoParams, limit],
+                    );
+
+                    return res.json({
+                        success: true,
+                        data: historicoRows || [],
                     });
                 }
 
@@ -182,8 +271,6 @@ export function registerOutboundRoutes(
                 );
 
                 let filteredRows = rows || [];
-                const importIdByFlow =
-                    flow === "rrss" ? "OUTBOUND REDES" : "OUTBOUND MAIL";
                 const managedRowsByIdentification = new Set();
                 const managedRowsAnyFlowByIdentification = new Set();
                 if (filteredRows.length > 0) {

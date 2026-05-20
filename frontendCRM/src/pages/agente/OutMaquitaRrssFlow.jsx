@@ -232,11 +232,25 @@ export default function OutMaquitaRrssFlow({ onBack }) {
     const [registro, setRegistro] = React.useState(null);
     const [gestionRows, setGestionRows] = React.useState([]);
     const [regestionRows, setRegestionRows] = React.useState([]);
+    const [historicoRows, setHistoricoRows] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState("");
     const [successMessage, setSuccessMessage] = React.useState("");
     const [rrssDraft, setRrssDraft] = React.useState({});
+    const [historicoSearch, setHistoricoSearch] = React.useState("");
+    const [historicoSearchDebounced, setHistoricoSearchDebounced] = React.useState("");
+    const [historicoStartDate, setHistoricoStartDate] = React.useState("");
+    const [historicoEndDate, setHistoricoEndDate] = React.useState("");
+    const [historicoLoading, setHistoricoLoading] = React.useState(false);
     const isRegestionTab = activeTab === "regestion";
+    const isHistoricoTab = activeTab === "historico";
+
+    React.useEffect(() => {
+        const timer = setTimeout(() => {
+            setHistoricoSearchDebounced(historicoSearch);
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [historicoSearch]);
 
     React.useEffect(() => {
         async function fetchTipos() {
@@ -254,15 +268,32 @@ export default function OutMaquitaRrssFlow({ onBack }) {
     const loadFlowRows = React.useCallback(async () => {
         return fetchOutMaquitaFlowData({
             flow: "rrss",
-            mode: isRegestionTab ? "regestion" : "gestion",
+            mode: isHistoricoTab
+                ? "historico"
+                : isRegestionTab
+                  ? "regestion"
+                  : "gestion",
+            search: isHistoricoTab ? historicoSearchDebounced : "",
+            startDate: isHistoricoTab ? historicoStartDate : "",
+            endDate: isHistoricoTab ? historicoEndDate : "",
         });
-    }, [isRegestionTab]);
+    }, [
+        historicoEndDate,
+        historicoSearchDebounced,
+        historicoStartDate,
+        isHistoricoTab,
+        isRegestionTab,
+    ]);
 
     React.useEffect(() => {
         let mounted = true;
 
         async function loadInitialRow() {
-            setLoading(true);
+            if (isHistoricoTab) {
+                setHistoricoLoading(true);
+            } else {
+                setLoading(true);
+            }
             setError("");
             setSuccessMessage("");
 
@@ -273,11 +304,18 @@ export default function OutMaquitaRrssFlow({ onBack }) {
 
                 if (isRegestionTab) {
                     setGestionRows([]);
+                    setHistoricoRows([]);
                     setRegestionRows(data);
+                    setRegistro(null);
+                } else if (isHistoricoTab) {
+                    setGestionRows([]);
+                    setRegestionRows([]);
+                    setHistoricoRows(data);
                     setRegistro(null);
                 } else {
                     setGestionRows(data);
                     setRegestionRows([]);
+                    setHistoricoRows([]);
                     setRegistro(null);
                 }
             } catch {
@@ -286,7 +324,11 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                 }
             } finally {
                 if (mounted) {
-                    setLoading(false);
+                    if (isHistoricoTab) {
+                        setHistoricoLoading(false);
+                    } else {
+                        setLoading(false);
+                    }
                 }
             }
         }
@@ -296,7 +338,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
         return () => {
             mounted = false;
         };
-    }, [isRegestionTab, loadFlowRows]);
+    }, [isHistoricoTab, isRegestionTab, loadFlowRows]);
 
     React.useEffect(() => {
         if (registro) {
@@ -750,7 +792,106 @@ export default function OutMaquitaRrssFlow({ onBack }) {
             </div>
         );
 
-    if (loading) {
+    const renderHistoricoContent = () => (
+        <div className="outmaquita-rrss__tab-panel">
+            <div className="outmaquita-rrss__regestion-card">
+                <div className="outmaquita-rrss__regestion-head">
+                    <h2 className="outmaquita-rrss__section-title">
+                        Historico de gestiones
+                    </h2>
+                    <span className="outmaquita-rrss__regestion-count">
+                        {historicoRows.length} registros
+                    </span>
+                </div>
+                <div className="outmaquita-rrss__historico-filters">
+                    <input
+                        className="outmaquita-rrss__historico-input"
+                        type="date"
+                        value={historicoStartDate}
+                        onChange={(event) => setHistoricoStartDate(event.target.value)}
+                    />
+                    <input
+                        className="outmaquita-rrss__historico-input"
+                        type="date"
+                        value={historicoEndDate}
+                        onChange={(event) => setHistoricoEndDate(event.target.value)}
+                    />
+                    <input
+                        type="text"
+                        className="outmaquita-rrss__historico-input outmaquita-rrss__historico-input--search"
+                        placeholder="Buscar por cédula, teléfono o nombre"
+                        value={historicoSearch}
+                        onChange={(event) => setHistoricoSearch(event.target.value)}
+                    />
+                    <button
+                        type="button"
+                        className="outmaquita-rrss__historico-clear-btn"
+                        onClick={() => {
+                            setHistoricoStartDate("");
+                            setHistoricoEndDate("");
+                            setHistoricoSearch("");
+                            setHistoricoSearchDebounced("");
+                        }}
+                    >
+                        Limpiar filtros
+                    </button>
+                    {historicoLoading ? (
+                        <span className="outmaquita-rrss__historico-loading">Buscando...</span>
+                    ) : null}
+                </div>
+                {historicoRows.length === 0 ? (
+                    <div className="outmaquita-rrss__empty-state">
+                        No hay gestiones historicas registradas.
+                    </div>
+                ) : (
+                    <div className="outmaquita-rrss__table-wrapper">
+                        <table className="outmaquita-rrss__table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Identificacion</th>
+                                    <th>Cliente</th>
+                                    <th>Motivo</th>
+                                    <th>Submotivo</th>
+                                    <th>Observacion</th>
+                                    <th>Producto</th>
+                                    <th>Observacion AGENTE MAQUITA</th>
+                                    <th>PROCESO A REALIZAR</th>
+                                    <th>Asesor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {historicoRows.map((row, index) => (
+                                    <tr
+                                        key={`${String(row?.identification || "").trim()}-${String(
+                                            row?.fecha_gestion || "",
+                                        )}-${index}`}
+                                    >
+                                        <td>
+                                            {String(row?.fecha_gestion || "")
+                                                .replace("T", " ")
+                                                .slice(0, 19)}
+                                        </td>
+                                        <td>{String(row?.identification || "").trim()}</td>
+                                        <td>{String(row?.full_name || "").trim()}</td>
+                                        <td>{String(row?.motivo_interaccion || "").trim()}</td>
+                                        <td>{String(row?.submotivo_interaccion || "").trim()}</td>
+                                        <td>{String(row?.observaciones || "").trim()}</td>
+                                        <td>{String(row?.producto || "").trim()}</td>
+                                        <td>{String(row?.observacion_agente_maquita || "").trim()}</td>
+                                        <td>{String(row?.proceso_a_realizar || "").trim()}</td>
+                                        <td>{String(row?.agent || "").trim()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    if (loading && !isHistoricoTab) {
         return (
             <div className="outmaquita-rrss__status">Cargando registros...</div>
         );
@@ -797,6 +938,11 @@ export default function OutMaquitaRrssFlow({ onBack }) {
                                 label: "Regestion",
                                 content: renderRegestionContent(),
                             },
+                            {
+                                id: "historico",
+                                label: "Historico",
+                                content: renderHistoricoContent(),
+                            },
                         ]}
                     />
                 </div>
@@ -804,6 +950,7 @@ export default function OutMaquitaRrssFlow({ onBack }) {
         </div>
     );
 }
+
 
 
 
