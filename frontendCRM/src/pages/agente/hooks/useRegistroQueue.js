@@ -24,6 +24,7 @@ import {
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+const INBOUND_ROOT_MENU_ITEM_ID = "8a90ebfe-2c82-11f1-b790-000c2904c92f";
 const REDES_PARENT_MENU_ITEM_ID = "b3d8324e-2c69-11f1-b790-000c2904c92f";
 const REDES_SHARED_LABEL = "gestion redes";
 const INBOUND_SPECIAL_FIELDS = [
@@ -41,6 +42,19 @@ const INBOUND_SPECIAL_FIELDS = [
     "__redes_estado_conversacion",
     "__redes_tipo_red_social",
 ];
+const INBOUND_DEBUG =
+    String(import.meta.env.VITE_INBOUND_DEBUG || "1").trim() === "1";
+
+function inboundDebugLog(event, payload = {}) {
+    if (!INBOUND_DEBUG) return;
+    try {
+        console.info(
+            `[INBOUND_DEBUG][useRegistroQueue] ${event} ${JSON.stringify(payload)}`,
+        );
+    } catch {
+        // no-op
+    }
+}
 
 function normalizeFlowLabel(value) {
     return String(value || "")
@@ -48,6 +62,14 @@ function normalizeFlowLabel(value) {
         .replace(/[\u0300-\u036f]/g, "")
         .trim()
         .toLowerCase();
+}
+
+function isFollowupInboundFlowLabel(value) {
+    const normalized = normalizeFlowLabel(value);
+    return (
+        normalized === "seguimiento inbound" ||
+        normalized.includes("seguimiento inbound")
+    );
 }
 
 function isGestionRedesFlow({ menuItemId = "", campaignId = "" }) {
@@ -94,6 +116,17 @@ function resolveInboundQueueChildMatch({
     selectedCampaignLabel = "",
 }) {
     const matches = findInboundChildrenByQueue(options, activeQueueValue);
+    inboundDebugLog("resolveInboundQueueChildMatch:start", {
+        activeQueueValue,
+        matches: matches.map((item) => ({
+            menuItemId: item?.menuItemId,
+            label: item?.label,
+            campaignId: item?.campaignId,
+            inboundQueue: item?.inboundQueue,
+        })),
+        preferredMenuItemId,
+        selectedCampaignLabel,
+    });
     if (matches.length === 0) return null;
     if (matches.length === 1) return matches[0];
 
@@ -102,22 +135,48 @@ function resolveInboundQueueChildMatch({
         const preferredMatch = matches.find(
             (item) => String(item?.menuItemId || "").trim() === preferred,
         );
-        if (preferredMatch) return preferredMatch;
+        if (preferredMatch) {
+            inboundDebugLog("resolveInboundQueueChildMatch:preferred-match", {
+                preferredMenuItemId: preferred,
+                selected: preferredMatch,
+            });
+            return preferredMatch;
+        }
+    }
+
+    const inboundDefaultMatch = matches.find((item) => {
+        const label = normalizeFlowLabel(item?.label || item?.campaignId || "");
+        return (
+            label === "gestion inbound" ||
+            label === "gestion inbound manual" ||
+            label.includes("gestion inbound")
+        );
+    });
+    if (inboundDefaultMatch) {
+        inboundDebugLog("resolveInboundQueueChildMatch:inbound-default", {
+            selected: inboundDefaultMatch,
+        });
+        return inboundDefaultMatch;
     }
 
     const normalizedCampaignLabel = normalizeFlowLabel(selectedCampaignLabel);
     if (normalizedCampaignLabel) {
         const labelMatch = matches.find((item) => {
             const label = normalizeFlowLabel(item?.label || item?.campaignId || "");
-            return (
-                label === normalizedCampaignLabel ||
-                label.includes(normalizedCampaignLabel) ||
-                normalizedCampaignLabel.includes(label)
-            );
+            return label === normalizedCampaignLabel;
         });
-        if (labelMatch) return labelMatch;
+        if (labelMatch) {
+            inboundDebugLog("resolveInboundQueueChildMatch:campaign-exact", {
+                selectedCampaignLabel,
+                selected: labelMatch,
+            });
+            return labelMatch;
+        }
     }
 
+    inboundDebugLog("resolveInboundQueueChildMatch:no-selection", {
+        reason: "ambiguous_matches_without_safe_rule",
+    });
     return null;
 }
 
@@ -158,10 +217,17 @@ export default function useRegistroQueue({
     const [inboundChildOptions, setInboundChildOptions] = useState([]);
     const [estadoAgente, setEstadoAgente] = useState("");
     const [observacion, setObservacion] = useState("");
+    const isFollowupInboundFlowEffective = Boolean(
+        selectedFollowupInboundManual ||
+            isFollowupInboundFlowLabel(selectedCampaignLabel) ||
+            isFollowupInboundFlowLabel(selectedCampaignId),
+    );
 
     const lastActivityRef = useRef(Date.now());
     const initialCampaignTickRef = useRef(selectedCampaignTick || 0);
     const dynamicFormAnswersRef = useRef({});
+    const inboundManualLoadInFlightRef = useRef(false);
+    const lastInboundAutoRouteCallRef = useRef("");
 
     useEffect(() => {
         dynamicFormAnswersRef.current = dynamicFormAnswers;
@@ -407,6 +473,11 @@ export default function useRegistroQueue({
                 });
                 return;
             }
+
+            // Sincroniza el contexto visual/funcional del flujo manual inbound
+            // con el hijo resuelto por cola para evitar que quede "pegado" al padre previo.
+            setCampaignIdSeleccionada(normalizedChildCampaignId);
+            setMenuItemIdSeleccionado(normalizedChildMenuItemId);
 
             setLoadingRegistro(true);
             const loadPromise = preserveCurrentTemplate
@@ -677,9 +748,49 @@ export default function useRegistroQueue({
                 menuItemId: selectedMenuItemId,
                 campaignId: selectedCampaignId,
             });
-        setCampaignIdSeleccionada(selectedCampaignId);
-        setMenuItemIdSeleccionado(selectedMenuItemId || "");
-        setCategoryIdSeleccionada(selectedCategoryId || "");
+        const isInboundManualFlow =
+            Boolean(selectedManualFlow) &&
+            String(selectedCategoryId || "").trim() === INBOUND_MENU_CATEGORY_ID &&
+            !isRedesManualFlow;
+        const isInboundManualAutoRouteMode =
+            isInboundManualFlow &&
+            String(selectedMenuItemId || "").trim() === INBOUND_ROOT_MENU_ITEM_ID &&
+            !selectedSecureInboundManual &&
+            !selectedFollowupInboundManual;
+        const resolvedInboundChildMenuItemId = String(
+            dynamicFormAnswersRef.current?.__inbound_nombre_cliente || "",
+        ).trim();
+        const shouldPreserveResolvedInboundContext =
+            isInboundManualFlow &&
+            String(selectedMenuItemId || "").trim() ===
+                INBOUND_ROOT_MENU_ITEM_ID &&
+            Boolean(resolvedInboundChildMenuItemId) &&
+            !selectedSecureInboundManual &&
+            !isFollowupInboundFlowEffective;
+
+        if (!shouldPreserveResolvedInboundContext) {
+            if (isInboundManualAutoRouteMode) {
+                // Evita mostrar primero el contexto padre ("Gestion Inbound")
+                // y luego saltar al hijo. Se resolvera por cola y se aplicara directo.
+                setCampaignIdSeleccionada("");
+                setMenuItemIdSeleccionado("");
+                setCategoryIdSeleccionada(selectedCategoryId || "");
+            } else {
+                setCampaignIdSeleccionada(selectedCampaignId);
+                setMenuItemIdSeleccionado(selectedMenuItemId || "");
+                setCategoryIdSeleccionada(selectedCategoryId || "");
+            }
+        } else {
+            inboundDebugLog("preserve-resolved-inbound-context", {
+                selectedCampaignId,
+                selectedMenuItemId,
+                selectedCategoryId,
+                resolvedInboundChildMenuItemId,
+                currentCampaignIdSeleccionada: campaignIdSeleccionada,
+                currentMenuItemIdSeleccionado: menuItemIdSeleccionado,
+                currentCategoryIdSeleccionada: categoryIdSeleccionada,
+            });
+        }
         setManualFlowActivo(Boolean(selectedManualFlow));
         if (isInboundHistoricoView) {
             setImportIdSeleccionada("");
@@ -701,26 +812,72 @@ export default function useRegistroQueue({
             setTelefonos([]);
             setEstadoTelefonos([]);
         } else if (selectedManualFlow) {
+            if (inboundManualLoadInFlightRef.current) {
+                inboundDebugLog("manualFlow:skip-duplicate-load", {
+                    reason: "load_in_flight",
+                    selectedCampaignId,
+                    selectedMenuItemId,
+                    selectedCategoryId,
+                });
+                return;
+            }
+            inboundManualLoadInFlightRef.current = true;
             setLoadingRegistro(true);
             setImportIdSeleccionada("");
             setRegistro(null);
             setObservacion("");
+            const isInboundManualAutoRouteMode =
+                String(selectedCategoryId || "").trim() ===
+                    INBOUND_MENU_CATEGORY_ID &&
+                String(selectedMenuItemId || "").trim() ===
+                    INBOUND_ROOT_MENU_ITEM_ID &&
+                !selectedSecureInboundManual &&
+                !isFollowupInboundFlowEffective &&
+                !isRedesManualFlow;
+            if (isInboundManualAutoRouteMode) {
+                // Limpia el cliente previo para evitar saltos visuales entre llamadas.
+                setDynamicFormAnswers((prev) => ({
+                    ...prev,
+                    __inbound_nombre_cliente: "",
+                    __inbound_nombre_cliente_label: "",
+                }));
+            }
             const loadManualFlow = async () => {
-                const childData = await loadInboundChildOptions({
-                    categoryId: selectedCategoryId || "",
-                    menuItemId: selectedMenuItemId || "",
-                    campaignId: selectedCampaignId || "",
-                });
+                const effectiveCampaignId = shouldPreserveResolvedInboundContext
+                    ? campaignIdSeleccionada || selectedCampaignId || ""
+                    : selectedCampaignId || "";
+                const effectiveMenuItemId = shouldPreserveResolvedInboundContext
+                    ? menuItemIdSeleccionado || selectedMenuItemId || ""
+                    : selectedMenuItemId || "";
+                const effectiveCategoryId = shouldPreserveResolvedInboundContext
+                    ? categoryIdSeleccionada || selectedCategoryId || ""
+                    : selectedCategoryId || "";
 
-                await loadTemplatesAndCatalogs({
-                    campaignId: selectedCampaignId,
-                    menuItemId: selectedMenuItemId || "",
-                    categoryId: selectedCategoryId || "",
-                    contactId: "",
-                    detail: null,
+                const childData = await loadInboundChildOptions({
+                    categoryId: effectiveCategoryId,
+                    menuItemId: effectiveMenuItemId,
+                    campaignId: effectiveCampaignId,
+                });
+                inboundDebugLog("manualFlow:child-options-loaded", {
+                    selectedCampaignId: effectiveCampaignId,
+                    selectedMenuItemId: effectiveMenuItemId,
+                    selectedCategoryId: effectiveCategoryId,
+                    options: (childData?.options || []).map((item) => ({
+                        menuItemId: item?.menuItemId,
+                        label: item?.label,
+                        campaignId: item?.campaignId,
+                        inboundQueue: item?.inboundQueue,
+                    })),
                 });
 
                 if (isRedesManualFlow) {
+                    await loadTemplatesAndCatalogs({
+                        campaignId: effectiveCampaignId,
+                        menuItemId: effectiveMenuItemId,
+                        categoryId: effectiveCategoryId,
+                        contactId: "",
+                        detail: null,
+                    });
                     const today = getTodayLocalDate();
                     setDynamicFormAnswers((prev) => ({
                         ...prev,
@@ -743,19 +900,29 @@ export default function useRegistroQueue({
                     return;
                 }
 
-                if (selectedSecureInboundManual || selectedFollowupInboundManual) {
-                    setDynamicFormAnswers((prev) => ({
-                        ...prev,
-                        __inbound_nombre_cliente: "",
-                        __inbound_nombre_cliente_label: "",
-                    }));
+                if (selectedSecureInboundManual || isFollowupInboundFlowEffective) {
+                    await loadTemplatesAndCatalogs({
+                        campaignId: effectiveCampaignId,
+                        menuItemId: effectiveMenuItemId,
+                        categoryId: effectiveCategoryId,
+                        contactId: "",
+                        detail: null,
+                    });
+                    if (selectedSecureInboundManual) {
+                        setDynamicFormAnswers((prev) => ({
+                            ...prev,
+                            __inbound_nombre_cliente: "",
+                            __inbound_nombre_cliente_label: "",
+                            __inbound_manual_client_locked: "",
+                        }));
+                    }
                     return;
                 }
 
                 const preselectedChild = childData?.options?.find(
                     (item) =>
                         String(item.menuItemId) ===
-                        String(selectedMenuItemId || ""),
+                        String(effectiveMenuItemId || ""),
                 );
 
                 const currentInboundAgentNumber = String(
@@ -763,6 +930,15 @@ export default function useRegistroQueue({
                 ).trim();
 
                 let queueMatchedChild = null;
+                let hasActiveInboundQueue = false;
+                let currentCallUniqueId = "";
+                let resolvedInboundTicketId = "";
+                let resolvedInboundPhone = "";
+                const manualInboundClientLocked =
+                    String(
+                        dynamicFormAnswersRef.current
+                            ?.__inbound_manual_client_locked || "",
+                    ).trim() === "1";
                 if (currentInboundAgentNumber) {
                     try {
                         const { ok, json } = await fetchInboundCurrentCall({
@@ -771,6 +947,49 @@ export default function useRegistroQueue({
                         const activeQueue = String(
                             json?.data?.queue || "",
                         ).trim();
+                        currentCallUniqueId = String(
+                            json?.data?.ticketId ||
+                                json?.data?.idCallEntry ||
+                                "",
+                        ).trim();
+                        hasActiveInboundQueue = Boolean(ok && activeQueue);
+                        inboundDebugLog("manualFlow:active-call", {
+                            currentInboundAgentNumber,
+                            ok,
+                            activeQueue,
+                            ticketId: String(json?.data?.ticketId || "").trim(),
+                            idCallEntry: String(json?.data?.idCallEntry || "").trim(),
+                        });
+
+                        const resolvedTicketId = String(
+                            json?.data?.ticketId || json?.data?.idCallEntry || "",
+                        ).trim();
+                        const resolvedPhone = String(
+                            json?.data?.phone || "",
+                        ).trim();
+                        resolvedInboundTicketId = resolvedTicketId;
+                        resolvedInboundPhone = resolvedPhone;
+                        if (ok && !selectedSecureInboundManual && !isFollowupInboundFlowEffective) {
+                            // Hidrata siempre ticket/celular en inbound normal.
+                            setDynamicFormAnswers((prev) => ({
+                                ...prev,
+                                ...(resolvedTicketId
+                                    ? {
+                                          CAMPO5: resolvedTicketId,
+                                          ticketId: resolvedTicketId,
+                                          idLlamada: resolvedTicketId,
+                                      }
+                                    : {}),
+                                ...(resolvedPhone
+                                    ? {
+                                          CAMPO3: resolvedPhone,
+                                      }
+                                    : {}),
+                                __inbound_current_call_id: resolvedTicketId,
+                                __inbound_current_call_phone: resolvedPhone,
+                                __inbound_current_call_queue: activeQueue,
+                            }));
+                        }
 
                         if (ok && activeQueue) {
                             const currentSelectedClient = String(
@@ -783,13 +1002,80 @@ export default function useRegistroQueue({
                                 preferredMenuItemId: currentSelectedClient,
                                 selectedCampaignLabel,
                             });
+                            inboundDebugLog("manualFlow:queue-match-result", {
+                                activeQueue,
+                                selected: queueMatchedChild
+                                    ? {
+                                          menuItemId: queueMatchedChild.menuItemId,
+                                          label: queueMatchedChild.label,
+                                          campaignId: queueMatchedChild.campaignId,
+                                      }
+                                    : null,
+                            });
                         }
                     } catch {
+                        inboundDebugLog("manualFlow:active-call-error", {
+                            currentInboundAgentNumber,
+                        });
                         queueMatchedChild = null;
                     }
                 }
 
                 if (queueMatchedChild) {
+                    if (
+                        isFollowupInboundFlowEffective &&
+                        manualInboundClientLocked
+                    ) {
+                        inboundDebugLog("manualFlow:skip-queue-apply-manual-lock", {
+                            selectedFollowupInboundManual:
+                                isFollowupInboundFlowEffective,
+                            manualInboundClientLocked,
+                            queueMatchedChild: {
+                                menuItemId: queueMatchedChild.menuItemId,
+                                label: queueMatchedChild.label,
+                                campaignId: queueMatchedChild.campaignId,
+                            },
+                        });
+                        return;
+                    }
+                    const matchedMenuItemId = String(
+                        queueMatchedChild.menuItemId || "",
+                    ).trim();
+                    const currentlySelectedMenuItemId = String(
+                        dynamicFormAnswersRef.current?.__inbound_nombre_cliente ||
+                            "",
+                    ).trim();
+                    const sameSelection =
+                        matchedMenuItemId &&
+                        matchedMenuItemId === currentlySelectedMenuItemId;
+                    const alreadyRoutedThisCall =
+                        currentCallUniqueId &&
+                        lastInboundAutoRouteCallRef.current ===
+                            currentCallUniqueId;
+
+                    if (sameSelection && alreadyRoutedThisCall) {
+                        inboundDebugLog(
+                            "manualFlow:skip-duplicate-apply-for-call",
+                            {
+                                currentCallUniqueId,
+                                matchedMenuItemId,
+                            },
+                        );
+                        return;
+                    }
+
+                    inboundDebugLog("manualFlow:apply-queue-matched-child", {
+                        child: queueMatchedChild,
+                    });
+                    if (currentCallUniqueId) {
+                        lastInboundAutoRouteCallRef.current = currentCallUniqueId;
+                    }
+                    setCampaignIdSeleccionada(
+                        String(queueMatchedChild.campaignId || "").trim(),
+                    );
+                    setMenuItemIdSeleccionado(
+                        String(queueMatchedChild.menuItemId || "").trim(),
+                    );
                     setDynamicFormAnswers((prev) => ({
                         ...prev,
                         __inbound_nombre_cliente:
@@ -801,26 +1087,107 @@ export default function useRegistroQueue({
                         campaignId:
                             queueMatchedChild.campaignId || selectedCampaignId,
                         menuItemId: queueMatchedChild.menuItemId || "",
-                        categoryId: selectedCategoryId || "",
+                        categoryId: effectiveCategoryId,
                         contactId: "",
                         detail: null,
                     });
+                    // Reaplica el cliente resuelto para evitar que un refresh de plantilla
+                    // lo deje vacio por condiciones de carrera de estado.
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __inbound_nombre_cliente:
+                            queueMatchedChild.menuItemId || "",
+                        __inbound_nombre_cliente_label:
+                            queueMatchedChild.label || "",
+                        ...(resolvedInboundTicketId
+                            ? {
+                                  CAMPO5: resolvedInboundTicketId,
+                                  ticketId: resolvedInboundTicketId,
+                                  idLlamada: resolvedInboundTicketId,
+                              }
+                            : {}),
+                        ...(resolvedInboundPhone
+                            ? {
+                                  CAMPO3: resolvedInboundPhone,
+                              }
+                            : {}),
+                    }));
                     return;
                 }
 
                 if (preselectedChild) {
+                    if (hasActiveInboundQueue && !queueMatchedChild) {
+                        inboundDebugLog("manualFlow:clear-preselected-child", {
+                            reason: "has_active_queue_but_no_safe_match",
+                            preselectedChild,
+                        });
+                        setDynamicFormAnswers((prev) => ({
+                            ...prev,
+                            __inbound_nombre_cliente: "",
+                            __inbound_nombre_cliente_label: "",
+                        }));
+                        return;
+                    }
+                    inboundDebugLog("manualFlow:apply-preselected-child", {
+                        preselectedChild,
+                    });
+                    setCampaignIdSeleccionada(
+                        String(preselectedChild.campaignId || "").trim(),
+                    );
+                    setMenuItemIdSeleccionado(
+                        String(preselectedChild.menuItemId || "").trim(),
+                    );
                     setDynamicFormAnswers((prev) => ({
                         ...prev,
                         __inbound_nombre_cliente: preselectedChild.menuItemId,
                         __inbound_nombre_cliente_label:
                             preselectedChild.label || "",
                     }));
+                    await loadTemplatesAndCatalogs({
+                        campaignId:
+                            String(preselectedChild.campaignId || "").trim() ||
+                            effectiveCampaignId,
+                        menuItemId:
+                            String(preselectedChild.menuItemId || "").trim() ||
+                            effectiveMenuItemId,
+                        categoryId: effectiveCategoryId,
+                        contactId: "",
+                        detail: null,
+                    });
+                    setDynamicFormAnswers((prev) => ({
+                        ...prev,
+                        __inbound_nombre_cliente:
+                            preselectedChild.menuItemId || "",
+                        __inbound_nombre_cliente_label:
+                            preselectedChild.label || "",
+                        ...(resolvedInboundTicketId
+                            ? {
+                                  CAMPO5: resolvedInboundTicketId,
+                                  ticketId: resolvedInboundTicketId,
+                                  idLlamada: resolvedInboundTicketId,
+                              }
+                            : {}),
+                        ...(resolvedInboundPhone
+                            ? {
+                                  CAMPO3: resolvedInboundPhone,
+                              }
+                            : {}),
+                    }));
                     return;
                 }
+
+                await loadTemplatesAndCatalogs({
+                    campaignId: effectiveCampaignId,
+                    menuItemId: effectiveMenuItemId,
+                    categoryId: effectiveCategoryId,
+                    contactId: "",
+                    detail: null,
+                });
 
             };
 
             Promise.resolve(loadManualFlow()).finally(() => {
+                inboundManualLoadInFlightRef.current = false;
                 setLoadingRegistro(false);
             });
         } else {
@@ -838,6 +1205,7 @@ export default function useRegistroQueue({
         selectedManualFlow,
         selectedSecureInboundManual,
         selectedFollowupInboundManual,
+        selectedCampaignLabel,
         loadTemplatesAndCatalogs,
         loadInboundChildOptions,
         resetDynamicState,

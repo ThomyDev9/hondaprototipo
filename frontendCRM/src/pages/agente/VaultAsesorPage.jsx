@@ -415,7 +415,8 @@ export default function VaultAsesorPage() {
                     </span>
                 </div>
 
-                {selectedService.requiresVirtualMachine || vmCredentials.length > 0 ? (
+                {selectedService.requiresVirtualMachine ||
+                vmCredentials.length > 0 ? (
                     <div className="vault-asesor__resolved">
                         <strong>Maquina virtual (global)</strong>
                         <span>
@@ -424,75 +425,76 @@ export default function VaultAsesorPage() {
                             ).trim() ||
                                 "Revisa las instrucciones de acceso virtual con tu supervisor."}
                         </span>
-                        {vmCredentials.length > 0 ? (
-                            vmCredentials.map((vmCredential) => {
-                                const vmKey = String(vmCredential?.id || "");
-                                const revealedVm =
-                                    revealedByCredential[vmKey] || {};
-                                const hasVmData = Boolean(
-                                    revealedVm?.username || revealedVm?.password,
-                                );
-                                return (
-                                    <div
-                                        key={`vm-${vmCredential.id}`}
-                                        className="vault-asesor__resolved"
-                                    >
-                                        {vmCredential?.alias ? (
-                                            <span>
-                                                <strong>Alias VM:</strong>{" "}
-                                                {vmCredential.alias}
-                                            </span>
-                                        ) : null}
-                                        <button
-                                            type="button"
-                                            onClick={async () => {
-                                                try {
-                                                    await handleReveal(
-                                                        vmCredential.id,
-                                                    );
-                                                } catch (err) {
-                                                    setError(
-                                                        err?.message ||
-                                                            "No se pudo revelar VM",
-                                                    );
-                                                }
-                                            }}
-                                        >
-                                            Ver credencial VM global
-                                        </button>
-                                        {hasVmData ? (
-                                            <>
-                                                <pre>{`usuario VM: ${revealedVm?.username || ""}\nclave VM: ${revealedVm?.password || ""}`}</pre>
-                                                <div className="vault-asesor__actions">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleCopyValue(
-                                                                "Usuario VM",
-                                                                revealedVm?.username,
-                                                            )
-                                                        }
-                                                    >
-                                                        Copiar usuario VM
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleCopyValue(
-                                                                "Clave VM",
-                                                                revealedVm?.password,
-                                                            )
-                                                        }
-                                                    >
-                                                        Copiar clave VM
-                                                    </button>
-                                                </div>
-                                            </>
-                                        ) : null}
-                                    </div>
-                                );
-                            })
-                        ) : null}
+                        {vmCredentials.length > 0
+                            ? vmCredentials.map((vmCredential) => {
+                                  const vmKey = String(vmCredential?.id || "");
+                                  const revealedVm =
+                                      revealedByCredential[vmKey] || {};
+                                  const hasVmData = Boolean(
+                                      revealedVm?.username ||
+                                      revealedVm?.password,
+                                  );
+                                  return (
+                                      <div
+                                          key={`vm-${vmCredential.id}`}
+                                          className="vault-asesor__resolved"
+                                      >
+                                          {vmCredential?.alias ? (
+                                              <span>
+                                                  <strong>Alias VM:</strong>{" "}
+                                                  {vmCredential.alias}
+                                              </span>
+                                          ) : null}
+                                          <button
+                                              type="button"
+                                              onClick={async () => {
+                                                  try {
+                                                      await handleReveal(
+                                                          vmCredential.id,
+                                                      );
+                                                  } catch (err) {
+                                                      setError(
+                                                          err?.message ||
+                                                              "No se pudo revelar VM",
+                                                      );
+                                                  }
+                                              }}
+                                          >
+                                              Ver credencial
+                                          </button>
+                                          {hasVmData ? (
+                                              <>
+                                                  <pre>{`usuario VM: ${revealedVm?.username || ""}\nclave VM: ${revealedVm?.password || ""}`}</pre>
+                                                  <div className="vault-asesor__actions">
+                                                      <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                              handleCopyValue(
+                                                                  "Usuario VM",
+                                                                  revealedVm?.username,
+                                                              )
+                                                          }
+                                                      >
+                                                          Copiar usuario VM
+                                                      </button>
+                                                      <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                              handleCopyValue(
+                                                                  "Clave VM",
+                                                                  revealedVm?.password,
+                                                              )
+                                                          }
+                                                      >
+                                                          Copiar clave VM
+                                                      </button>
+                                                  </div>
+                                              </>
+                                          ) : null}
+                                      </div>
+                                  );
+                              })
+                            : null}
                     </div>
                 ) : null}
 

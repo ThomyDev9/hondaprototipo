@@ -21,6 +21,7 @@ import CorreccionesInboundPage from "../supervisor/CorreccionesInboundPage";
 import VaultAsesorPage from "./VaultAsesorPage";
 
 const INBOUND_MENU_CATEGORY_ID = "fa70b8a1-2c69-11f1-b790-000c2904c92f";
+const INBOUND_ROOT_MENU_ITEM_ID = "8a90ebfe-2c82-11f1-b790-000c2904c92f";
 
 export default function DashboardAgente({
     user,
@@ -245,6 +246,16 @@ export default function DashboardAgente({
             String(selectedMenuItemId || "").trim() ===
                 REDES_HISTORICO_MENU_ITEM_ID) &&
         !isHomeView;
+    const isInboundManualNormalFlow =
+        manualFlowActivo &&
+        String(categoryIdSeleccionada || "").trim() === INBOUND_MENU_CATEGORY_ID &&
+        String(menuItemIdSeleccionado || "").trim() === INBOUND_ROOT_MENU_ITEM_ID &&
+        !selectedSecureInboundManual &&
+        !selectedFollowupInboundManual;
+    const isInboundClientRoutePending =
+        isInboundManualNormalFlow &&
+        (loadingRegistro ||
+            !String(dynamicFormAnswers?.__inbound_nombre_cliente || "").trim());
 
     if (!isAgente) {
         return (
@@ -316,6 +327,14 @@ export default function DashboardAgente({
                         <p className="agent-info-text">Asignando registro...</p>
                     )}
 
+                {isInboundClientRoutePending &&
+                    !isHomeView &&
+                    !isInboundHistoricoView && (
+                        <p className="agent-info-text">
+                            Resolviendo cliente inbound por cola...
+                        </p>
+                    )}
+
                 {shouldShowQueueMessage &&
                     !isHomeView &&
                     !isInboundHistoricoView &&
@@ -342,6 +361,7 @@ export default function DashboardAgente({
                 {(registro || manualFlowActivo) &&
                     !isHomeView &&
                     !isInboundHistoricoView && (
+                    !isInboundClientRoutePending ? (
                         <AgentGestionForm
                             registro={registro}
                             campaignId={
@@ -416,6 +436,7 @@ export default function DashboardAgente({
                             user={user}
                             isSaving={isSavingGestion}
                         />
+                    ) : null
                     )}
                 {isAgente &&
                     !isHomeView &&

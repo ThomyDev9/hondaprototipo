@@ -843,19 +843,25 @@ function AgentGestionForm({
         : isInboundManualFlow
           ? "inbound"
           : "standard";
+    const resolvedInboundClientLabel = String(
+        dynamicFormAnswers?.__inbound_nombre_cliente_label || "",
+    ).trim();
     const manualInboundDisplayTitle = String(
-        campaignLabel || dynamicFormConfig?.title || "Gestion Inbound",
+        resolvedInboundClientLabel ||
+            campaignLabel ||
+            dynamicFormConfig?.title ||
+            "Gestion Inbound",
     ).trim();
     const dynamicSectionHeaderTitle = isRedesManualFlow
         ? "Gestion Redes"
         : isInboundManualFlow
           ? manualInboundDisplayTitle
           : `Formulario 2 - ${dynamicFormConfig?.title || "Formulario 2"}`;
-    const inboundCampaignHints = [
-        campaignId,
-        campaignLabel,
-        dynamicFormAnswers?.__inbound_nombre_cliente_label,
-    ]
+    const inboundCampaignHints = (
+        resolvedInboundClientLabel
+            ? [resolvedInboundClientLabel]
+            : [campaignId, campaignLabel]
+    )
         .map((item) => String(item || "").trim())
         .filter(Boolean);
 

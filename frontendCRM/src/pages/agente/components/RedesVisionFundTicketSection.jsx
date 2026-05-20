@@ -77,7 +77,17 @@ function looksLikeInternalCode(value = "") {
 
 function sanitizeClientName(value = "") {
     const normalized = String(value || "").trim();
-    return normalized && !looksLikeInternalCode(normalized) ? normalized : "";
+    const normalizedLabel = normalized
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    const isCampaignPlaceholder =
+        normalizedLabel === "banco visionfund" ||
+        normalizedLabel === "visionfund" ||
+        normalizedLabel === "gestion redes";
+    return normalized && !looksLikeInternalCode(normalized) && !isCampaignPlaceholder
+        ? normalized
+        : "";
 }
 
 function findFirstValue(item, keys = []) {
